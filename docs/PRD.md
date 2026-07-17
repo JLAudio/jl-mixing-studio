@@ -224,11 +224,13 @@ The next milestone establishes the approved product information architecture wit
 2. Establish the approved route semantics: Clients represents the client directory and client details, while selected-project screens are project routes with Projects active.
 3. Reserve a consistent global-search location on every application screen and present it as disabled and **Planned** until functional search is implemented.
 4. Move the existing workspace dashboard into the Dashboard route without changing its source-of-truth behavior.
-5. Preserve guided client creation, including preflight, explicit confirmation, allowlisted execution, and post-create verification.
-6. Establish reusable layout, navigation, card, table, status, and action patterns based on the approved wireframe.
-7. Present honest unavailable states for routes whose data or workflows have not yet been implemented.
-8. Preserve keyboard access, readable focus treatment, minimum-window usability, and responsive resizing.
-9. Keep JL Mixing Automation v1.2.0 and workspace files authoritative; do not introduce hidden lifecycle, task, activity, search, completion, or settings state.
+5. Organize the Dashboard around the question **“What do I need to work on today?”**, retaining workflow summary cards, Today’s Work, Studio Health, Quick Actions, and Recent Activity; populate only supported data and label deferred content Planned.
+6. Preserve guided client creation, including preflight, explicit confirmation, allowlisted execution, and post-create verification.
+7. Establish reusable layout, navigation, card, table, status, and action patterns based on the approved wireframe.
+8. Preserve the original wireframe’s useful screen content and information density wherever it does not contradict approved source-of-truth or capability constraints.
+9. Present honest unavailable states for routes whose data or workflows have not yet been implemented.
+10. Preserve keyboard access, readable focus treatment, minimum-window usability, and responsive resizing.
+11. Keep JL Mixing Automation v1.2.0 and workspace files authoritative; do not introduce hidden lifecycle, task, activity, search, completion, or settings state.
 
 The product-level flow is Clients → Client Details → project selection → Project Overview. The Projects directory reaches the same Project Overview route. Client editing remains deferred because JL Mixing Automation v1.2.0 has no client-edit command.
 
