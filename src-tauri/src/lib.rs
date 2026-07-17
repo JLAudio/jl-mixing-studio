@@ -1,8 +1,9 @@
 mod cli;
-mod manifest;
 mod models;
+mod workspace;
 
-use models::{ProjectSummary, SystemInfo, VersionCheck};
+use models::{SystemInfo, VersionCheck, WorkspaceSnapshot};
+use tauri::Manager;
 
 #[tauri::command]
 fn get_system_info() -> SystemInfo {
@@ -19,15 +20,13 @@ fn get_jl_mixing_version() -> VersionCheck {
     cli::check_jl_mixing_version()
 }
 
-/// Parses the read-only fixture bundled with this architecture spike.
-/// Accepting arbitrary paths is intentionally deferred until a file-picker
-/// workflow and its path-validation policy have been designed.
 #[tauri::command]
-fn read_sample_manifest() -> Result<ProjectSummary, String> {
-    manifest::parse_project_manifest(include_str!(
-        "../../fixtures/project with spaces/project-manifest.json"
-    ))
-    .map_err(|error| error.to_string())
+fn discover_default_workspace(app: tauri::AppHandle) -> Result<WorkspaceSnapshot, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|_| "The current user's home directory could not be resolved".to_owned())?;
+    Ok(workspace::discover_workspace_at(&home.join("Music").join("Mixes")))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -36,7 +35,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             get_jl_mixing_version,
-            read_sample_manifest
+            discover_default_workspace
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
