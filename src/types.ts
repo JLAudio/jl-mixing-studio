@@ -1,7 +1,40 @@
 export interface VersionCheck {
   available: boolean;
+  supported: boolean;
+  clientCreationSupported: boolean;
   version: string | null;
   message: string;
+}
+
+export interface ClientCreationRequest {
+  clientId: string;
+  clientName: string;
+  defaultArtist: string | null;
+}
+
+export interface ClientCreationSummary {
+  clientId: string;
+  clientName: string;
+  defaultArtist: string | null;
+}
+
+export type ClientOperationCode =
+  | "ready"
+  | "created"
+  | "invalidInput"
+  | "automationUnavailable"
+  | "unsupportedVersion"
+  | "unsupportedPlatform"
+  | "workspaceBlocked"
+  | "collision"
+  | "rejected"
+  | "failed";
+
+export interface ClientOperationResult {
+  ok: boolean;
+  code: ClientOperationCode;
+  message: string;
+  client: ClientCreationSummary | null;
 }
 
 export type WorkspaceStatus =
