@@ -86,7 +86,10 @@ mod tests {
 
     #[test]
     fn rejects_unsupported_schema_version() {
-        let changed = FIXTURE.replace("\"schema_version\": \"1.1.0\"", "\"schema_version\": \"2.0.0\"");
+        let changed = FIXTURE.replace(
+            "\"schema_version\": \"1.1.0\"",
+            "\"schema_version\": \"2.0.0\"",
+        );
         assert_eq!(
             parse_project_manifest(&changed),
             Err(ManifestError::UnsupportedSchemaVersion("2.0.0".into()))
