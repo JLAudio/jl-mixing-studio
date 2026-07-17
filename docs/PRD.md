@@ -1,0 +1,196 @@
+# JL Mixing Studio Product Requirements Document
+
+**Status:** Initial approved baseline  
+**Product:** JL Mixing Studio  
+**License:** Apache-2.0  
+**Functional baseline:** JL Mixing Automation v1.2.0
+
+## 1. Product summary
+
+JL Mixing Studio is an open-source desktop GUI that complements JL Mixing Automation. It is designed for small-studio and home-studio mix engineers who want a clear, guided workflow without losing the portability, transparency, and automation of the command-line system.
+
+The application is studio-aware: it understands the engineer's configured workspace, clients, projects, revisions, approvals, deliveries, and supported defaults. It presents that state visually and guides the user through valid next actions.
+
+## 2. Goals
+
+JL Mixing Studio shall:
+
+1. Make JL Mixing Automation workflows approachable without requiring routine terminal use.
+2. Preserve JL Mixing Automation project structures and metadata semantics.
+3. Present the current state of a studio, client, project, revision, approval, and delivery clearly.
+4. Guide users toward the next valid workflow action.
+5. Surface validation findings in plain language with actionable recommendations.
+6. Keep user data local and projects understandable without the GUI.
+7. Use free or near-free libraries, development tools, CI, packaging, and testing.
+8. Support a reproducible development environment suitable for automated code generation and testing.
+9. Support macOS and Windows initially.
+10. Remain useful to small and home studios without requiring a paid service.
+
+## 3. Non-goals for the initial product
+
+The initial product will not:
+
+- Replace a DAW.
+- Host audio plug-ins or process mix audio.
+- Store projects in a proprietary database or cloud-only format.
+- Require a paid subscription or hosted service.
+- Change JL Mixing Automation metadata or lifecycle behavior implicitly.
+- Implement multi-user collaboration or remote project synchronization.
+- Manage DAW templates or presets outside their DAW-native locations.
+- Add archive or project-reactivation behavior unless separately approved.
+
+## 4. Target users
+
+### Primary user
+
+A small-studio or home-studio mix engineer who:
+
+- Manages multiple clients and projects.
+- Uses a repeatable mix, revision, approval, and delivery workflow.
+- Wants reliable organization without building custom scripts.
+- May be uncomfortable with command-line tools.
+- Values local control and transparent project files.
+
+### Contributor
+
+An open-source developer who needs clear architecture boundaries, reproducible builds, automated tests, and permissively licensed dependencies.
+
+## 5. Product principles
+
+1. **GUI over automation, not a replacement for it.** JL Mixing Automation remains the functional baseline until functionality is intentionally moved into a shared core.
+2. **Project data is the source of truth.** The interface reflects project files and metadata rather than creating a hidden competing state.
+3. **Safe by default.** Validate paths and inputs before filesystem changes or process execution.
+4. **Explain the next step.** Every workflow screen should make valid next actions obvious.
+5. **Preserve portability.** A project must remain inspectable and usable without JL Mixing Studio.
+6. **Local first.** Core functionality must not depend on internet access or a paid service.
+7. **Accessible and readable.** The interface should favor clarity, keyboard access, and practical studio use over decorative complexity.
+8. **No silent compatibility changes.** Metadata or CLI compatibility changes require explicit design approval and tests.
+
+## 6. Initial functional areas
+
+### 6.1 Studio setup and detection
+
+- Locate or create a supported JL Mixing workspace.
+- Read studio configuration and defaults.
+- Validate required tools and supported JL Mixing Automation version.
+- Display setup problems and corrective steps.
+
+### 6.2 Dashboard
+
+- Summarize clients, active work, recent projects, and workflow status.
+- Highlight items needing attention.
+- Provide direct access to common next actions.
+
+### 6.3 Client management
+
+- List and inspect clients.
+- Create clients through supported automation.
+- Display client defaults and projects.
+
+### 6.4 Project creation and overview
+
+- Create a mix project using the JL Mixing Automation v1.2.0 rules.
+- Display artist, project identity, current revision, approved revision, delivered revision, and completion state.
+- Link to the underlying project directory.
+- Avoid duplicating manifest state in an application-only database.
+
+### 6.5 Intake validation
+
+- Run supported intake validation.
+- Present errors, warnings, skipped checks, inventory, mismatches, and recommendations clearly.
+- Preserve the non-destructive behavior of validation.
+- Provide access to the generated report.
+
+### 6.6 Revisions and approval
+
+- Display revision history and status.
+- Create the next revision through supported automation.
+- Approve a selected revision using established lifecycle rules.
+- Make superseded, approved, and current states visually distinct.
+
+### 6.7 Delivery and completion
+
+- Guide the user through delivery preparation, notes, ZIP creation, and overwrite rules.
+- Display the delivered revision.
+- Complete a project through the supported metadata-only workflow.
+
+### 6.8 Settings
+
+- Manage application preferences separately from project metadata.
+- Display detected workspace and tool versions.
+- Configure approved studio defaults through supported data structures.
+- Avoid storing secrets unless a future feature explicitly requires them.
+
+## 7. Compatibility requirements
+
+- JL Mixing Automation v1.2.0 is the initial behavior baseline.
+- Repository release versions and metadata schema versions are distinct.
+- Metadata schema identities currently remain at 1.1.0.
+- Existing `created_with` values must be preserved.
+- New GUI behavior must not rewrite metadata merely by opening or inspecting a project.
+- CLI failures must be reported without leaving the GUI in a falsely successful state.
+- Paths containing spaces must be supported.
+- Intel and Apple Silicon macOS builds should be considered in packaging design.
+- Windows support must be validated in CI and on a real Windows environment before release.
+
+## 8. Architecture constraints
+
+The provisional architecture is:
+
+- Tauri 2 desktop shell.
+- React and TypeScript frontend.
+- Rust application and operating-system integration layer.
+- Typed commands between the frontend and Rust.
+- Restricted command capabilities; no arbitrary shell execution from the frontend.
+- JL Mixing Automation invoked as a versioned external dependency during the initial architecture.
+- JSON schemas or generated types used to keep Rust and TypeScript models aligned where practical.
+
+The architecture remains provisional until ADR-0001's validation spike passes.
+
+## 9. Quality requirements
+
+- Unit tests for business rules and data parsing.
+- Integration tests around JL Mixing Automation invocation.
+- Representative fixtures for supported metadata.
+- Frontend component tests for important workflow states.
+- Automated formatting, linting, type checking, and tests in CI.
+- No filesystem mutation in tests outside isolated temporary directories.
+- Clear error messages that identify the failed action and safe recovery step.
+- Dependencies must be actively maintained and compatible with open-source distribution.
+- Paid-only dependencies or services require explicit approval.
+
+## 10. Security and privacy
+
+- Operate locally by default.
+- Do not collect telemetry by default.
+- Do not execute project-provided commands.
+- Validate and constrain all paths received from the frontend.
+- Use Tauri capabilities to grant only required permissions.
+- Never expose an unrestricted shell interface to the frontend.
+- Avoid following untrusted symbolic links during destructive operations.
+- Require explicit confirmation for material deletion or overwrite operations.
+
+## 11. Initial milestone: architecture validation
+
+The first implementation milestone is complete when a minimal application:
+
+1. Launches on an Intel Mac running macOS Monterey.
+2. Builds and launches on a supported Windows environment.
+3. Invokes `jl-mixing --version` through a restricted Rust command and displays the structured result.
+4. Reads a representative JL Mixing Automation v1.2.0 project manifest through Rust and displays selected fields in React.
+5. Includes automated tests for version-output handling and manifest parsing.
+6. Passes formatting, linting, type checking, tests, and builds in GitHub Actions.
+7. Documents setup and reproduction steps.
+
+This milestone is an architecture spike, not the first production release.
+
+## 12. Future decisions requiring approval
+
+- Minimum supported Windows version.
+- Long-term minimum macOS version.
+- Exact React component and styling approach.
+- Whether to bundle JL Mixing Automation or require a separate installation.
+- Shared-core strategy between the CLI and GUI.
+- Release signing, notarization, and update distribution.
+- Telemetry or crash reporting, if any.
+- Public release roadmap and versioning policy.
