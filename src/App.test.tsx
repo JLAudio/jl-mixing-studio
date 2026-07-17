@@ -240,6 +240,9 @@ describe("workspace dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "New client" }));
     const idInput = screen.getByLabelText(/client id/i);
     expect(idInput).toHaveFocus();
+    expect(idInput).toHaveAttribute("autocapitalize", "none");
+    expect(idInput).toHaveAttribute("autocorrect", "off");
+    expect(idInput).toHaveAttribute("spellcheck", "false");
     fireEvent.change(idInput, { target: { value: "Not Valid" } });
     fireEvent.change(screen.getByLabelText(/display name/i), {
       target: { value: "New Client" },
