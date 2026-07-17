@@ -63,7 +63,11 @@ fn resolve_home(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 fn run_client_operation(
     app: &tauri::AppHandle,
     request: ClientCreationRequest,
-    operation: fn(&std::path::Path, &std::path::Path, ClientCreationRequest) -> ClientOperationResult,
+    operation: fn(
+        &std::path::Path,
+        &std::path::Path,
+        ClientCreationRequest,
+    ) -> ClientOperationResult,
 ) -> ClientOperationResult {
     if cfg!(target_os = "windows") {
         return cli::blocked_client_operation(
