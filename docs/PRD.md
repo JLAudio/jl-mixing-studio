@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Approved baseline; read-only dashboard complete  
+**Status:** Approved baseline; guided client creation complete; application shell next  
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
 **Functional baseline:** JL Mixing Automation v1.2.0
@@ -200,9 +200,9 @@ This completed milestone established the production read path before any project
 
 Creation or editing of studios, clients, projects, revisions, approvals, deliveries, settings, or other workflow state is outside this milestone. JL Mixing Automation v1.2.0 has no project-completion state, and the GUI must not invent one. The completed scope and acceptance criteria are tracked in [Issue #3](https://github.com/JLAudio/jl-mixing-studio/issues/3).
 
-## 13. Current milestone: safe automation bridge and guided client creation
+## 13. Completed milestone: safe automation bridge and guided client creation
 
-The current milestone introduces the first controlled write workflow while preserving JL Mixing Automation v1.2.0 as the functional baseline. The application shall:
+This completed milestone introduced the first controlled write workflow while preserving JL Mixing Automation v1.2.0 as the functional baseline. The application:
 
 1. Require a valid healthy or empty default workspace and a detected JL Mixing Automation v1.2.0 installation.
 2. Collect only client ID, display name, and optional default artist; all other values inherit studio defaults.
@@ -214,13 +214,37 @@ The current milestone introduces the first controlled write workflow while prese
 8. Keep the read-only dashboard available when client creation is unavailable.
 9. Test command construction through an injected fake runner and keep automated tests isolated from real workspaces.
 
-Studio creation, project creation, client editing or deletion, arbitrary workspace or executable selection, automation installation, and all project lifecycle mutations remain outside this milestone. The detailed scope and acceptance criteria are tracked in [Issue #6](https://github.com/JLAudio/jl-mixing-studio/issues/6).
+Studio creation, project creation, client editing or deletion, arbitrary workspace or executable selection, automation installation, and all project lifecycle mutations remain outside this milestone. The completed scope and acceptance criteria are tracked in [Issue #6](https://github.com/JLAudio/jl-mixing-studio/issues/6).
 
-## 14. Future decisions requiring approval
+## 14. Next milestone: application shell and navigation
+
+The next milestone establishes the approved product information architecture without adding unsupported workflow behavior. The application shall:
+
+1. Add a persistent JL Mixing Studio shell with a white left navigation pane for Dashboard, Studio, Clients, Projects, Tasks, Reports, Activity Log, and Settings.
+2. Establish the approved route semantics: Clients represents the client directory and client details, while selected-project screens are project routes with Projects active.
+3. Reserve a consistent global-search location on every application screen and present it as disabled and **Planned** until functional search is implemented.
+4. Move the existing workspace dashboard into the Dashboard route without changing its source-of-truth behavior.
+5. Organize the Dashboard around the question **“What do I need to work on today?”**, retaining workflow summary cards, Today’s Work, Studio Health, Quick Actions, and Recent Activity; populate only supported data and label deferred content Planned.
+6. Preserve guided client creation, including preflight, explicit confirmation, allowlisted execution, and post-create verification.
+7. Establish reusable layout, navigation, card, table, status, and action patterns based on the approved wireframe.
+8. Preserve the original wireframe’s useful screen content and information density wherever it does not contradict approved source-of-truth or capability constraints.
+9. Present honest unavailable states for routes whose data or workflows have not yet been implemented.
+10. Preserve keyboard access, readable focus treatment, minimum-window usability, and responsive resizing.
+11. Keep JL Mixing Automation v1.2.0 and workspace files authoritative; do not introduce hidden lifecycle, task, activity, search, completion, or settings state.
+
+The product-level flow is Clients → Client Details → project selection → Project Overview. The Projects directory reaches the same Project Overview route. Client editing remains deferred because JL Mixing Automation v1.2.0 has no client-edit command.
+
+Activity, recommended priorities, and tasks are future functional milestones, but their source rules are approved: Activity is reconstructed only from supported persisted event timestamps, while priorities and tasks are derived from validated project state through one deterministic rule set. They must not create competing GUI-owned state or label a project completed.
+
+`Everything is searchable` is an approved product goal. Future search remains local, read-only, and derived from authoritative workspace data; any cache or index must be rebuildable and non-authoritative. Functional search, ranking, indexing, results, and keyboard behavior remain outside this milestone even though the shell reserves their visual location.
+
+Arbitrary workspace switching, user accounts, a standalone activity database, system storage diagnostics, settings mutation, project creation, and project lifecycle actions remain outside this milestone. The approved design constraints and derivation rules are recorded in [UI architecture](design/UI_ARCHITECTURE.md), and implementation acceptance criteria are tracked in [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8).
+
+## 15. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.
-- Exact React component and styling approach.
+- Long-term React component-library strategy beyond the approved application-shell patterns.
 - Whether to bundle JL Mixing Automation or require a separate installation.
 - Shared-core strategy between the CLI and GUI.
 - Release signing, notarization, and update distribution.
