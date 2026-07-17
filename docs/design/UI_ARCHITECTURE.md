@@ -17,10 +17,12 @@ Implementation remains incremental. Every screen, count, status, and action must
 
 The following patterns are approved:
 
-- A persistent dark sidebar paired with a light primary content area.
+- A persistent white sidebar with a subtle divider, dark text, and a pale-blue active state paired with the light primary content area.
 - JL Mixing Studio branding throughout the application shell.
 - Primary navigation for Dashboard, Studio, Clients, Projects, Tasks, Reports, Activity Log, and Settings.
 - A visible current-workspace context in the shell.
+- A consistent global-search location reserved in the shell on every application screen, presented as clearly disabled and planned until search is implemented.
+- Contextual search and filtering areas for collection-oriented Clients, Projects, Tasks, Reports, and Activity views.
 - Project-centered navigation through Overview, Intake, Revisions, Delivery, Reports, Files, and Metadata.
 - Clear page headings, compact summary cards, readable tables, explicit status treatments, and prominent next actions.
 - A recommended-next-step pattern that explains the safest valid workflow action.
@@ -75,7 +77,7 @@ JL Mixing Automation v1.2.0 and the files in the selected JL Mixing workspace re
 | Workspace identity | Current approved workspace resolution; arbitrary selection is not implied |
 | Settings | Application preferences or supported studio structures, kept distinct |
 | Open-folder and DAW actions | Restricted operating-system capabilities with validated paths |
-| Search | Requires an approved local indexing or direct-search design |
+| Search | Future local, read-only queries over validated workspace data and approved derived views; any cache or index must be rebuildable and non-authoritative |
 | Engineer name | Local studio metadata or application preference; not a user account |
 
 Opening or inspecting a workspace must not rewrite project metadata. The interface must not report a successful mutation until the underlying operation and subsequent state verification succeed.
@@ -126,7 +128,8 @@ The following sample elements are not approved product behavior as drawn:
 - The product name is **JL Mixing Studio**, not JL Mixing Automation. JL Mixing Automation is the compatible external automation system.
 - The Studio application version and the JL Mixing Automation compatibility version are separate. The sample `v2.0.0 (Preview)` label is not an approved release version.
 - JL Mixing Automation v1.2.0 has no project-completion state. JL Mixing Studio must not invent completed-project counts or completion status.
-- Global search, arbitrary workspace switching, user accounts, multi-user activity, system storage diagnostics, editable studio defaults, and unrestricted settings changes require separate approval.
+- The goal is that all supported workspace information is searchable. Functional search, query ranking, indexing, and keyboard behavior remain separately reviewed work; the shell only reserves a clearly planned search surface.
+- Arbitrary workspace switching, user accounts, multi-user activity, system storage diagnostics, editable studio defaults, and unrestricted settings changes require separate approval.
 - Project Overview is reached after project selection from either Client Details or Projects; Projects remains the active primary route.
 - The Clients route requires a client directory and Client Details screen before it can represent the approved product flow.
 - Derived Activity is limited to the specific persisted events defined above and must not imply a complete audit trail.
@@ -134,16 +137,29 @@ The following sample elements are not approved product behavior as drawn:
 - Screen controls must not imply that an unsupported operation is available. Use explicit unavailable or planned states instead.
 - Windows must remain usable for supported read-only behavior when JL Mixing Automation v1.2.0 is unavailable.
 
+## Search design goal
+
+**Everything is searchable** is an approved product goal. The architecture must preserve room for search even while functional search remains deferred.
+
+- The application shell reserves one consistent global-search location on every application screen.
+- Until search is implemented, the affordance is disabled and explicitly labeled **Planned**; it must not accept input or imply that results are available.
+- Clients, Projects, Tasks, Reports, and Activity also reserve contextual search or filtering within their collection views.
+- Future searchable sources may include validated client and project metadata, supported revision and delivery state, approved derived Tasks and Activity, generated report content, and validated workspace file names as those capabilities are reviewed.
+- Search remains local, offline-capable, and read-only. It must not require a hosted or paid service.
+- If a cache or index is introduced, it is disposable and completely rebuildable from authoritative workspace files. It must never become a competing source of truth.
+- Exact query syntax, ranking, indexing strategy, result navigation, keyboard shortcuts, and performance limits require a focused implementation milestone.
+
 ## Application shell milestone
 
 [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8) is limited to the shared shell and navigation foundation:
 
-1. Build the persistent sidebar and route structure.
-2. Move the existing workspace dashboard into the Dashboard route.
-3. Preserve guided client creation and all current safety constraints.
-4. Establish reusable layout, navigation, card, table, status, and action styles.
-5. Provide honest unavailable states for routes that are not implemented.
-6. Do not add new workflow state, broad filesystem access, arbitrary command execution, or unsupported mutations.
+1. Build the persistent white sidebar and route structure.
+2. Reserve the consistent disabled **Search — Planned** surface without implementing queries, indexing, or results.
+3. Move the existing workspace dashboard into the Dashboard route.
+4. Preserve guided client creation and all current safety constraints.
+5. Establish reusable layout, navigation, card, table, status, and action styles.
+6. Provide honest unavailable states for routes that are not implemented.
+7. Do not add new workflow state, broad filesystem access, arbitrary command execution, functional search, or unsupported mutations.
 
 The shell milestone does not implement the complete ten-screen wireframe.
 
