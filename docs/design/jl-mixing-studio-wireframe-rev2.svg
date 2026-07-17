@@ -29,6 +29,11 @@
       .search-text { fill: #5d6c7c; font: 11px system-ui, sans-serif; }
       .search-badge { fill: #fff1bd; stroke: #d8b850; stroke-width: 1; rx: 4; }
       .search-badge-text { fill: #765f0a; font: 700 8px system-ui, sans-serif; letter-spacing: .5px; }
+      .ok { fill: #177a45; font: 700 10px system-ui, sans-serif; }
+      .warn { fill: #a86700; font: 700 10px system-ui, sans-serif; }
+      .bad { fill: #b33939; font: 700 10px system-ui, sans-serif; }
+      .mini-button { fill: #ffffff; stroke: #aeb9c5; stroke-width: 1; rx: 4; }
+      .mini-button-text { fill: #33465a; font: 700 9px system-ui, sans-serif; }
     </style>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e86de"/>
@@ -71,25 +76,45 @@
     <use href="#sidebar-base" x="0" y="42"/>
     <rect class="active" x="5" y="96" width="115" height="22" rx="4"/>
     <text class="screen-title" x="145" y="78">Studio Dashboard</text><use href="#search-planned" x="407" y="55"/>
-    <rect class="card" x="145" y="95" width="132" height="58"/><rect class="card" x="286" y="95" width="132" height="58"/><rect class="card" x="427" y="95" width="150" height="58"/>
-    <text class="small" x="157" y="116">Clients</text><text class="heading" x="157" y="140">12</text>
-    <text class="small" x="298" y="116">Projects</text><text class="heading" x="298" y="140">18</text>
-    <text class="small" x="439" y="116">Needs attention</text><text class="heading" x="439" y="140">4</text>
-    <text class="heading" x="145" y="182">Recommended priorities</text>
-    <rect class="row" x="145" y="192" width="432" height="35"/><rect class="row" x="145" y="227" width="432" height="35"/><rect class="row" x="145" y="262" width="432" height="35"/>
-    <text class="body" x="157" y="214">1  Resolve invalid workspace data</text><text class="body" x="157" y="249">2  Deliver approved revision</text><text class="body" x="157" y="284">3  Review approaching deadline</text>
-    <text class="heading" x="145" y="326">Recent derived activity</text>
-    <text class="small" x="145" y="348">Created • Revision • Approval • Delivery timestamps only</text>
-    <text class="small" x="145" y="370">No separate GUI activity database</text>
+    <text class="small" x="145" y="101">What do I need to work on today?</text>
+    <rect class="card" x="145" y="112" width="100" height="48"/><rect class="card" x="253" y="112" width="100" height="48"/><rect class="card" x="361" y="112" width="100" height="48"/><rect class="card" x="469" y="112" width="108" height="48"/>
+    <text class="heading" x="156" y="134">12</text><text class="small" x="156" y="151">Active projects</text>
+    <text class="heading" x="264" y="134">3</text><text class="small" x="264" y="151">Awaiting approval</text>
+    <text class="heading" x="372" y="134">1</text><text class="small" x="372" y="151">Ready to deliver</text>
+    <text class="heading" x="480" y="134">2</text><text class="small" x="480" y="151">Warnings</text>
+    <text class="heading" x="145" y="182">Today’s work</text>
+    <rect class="row" x="145" y="190" width="276" height="31"/><rect class="row" x="145" y="221" width="276" height="31"/><rect class="row" x="145" y="252" width="276" height="31"/>
+    <text class="body" x="156" y="210">Midnight EP — approval needed</text><text class="warn" x="377" y="210">REVIEW</text>
+    <text class="body" x="156" y="241">Coastal Drive — delivery ready</text><text class="ok" x="379" y="241">OPEN</text>
+    <text class="body" x="156" y="272">Summer Single — 2 warnings</text><text class="warn" x="377" y="272">CHECK</text>
+    <rect class="card" x="430" y="178" width="147" height="79"/><text class="heading" x="441" y="198">Studio Health</text>
+    <text class="ok" x="441" y="216">● Automation v1.2</text><text class="ok" x="441" y="232">● Workspace healthy</text><text class="small" x="441" y="248">ffmpeg • ffprobe ready</text>
+    <rect class="card" x="430" y="264" width="147" height="73"/><text class="heading" x="441" y="283">Quick Actions</text>
+    <rect class="mini-button" x="441" y="290" width="125" height="16"/><rect class="planned" x="441" y="309" width="60" height="16"/><rect class="planned" x="506" y="309" width="60" height="16"/>
+    <text class="mini-button-text" x="472" y="301">NEW CLIENT</text><text class="planned-text" x="449" y="320">PROJECT</text><text class="planned-text" x="513" y="320">VALIDATE</text>
+    <text class="heading" x="145" y="307">Recent Activity</text>
+    <rect class="row" x="145" y="315" width="276" height="28"/><rect class="row" x="145" y="343" width="276" height="28"/>
+    <text class="small" x="156" y="333">Revision created — Midnight EP R5</text><text class="small" x="156" y="361">Delivery created — Coastal Drive</text>
+    <text class="small" x="145" y="392">Priorities, health, actions, and activity use approved sources or show Planned.</text>
   </g>
 
   <!-- 02 Studio -->
   <g transform="translate(660 100)">
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">02 STUDIO</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="124" width="115" height="22" rx="4"/>
-    <text class="screen-title" x="145" y="78">Studio</text><use href="#search-planned" x="407" y="55"/><rect class="card" x="145" y="98" width="432" height="94"/>
-    <text class="heading" x="160" y="125">Studio identity and defaults</text><text class="body" x="160" y="151">Read approved studio.json fields</text><text class="small" x="160" y="174">Editing remains a future reviewed workflow</text>
-    <rect class="planned" x="145" y="215" width="205" height="34"/><text class="planned-text" x="160" y="237">Future milestone</text>
+    <text class="screen-title" x="145" y="78">Studio Overview</text><use href="#search-planned" x="407" y="55"/>
+    <rect class="card" x="145" y="98" width="136" height="91"/><rect class="card" x="289" y="98" width="136" height="91"/><rect class="card" x="433" y="98" width="144" height="91"/>
+    <text class="heading" x="157" y="120">My Studio</text><text class="small" x="157" y="140">Primary mixing studio</text><text class="small" x="157" y="159">studio.json validated</text><text class="planned-text" x="157" y="178">EDIT PLANNED</text>
+    <text class="heading" x="301" y="120">Workspace</text><text class="small" x="301" y="140">~/Music/Mixes</text><text class="small" x="301" y="159">macOS • Intel</text><text class="planned-text" x="301" y="178">CHANGE PLANNED</text>
+    <text class="heading" x="445" y="120">System Tools</text><text class="ok" x="445" y="140">● Automation 1.2</text><text class="ok" x="445" y="157">● ffmpeg / ffprobe</text><text class="ok" x="445" y="174">● ShellCheck</text>
+    <rect class="card" x="145" y="198" width="136" height="82"/><rect class="card" x="289" y="198" width="136" height="82"/><rect class="card" x="433" y="198" width="144" height="82"/>
+    <text class="heading" x="157" y="220">Audio Defaults</text><text class="small" x="157" y="239">48 kHz • 24-bit</text><text class="small" x="157" y="256">WAV • Logic Pro</text><text class="planned-text" x="157" y="272">EDIT PLANNED</text>
+    <text class="heading" x="301" y="220">Storage</text><text class="small" x="301" y="239">Workspace size</text><text class="small" x="301" y="256">Free-space diagnostic</text><text class="planned-text" x="301" y="272">PLANNED</text>
+    <text class="heading" x="445" y="220">Studio Statistics</text><text class="small" x="445" y="239">Clients 5</text><text class="small" x="445" y="256">Projects 12 • Revisions 87</text><text class="small" x="445" y="273">Deliveries 36</text>
+    <text class="heading" x="145" y="309">Recent Studio Activity</text>
+    <rect class="row" x="145" y="318" width="432" height="27"/><rect class="row" x="145" y="345" width="432" height="27"/>
+    <text class="small" x="157" y="336">New revision created — Midnight EP R5</text><text class="small" x="157" y="363">Mix approved — Summer Single R3</text>
+    <text class="small" x="145" y="393">Unsupported edit, workspace, storage, and diagnostic controls remain Planned.</text>
   </g>
 
   <!-- 03 Clients list -->
@@ -109,7 +134,7 @@
   <g transform="translate(20 560)">
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">04 CLIENT DETAILS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="152" width="115" height="22" rx="4"/>
-    <text class="small" x="145" y="68">Clients / Acme Records</text><text class="screen-title" x="145" y="94">Acme Records</text><use href="#search-planned" x="270" y="69"/>
+    <text class="small" x="145" y="68">Clients / Acme Records</text><text class="screen-title" x="145" y="94">Acme Records</text><use href="#search-planned" x="290" y="69"/>
     <rect class="planned" x="447" y="69" width="130" height="29"/><text class="planned-text" x="462" y="88">EDIT PLANNED</text>
     <rect class="card" x="145" y="112" width="432" height="72"/><text class="heading" x="158" y="137">Client defaults</text><text class="body" x="158" y="160">Artist • 48 kHz • 24-bit • WAV • Deliverables</text>
     <text class="heading" x="145" y="213">Projects</text>
@@ -124,13 +149,17 @@
   <g transform="translate(660 560)">
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">05 PROJECTS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
-    <text class="screen-title" x="145" y="78">Projects</text><use href="#search-planned" x="407" y="55"/><text class="small" x="145" y="106">Cross-client project directory</text>
-    <rect class="row" x="145" y="122" width="432" height="34"/><rect class="row" x="145" y="156" width="432" height="52"/><rect class="row" x="145" y="208" width="432" height="52"/><rect class="row" x="145" y="260" width="432" height="52"/>
-    <text class="heading" x="157" y="144">Project</text><text class="small" x="370" y="144">Client</text><text class="small" x="515" y="144">State</text>
-    <text class="body" x="157" y="187">Blue Sky</text><text class="small" x="370" y="187">Acme</text><text class="small" x="515" y="187">Rev 3</text>
-    <text class="body" x="157" y="239">Coastal Drive</text><text class="small" x="370" y="239">Acme</text><text class="small" x="515" y="239">Deliver</text>
-    <text class="body" x="157" y="291">New Horizon</text><text class="small" x="370" y="291">North Shore</text><text class="small" x="515" y="291">Rev 1</text>
-    <text class="small" x="145" y="350">Select any row → same Project Overview route</text>
+    <text class="screen-title" x="145" y="78">Projects</text><use href="#search-planned" x="407" y="55"/>
+    <rect class="mini-button" x="145" y="96" width="91" height="22"/><rect class="mini-button" x="242" y="96" width="108" height="22"/><rect class="planned" x="356" y="96" width="104" height="22"/>
+    <text class="mini-button-text" x="164" y="111">ALL CLIENTS</text><text class="mini-button-text" x="258" y="111">RECENTLY ACTIVE</text><text class="planned-text" x="369" y="111">MORE FILTERS</text>
+    <rect class="row" x="145" y="128" width="432" height="30"/><text class="heading" x="155" y="148">Project</text><text class="small" x="302" y="148">Status</text><text class="small" x="395" y="148">Current</text><text class="small" x="458" y="148">Approved</text><text class="small" x="526" y="148">Delivery</text>
+    <rect class="row" x="145" y="158" width="432" height="43"/><rect class="row" x="145" y="201" width="432" height="43"/><rect class="row" x="145" y="244" width="432" height="43"/><rect class="row" x="145" y="287" width="432" height="43"/>
+    <text class="body" x="155" y="179">Midnight EP</text><text class="warn" x="302" y="179">APPROVAL</text><text class="small" x="402" y="179">R5</text><text class="small" x="470" y="179">R4</text><text class="small" x="535" y="179">—</text>
+    <text class="body" x="155" y="222">Summer Single</text><text class="body" x="302" y="222">In progress</text><text class="small" x="402" y="222">R4</text><text class="small" x="470" y="222">R3</text><text class="small" x="535" y="222">—</text>
+    <text class="body" x="155" y="265">Coastal Drive</text><text class="ok" x="302" y="265">DELIVERY</text><text class="small" x="402" y="265">R3</text><text class="small" x="470" y="265">R3</text><text class="small" x="530" y="265">ZIP</text>
+    <text class="body" x="155" y="308">New Horizon</text><text class="body" x="302" y="308">In progress</text><text class="small" x="402" y="308">R1</text><text class="small" x="470" y="308">—</text><text class="small" x="535" y="308">—</text>
+    <text class="small" x="145" y="354">Showing 1–4 • Select any row → same Project Overview route</text>
+    <text class="small" x="145" y="385">Search, client filter, workflow status, revision, and delivery context are retained.</text>
   </g>
 
   <!-- 06 Project overview -->
@@ -140,11 +169,16 @@
     <text class="small" x="145" y="65">Clients / Acme Records / Blue Sky</text><text class="screen-title" x="145" y="91">Blue Sky</text><use href="#search-planned" x="407" y="58"/>
     <rect class="tab-active" x="145" y="105" width="67" height="25"/><rect class="tab" x="217" y="105" width="52" height="25"/><rect class="tab" x="274" y="105" width="68" height="25"/><rect class="tab" x="347" y="105" width="62" height="25"/><rect class="tab" x="414" y="105" width="57" height="25"/><rect class="tab" x="476" y="105" width="45" height="25"/><rect class="tab" x="526" y="105" width="51" height="25"/>
     <text class="small" x="153" y="122">Overview</text><text class="small" x="226" y="122">Intake</text><text class="small" x="282" y="122">Revisions</text><text class="small" x="355" y="122">Delivery</text><text class="small" x="421" y="122">Reports</text><text class="small" x="483" y="122">Files</text><text class="small" x="532" y="122">Metadata</text>
-    <rect class="card" x="145" y="150" width="206" height="82"/><rect class="card" x="365" y="150" width="212" height="82"/>
-    <text class="heading" x="158" y="175">Revision state</text><text class="body" x="158" y="199">Current 3 • Approved 2</text><text class="small" x="158" y="218">Delivered 2</text>
-    <text class="heading" x="378" y="175">Recommended next step</text><text class="body" x="378" y="199">Review current revision</text><text class="small" x="378" y="218">Reason shown explicitly</text>
-    <text class="heading" x="145" y="270">Project route, not Client route</text><text class="body" x="145" y="295">Projects remains active after selection from a client.</text>
-    <text class="small" x="145" y="324">The breadcrumb preserves the originating client context.</text>
+    <rect class="card" x="145" y="142" width="117" height="93"/><rect class="card" x="270" y="142" width="179" height="93"/><rect class="card" x="457" y="142" width="120" height="93"/>
+    <text class="heading" x="157" y="164">Status</text><text class="body" x="157" y="186">In progress</text><text class="small" x="157" y="207">Deadline May 30</text><text class="small" x="157" y="224">Project route</text>
+    <text class="heading" x="282" y="164">Project Information</text><text class="small" x="282" y="184">Client: Acme Records</text><text class="small" x="282" y="201">Artist: JL • 48 kHz / 24-bit</text><text class="small" x="282" y="218">Deadline • Notes • References</text>
+    <text class="heading" x="469" y="164">Revision Summary</text><text class="small" x="469" y="184">Current R3</text><text class="small" x="469" y="201">Approved R2</text><text class="small" x="469" y="218">Delivered R2</text>
+    <rect class="card" x="145" y="246" width="432" height="77"/><text class="heading" x="157" y="268">Recommended Next Step</text><text class="body" x="157" y="290">Review current Revision 3; it is newer than approved Revision 2.</text>
+    <rect class="mini-button" x="157" y="299" width="105" height="17"/><rect class="planned" x="269" y="299" width="90" height="17"/>
+    <text class="mini-button-text" x="176" y="311">VIEW REVISION</text><text class="planned-text" x="281" y="311">APPROVE</text>
+    <rect class="planned" x="145" y="337" width="94" height="21"/><rect class="planned" x="245" y="337" width="105" height="21"/><rect class="mini-button" x="356" y="337" width="77" height="21"/>
+    <text class="planned-text" x="158" y="351">OPEN FOLDER</text><text class="planned-text" x="257" y="351">OPEN DAW</text><text class="mini-button-text" x="374" y="351">REFRESH</text>
+    <text class="small" x="145" y="386">Projects remains active; client breadcrumb preserves where the project was selected.</text>
   </g>
 
   <!-- 07 Intake -->
@@ -152,8 +186,14 @@
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">07 PROJECT / INTAKE</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
     <text class="small" x="145" y="65">Blue Sky / Intake</text><text class="screen-title" x="145" y="91">Intake validation</text><use href="#search-planned" x="407" y="58"/>
-    <rect class="card" x="145" y="110" width="432" height="84"/><text class="heading" x="160" y="138">Non-destructive validation</text><text class="body" x="160" y="164">Source files, warnings, and generated report</text>
-    <rect class="planned" x="145" y="220" width="185" height="34"/><text class="planned-text" x="160" y="242">FUTURE WORKFLOW</text>
+    <rect class="card" x="145" y="108" width="100" height="50"/><rect class="card" x="253" y="108" width="100" height="50"/><rect class="card" x="361" y="108" width="100" height="50"/><rect class="card" x="469" y="108" width="108" height="50"/>
+    <text class="heading" x="157" y="130">28</text><text class="small" x="157" y="148">Files</text><text class="heading" x="265" y="130">0</text><text class="small" x="265" y="148">Errors</text><text class="heading" x="373" y="130">2</text><text class="small" x="373" y="148">Warnings</text><text class="heading" x="481" y="130">0</text><text class="small" x="481" y="148">Info</text>
+    <rect class="card" x="145" y="169" width="274" height="154"/><rect class="card" x="427" y="169" width="150" height="154"/>
+    <text class="heading" x="157" y="191">Validation Summary</text><text class="ok" x="157" y="211">● File format valid</text><text class="ok" x="157" y="229">● Sample rate 48 kHz</text><text class="ok" x="157" y="247">● Bit depth 24-bit</text><text class="ok" x="157" y="265">● No corrupt files</text><text class="warn" x="157" y="283">▲ 2 mono files</text><text class="warn" x="157" y="301">▲ Long file names</text>
+    <text class="heading" x="439" y="191">Warnings</text><text class="warn" x="439" y="213">Kick.wav</text><text class="small" x="439" y="229">Mono file</text><text class="warn" x="439" y="253">Bass.wav</text><text class="small" x="439" y="269">Mono file</text>
+    <rect class="planned" x="439" y="288" width="126" height="19"/><text class="planned-text" x="464" y="301">SHOW DETAILS</text>
+    <rect class="planned" x="145" y="338" width="150" height="25"/><text class="planned-text" x="164" y="355">VALIDATE INTAKE</text>
+    <text class="small" x="145" y="390">Retains report summary, validation detail, warnings, and planned action.</text>
   </g>
 
   <!-- 08 Revisions -->
@@ -161,9 +201,15 @@
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">08 PROJECT / REVISIONS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
     <text class="small" x="145" y="65">Blue Sky / Revisions</text><text class="screen-title" x="145" y="91">Revision history</text><use href="#search-planned" x="407" y="58"/>
-    <rect class="row" x="145" y="112" width="432" height="52"/><rect class="row" x="145" y="164" width="432" height="52"/><rect class="row" x="145" y="216" width="432" height="52"/>
-    <text class="body" x="158" y="142">Revision 03 — Current</text><text class="body" x="158" y="194">Revision 02 — Approved</text><text class="body" x="158" y="246">Revision 01 — Superseded</text>
-    <text class="small" x="145" y="305">Created and approval timestamps feed Activity</text>
+    <rect class="card" x="145" y="110" width="179" height="219"/><rect class="card" x="332" y="110" width="245" height="219"/>
+    <text class="heading" x="157" y="132">Revision History</text>
+    <rect class="tab-active" x="157" y="143" width="155" height="42"/><rect class="row" x="157" y="185" width="155" height="42"/><rect class="row" x="157" y="227" width="155" height="42"/><rect class="row" x="157" y="269" width="155" height="42"/>
+    <text class="body" x="168" y="164">Revision 03</text><text class="small" x="168" y="179">Current</text><text class="body" x="168" y="206">Revision 02</text><text class="ok" x="248" y="206">APPROVED</text><text class="body" x="168" y="248">Revision 01</text><text class="small" x="168" y="263">Superseded</text>
+    <text class="heading" x="344" y="132">Revision 03</text><text class="small" x="344" y="154">Created today • Initial mix</text><text class="body" x="344" y="181">Engineer Notes</text><text class="small" x="344" y="199">Vocal comping and drum balance.</text><text class="small" x="344" y="217">Adjusted kick and bass.</text><text class="small" x="344" y="235">Added parallel compression.</text><text class="body" x="344" y="264">Files</text><text class="small" x="344" y="282">14 audio files • Revision_Notes.md</text>
+    <rect class="planned" x="344" y="297" width="100" height="18"/><rect class="planned" x="451" y="297" width="114" height="18"/><text class="planned-text" x="365" y="309">OPEN FOLDER</text><text class="planned-text" x="466" y="309">VIEW NOTES</text>
+    <rect class="planned" x="145" y="342" width="130" height="25"/><rect class="planned" x="283" y="342" width="130" height="25"/>
+    <text class="planned-text" x="170" y="359">NEW REVISION</text><text class="planned-text" x="305" y="359">APPROVE REVISION</text>
+    <text class="small" x="145" y="391">History, detail, notes, files, and approved future actions are retained.</text>
   </g>
 
   <!-- 09 Delivery -->
@@ -171,46 +217,81 @@
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">09 PROJECT / DELIVERY</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
     <text class="small" x="145" y="65">Blue Sky / Delivery</text><text class="screen-title" x="145" y="91">Delivery</text><use href="#search-planned" x="407" y="58"/>
-    <rect class="card" x="145" y="112" width="432" height="92"/><text class="heading" x="160" y="140">Approved revision 02</text><text class="body" x="160" y="166">Delivery manifest and verified files</text><text class="small" x="160" y="187">Delivery creation timestamp feeds Activity</text>
-    <rect class="planned" x="145" y="230" width="185" height="34"/><text class="planned-text" x="160" y="252">FUTURE WORKFLOW</text>
+    <rect class="card" x="145" y="110" width="130" height="224"/><rect class="card" x="283" y="110" width="130" height="224"/><rect class="card" x="421" y="110" width="156" height="224"/>
+    <text class="heading" x="157" y="132">Delivery Overview</text><text class="small" x="157" y="155">Approved R2</text><text class="small" x="157" y="174">Notes complete</text><text class="small" x="157" y="193">ZIP created</text><text class="small" x="157" y="212">Manifest valid</text><text class="small" x="157" y="231">Built May 6</text>
+    <rect class="planned" x="157" y="250" width="106" height="19"/><text class="planned-text" x="178" y="263">VIEW MANIFEST</text>
+    <text class="heading" x="295" y="132">Contents</text><text class="ok" x="295" y="155">✓ WAV files</text><text class="ok" x="295" y="174">✓ Instrumental</text><text class="ok" x="295" y="193">✓ TV mix</text><text class="ok" x="295" y="212">✓ Notes PDF</text><text class="small" x="295" y="238">Checksums verified</text>
+    <text class="heading" x="433" y="132">Actions</text>
+    <rect class="planned" x="433" y="147" width="132" height="21"/><rect class="planned" x="433" y="174" width="132" height="21"/><rect class="planned" x="433" y="201" width="132" height="21"/><rect class="planned" x="433" y="228" width="132" height="21"/><rect class="planned" x="433" y="255" width="132" height="21"/>
+    <text class="planned-text" x="471" y="161">EDIT NOTES</text><text class="planned-text" x="460" y="188">BUILD ZIP</text><text class="planned-text" x="454" y="215">OPEN DELIVERY</text><text class="planned-text" x="458" y="242">VERIFY DELIVERY</text><text class="planned-text" x="458" y="269">OPEN MANIFEST</text>
+    <text class="small" x="145" y="361">Delivery timestamp feeds Activity; all write actions remain planned.</text>
+    <text class="small" x="145" y="389">Retains overview, contents, manifest, checksums, and action layout.</text>
   </g>
 
   <!-- 10 Tasks -->
   <g transform="translate(20 1480)">
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">10 TASKS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="208" width="115" height="22" rx="4"/>
-    <text class="screen-title" x="145" y="78">Derived tasks</text><use href="#search-planned" x="407" y="55"/><text class="small" x="145" y="103">Generated from current project state; never stored separately</text>
-    <rect class="row" x="145" y="122" width="432" height="48"/><rect class="row" x="145" y="170" width="432" height="48"/><rect class="row" x="145" y="218" width="432" height="48"/><rect class="row" x="145" y="266" width="432" height="48"/>
-    <text class="body" x="158" y="151">Fix invalid workspace item</text><text class="body" x="158" y="199">Create delivery for approved revision</text><text class="body" x="158" y="247">Review project due soon</text><text class="body" x="158" y="295">Review newer unapproved revision</text>
-    <text class="small" x="145" y="347">No manual checkbox; task disappears when source state changes</text>
+    <text class="screen-title" x="145" y="78">Tasks — what needs work</text><use href="#search-planned" x="407" y="55"/><text class="small" x="145" y="103">Derived from authoritative state; never stored separately</text>
+    <rect class="card" x="145" y="118" width="110" height="231"/><rect class="card" x="263" y="118" width="314" height="231"/>
+    <text class="heading" x="157" y="140">Task Categories</text><text class="small" x="157" y="163">Needs validation 1</text><rect class="tab-active" x="153" y="173" width="94" height="28"/><text class="small" x="162" y="191">Needs approval 2</text><text class="small" x="157" y="220">Needs delivery 1</text><text class="small" x="157" y="249">Due soon 3</text><text class="small" x="157" y="278">Recovery 0</text><text class="small" x="157" y="307">Settled 24</text>
+    <text class="heading" x="276" y="140">Needs Approval</text>
+    <rect class="row" x="276" y="151" width="288" height="75"/><rect class="row" x="276" y="234" width="288" height="75"/>
+    <text class="body" x="288" y="173">Midnight EP</text><text class="small" x="288" y="190">Revision 5 is newer than approved R4.</text><rect class="planned" x="493" y="177" width="60" height="20"/><text class="planned-text" x="505" y="191">REVIEW</text>
+    <text class="body" x="288" y="256">Acoustic Sessions</text><text class="small" x="288" y="273">Revision 3 has no approved revision.</text><rect class="planned" x="493" y="260" width="60" height="20"/><text class="planned-text" x="505" y="274">REVIEW</text>
+    <text class="small" x="145" y="372">No completion checkbox; refresh removes a task when its source condition clears.</text>
+    <text class="small" x="145" y="393">Category counts, task reason, project, and next action are retained.</text>
   </g>
 
   <!-- 11 Reports -->
   <g transform="translate(660 1480)">
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">11 REPORTS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="236" width="115" height="22" rx="4"/>
-    <text class="screen-title" x="145" y="78">Reports</text><use href="#search-planned" x="407" y="55"/><text class="small" x="145" y="104">Workspace view of generated authoritative reports</text>
-    <rect class="row" x="145" y="124" width="432" height="50"/><rect class="row" x="145" y="174" width="432" height="50"/><rect class="row" x="145" y="224" width="432" height="50"/>
-    <text class="body" x="158" y="154">Blue Sky — Intake Report</text><text class="body" x="158" y="204">Coastal Drive — Preparation Report</text><text class="body" x="158" y="254">After Midnight — Delivery Notes</text>
+    <text class="screen-title" x="145" y="78">Reports</text><use href="#search-planned" x="407" y="55"/><text class="small" x="145" y="103">Generated authoritative reports across the workspace</text>
+    <rect class="mini-button" x="145" y="116" width="90" height="22"/><rect class="mini-button" x="241" y="116" width="90" height="22"/><rect class="planned" x="337" y="116" width="94" height="22"/>
+    <text class="mini-button-text" x="165" y="131">ALL TYPES</text><text class="mini-button-text" x="260" y="131">ALL CLIENTS</text><text class="planned-text" x="350" y="131">DATE FILTER</text>
+    <rect class="row" x="145" y="149" width="432" height="31"/><text class="heading" x="156" y="170">Report</text><text class="small" x="330" y="170">Project</text><text class="small" x="471" y="170">Updated</text>
+    <rect class="row" x="145" y="180" width="432" height="45"/><rect class="row" x="145" y="225" width="432" height="45"/><rect class="row" x="145" y="270" width="432" height="45"/><rect class="row" x="145" y="315" width="432" height="45"/>
+    <text class="body" x="156" y="207">Intake Report</text><text class="small" x="330" y="207">Blue Sky</text><text class="small" x="471" y="207">Today</text>
+    <text class="body" x="156" y="252">Preparation Report</text><text class="small" x="330" y="252">Coastal Drive</text><text class="small" x="471" y="252">Yesterday</text>
+    <text class="body" x="156" y="297">Delivery Notes</text><text class="small" x="330" y="297">After Midnight</text><text class="small" x="471" y="297">May 6</text>
+    <text class="body" x="156" y="342">Revision Notes</text><text class="small" x="330" y="342">Midnight EP R5</text><text class="small" x="471" y="342">Today</text>
+    <text class="small" x="145" y="389">Retains report type, project, client/date filtering, search, and update context.</text>
   </g>
 
   <!-- 12 Activity -->
   <g transform="translate(1300 1480)">
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">12 ACTIVITY LOG</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="264" width="115" height="22" rx="4"/>
-    <text class="screen-title" x="145" y="78">Derived activity</text><use href="#search-planned" x="407" y="55"/><text class="small" x="145" y="103">Reconstructed from validated persisted timestamps</text>
-    <rect class="row" x="145" y="120" width="432" height="46"/><rect class="row" x="145" y="166" width="432" height="46"/><rect class="row" x="145" y="212" width="432" height="46"/><rect class="row" x="145" y="258" width="432" height="46"/>
-    <text class="body" x="158" y="148">Delivery created — Coastal Drive</text><text class="body" x="158" y="194">Revision approved — Blue Sky R02</text><text class="body" x="158" y="240">Revision created — Blue Sky R03</text><text class="body" x="158" y="286">Project created — After Midnight</text>
-    <text class="small" x="145" y="338">Not a complete audit log; failed/read-only actions are omitted</text>
+    <text class="screen-title" x="145" y="78">Derived Activity Log</text><use href="#search-planned" x="407" y="55"/><text class="small" x="145" y="103">Reconstructed from validated persisted event timestamps</text>
+    <rect class="mini-button" x="145" y="116" width="86" height="22"/><rect class="planned" x="237" y="116" width="96" height="22"/><text class="mini-button-text" x="166" y="131">ALL EVENTS</text><text class="planned-text" x="251" y="131">DATE FILTER</text>
+    <rect class="row" x="145" y="149" width="432" height="31"/><text class="heading" x="155" y="170">Time</text><text class="small" x="219" y="170">Event</text><text class="small" x="375" y="170">Project</text><text class="small" x="500" y="170">Result</text>
+    <rect class="row" x="145" y="180" width="432" height="43"/><rect class="row" x="145" y="223" width="432" height="43"/><rect class="row" x="145" y="266" width="432" height="43"/><rect class="row" x="145" y="309" width="432" height="43"/>
+    <text class="small" x="155" y="206">10:24</text><text class="body" x="219" y="206">Revision created R5</text><text class="small" x="375" y="206">Midnight EP</text><text class="ok" x="500" y="206">PERSISTED</text>
+    <text class="small" x="155" y="249">09:15</text><text class="body" x="219" y="249">Delivery created</text><text class="small" x="375" y="249">Coastal Drive</text><text class="ok" x="500" y="249">PERSISTED</text>
+    <text class="small" x="155" y="292">Yesterday</text><text class="body" x="219" y="292">Revision approved R2</text><text class="small" x="375" y="292">Blue Sky</text><text class="ok" x="500" y="292">PERSISTED</text>
+    <text class="small" x="155" y="335">May 6</text><text class="body" x="219" y="335">Project created</text><text class="small" x="375" y="335">After Midnight</text><text class="ok" x="500" y="335">PERSISTED</text>
+    <text class="small" x="145" y="374">Not a complete audit log; failed, cancelled, and read-only actions are omitted.</text>
+    <text class="small" x="145" y="394">Retains event filters, search, time, project, and durable-result context.</text>
   </g>
 
   <!-- 13 Settings -->
   <g transform="translate(20 1940)">
     <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
     <text class="screen-no" x="15" y="27">13 SETTINGS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="292" width="115" height="22" rx="4"/>
-    <text class="screen-title" x="145" y="78">Settings</text><use href="#search-planned" x="407" y="55"/><rect class="planned" x="145" y="105" width="185" height="34"/><text class="planned-text" x="160" y="127">FUTURE MILESTONE</text>
-    <text class="body" x="145" y="175">Application preferences remain separate</text><text class="body" x="145" y="198">from studio configuration.</text>
-    <text class="small" x="145" y="235">No workspace switching or settings mutation in Issue #8</text>
+    <text class="screen-title" x="145" y="78">Settings</text><use href="#search-planned" x="407" y="55"/>
+    <rect class="card" x="145" y="101" width="105" height="255"/><rect class="card" x="258" y="101" width="319" height="255"/>
+    <text class="heading" x="157" y="124">Sections</text><rect class="tab-active" x="153" y="135" width="89" height="25"/><text class="small" x="166" y="152">Studio</text><text class="small" x="157" y="180">Workspace</text><text class="small" x="157" y="207">CLI Integration</text><text class="small" x="157" y="234">Validation</text><text class="small" x="157" y="261">Audio Defaults</text><text class="small" x="157" y="288">Delivery / ZIP</text><text class="small" x="157" y="315">Appearance</text><text class="small" x="157" y="342">Advanced</text>
+    <text class="heading" x="270" y="124">Studio Settings</text>
+    <text class="small" x="270" y="151">Studio name</text><rect class="row" x="368" y="136" width="195" height="22"/><text class="body" x="378" y="152">My Studio</text>
+    <text class="small" x="270" y="181">Engineer name</text><rect class="row" x="368" y="166" width="195" height="22"/><text class="body" x="378" y="182">JL</text>
+    <text class="small" x="270" y="211">Workspace</text><rect class="row" x="368" y="196" width="195" height="22"/><text class="body" x="378" y="212">~/Music/Mixes</text>
+    <text class="small" x="270" y="241">Sample rate</text><rect class="row" x="368" y="226" width="195" height="22"/><text class="body" x="378" y="242">48 kHz</text>
+    <text class="small" x="270" y="271">Bit depth</text><rect class="row" x="368" y="256" width="195" height="22"/><text class="body" x="378" y="272">24-bit</text>
+    <text class="small" x="270" y="301">File format</text><rect class="row" x="368" y="286" width="195" height="22"/><text class="body" x="378" y="302">WAV</text>
+    <rect class="planned" x="438" y="320" width="125" height="22"/><text class="planned-text" x="463" y="335">SAVE PLANNED</text>
+    <text class="small" x="145" y="381">Settings retain full information architecture; all mutations remain deferred.</text>
+    <text class="small" x="145" y="401">Application preferences remain distinct from studio.json configuration.</text>
   </g>
 
   <!-- 14 Navigation flow -->
