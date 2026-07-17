@@ -1,0 +1,55 @@
+{
+  "metadata": {
+    "schema": "mixing-project",
+    "schema_version": "1.1.0",
+    "document_id": "7f80e6b4-f262-4adc-911b-35f6e05dcf73",
+    "created_with": "jl-mixing 1.2.0",
+    "created_at": "2026-07-17T12:00:00Z",
+    "last_modified_at": "2026-07-17T12:00:00Z"
+  },
+  "project_id": "architecture-spike",
+  "project_name": "Architecture Spike",
+  "client": {
+    "client_document_id": "5049c004-f18e-4cd0-ae59-35d354ce9b35",
+    "client_id": "fixture-client"
+  },
+  "artist": "Fixture Artist",
+  "album": "",
+  "producer": "",
+  "mix_engineer": "",
+  "music": {
+    "bpm": null,
+    "key": "",
+    "time_signature": ""
+  },
+  "audio": {
+    "sample_rate": 48000,
+    "bit_depth": 24,
+    "file_format": "WAV"
+  },
+  "delivery": {
+    "method": "Download",
+    "requested_deliverables": ["main_mix"]
+  },
+  "schedule": {
+    "deadline": null
+  },
+  "creative_direction": "Architecture fixture only",
+  "state": {
+    "current_revision": 1,
+    "approved_revision": null,
+    "delivered_revision": null
+  },
+  "revisions": [
+    {
+      "number": 1,
+      "revision_id": "7af79825-2253-4c82-aed2-da00b22bf635",
+      "created_at": "2026-07-17T12:00:00Z",
+      "description": "Initial mix",
+      "approval": {
+        "approved_at": null,
+        "approved_by": null
+      }
+    }
+  ]
+}
