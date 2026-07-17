@@ -272,6 +272,9 @@ function ClientDialog({
                 onChange={(event) => onChange({ ...values, clientId: event.target.value })}
                 placeholder="acme-records"
                 autoComplete="off"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 disabled={pending}
                 required
               />
