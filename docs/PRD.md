@@ -221,14 +221,19 @@ Studio creation, project creation, client editing or deletion, arbitrary workspa
 The next milestone establishes the approved product information architecture without adding unsupported workflow behavior. The application shall:
 
 1. Add a persistent JL Mixing Studio shell and primary navigation for Dashboard, Studio, Clients, Projects, Tasks, Reports, Activity Log, and Settings.
-2. Move the existing workspace dashboard into the Dashboard route without changing its source-of-truth behavior.
-3. Preserve guided client creation, including preflight, explicit confirmation, allowlisted execution, and post-create verification.
-4. Establish reusable layout, navigation, card, table, status, and action patterns based on the approved wireframe.
-5. Present honest unavailable states for routes whose data or workflows have not yet been implemented.
-6. Preserve keyboard access, readable focus treatment, minimum-window usability, and responsive resizing.
-7. Keep JL Mixing Automation v1.2.0 and workspace files authoritative; do not introduce hidden lifecycle, task, activity, completion, or settings state.
+2. Establish the approved route semantics: Clients represents the client directory and client details, while selected-project screens are project routes with Projects active.
+3. Move the existing workspace dashboard into the Dashboard route without changing its source-of-truth behavior.
+4. Preserve guided client creation, including preflight, explicit confirmation, allowlisted execution, and post-create verification.
+5. Establish reusable layout, navigation, card, table, status, and action patterns based on the approved wireframe.
+6. Present honest unavailable states for routes whose data or workflows have not yet been implemented.
+7. Preserve keyboard access, readable focus treatment, minimum-window usability, and responsive resizing.
+8. Keep JL Mixing Automation v1.2.0 and workspace files authoritative; do not introduce hidden lifecycle, task, activity, completion, or settings state.
 
-Global search, arbitrary workspace switching, user accounts, activity history, system storage diagnostics, settings mutation, project creation, and project lifecycle actions remain outside this milestone. The approved design constraints are recorded in [UI architecture](design/UI_ARCHITECTURE.md), and implementation acceptance criteria are tracked in [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8).
+The product-level flow is Clients → Client Details → project selection → Project Overview. The Projects directory reaches the same Project Overview route. Client editing remains deferred because JL Mixing Automation v1.2.0 has no client-edit command.
+
+Activity, recommended priorities, and tasks are future functional milestones, but their source rules are approved: Activity is reconstructed only from supported persisted event timestamps, while priorities and tasks are derived from validated project state through one deterministic rule set. They must not create competing GUI-owned state or label a project completed.
+
+Global search, arbitrary workspace switching, user accounts, a standalone activity database, system storage diagnostics, settings mutation, project creation, and project lifecycle actions remain outside this milestone. The approved design constraints and derivation rules are recorded in [UI architecture](design/UI_ARCHITECTURE.md), and implementation acceptance criteria are tracked in [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8).
 
 ## 15. Future decisions requiring approval
 
