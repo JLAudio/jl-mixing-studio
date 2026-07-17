@@ -10,10 +10,8 @@ use crate::models::{
     WorkspaceStatus,
 };
 
-const STUDIO_SCHEMA: &str =
-    include_str!("../../schemas/jl-mixing-v1.2.0/studio.schema.json");
-const CLIENT_SCHEMA: &str =
-    include_str!("../../schemas/jl-mixing-v1.2.0/client.schema.json");
+const STUDIO_SCHEMA: &str = include_str!("../../schemas/jl-mixing-v1.2.0/studio.schema.json");
+const CLIENT_SCHEMA: &str = include_str!("../../schemas/jl-mixing-v1.2.0/client.schema.json");
 const PROJECT_SCHEMA: &str =
     include_str!("../../schemas/jl-mixing-v1.2.0/project-manifest.schema.json");
 const SUPPORTED_SCHEMA_VERSION: &str = "1.1.0";
@@ -42,27 +40,24 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
     }
 
     let studio_path = root.join("Studio").join("studio.json");
-    let studio_document = match read_document::<StudioDocument>(
-        &studio_path,
-        STUDIO_SCHEMA,
-        "mixing-studio",
-    ) {
-        Ok(document) => document,
-        Err(failure) => {
-            let problem = failure.into_issue(root, &studio_path, DiscoveryScope::Studio, None);
-            return WorkspaceSnapshot {
-                workspace_path,
-                status: WorkspaceStatus::Invalid,
-                studio: None,
-                counts: WorkspaceCounts {
-                    issues: 1,
-                    ..WorkspaceCounts::default()
-                },
-                clients: Vec::new(),
-                issues: vec![problem],
-            };
-        }
-    };
+    let studio_document =
+        match read_document::<StudioDocument>(&studio_path, STUDIO_SCHEMA, "mixing-studio") {
+            Ok(document) => document,
+            Err(failure) => {
+                let problem = failure.into_issue(root, &studio_path, DiscoveryScope::Studio, None);
+                return WorkspaceSnapshot {
+                    workspace_path,
+                    status: WorkspaceStatus::Invalid,
+                    studio: None,
+                    counts: WorkspaceCounts {
+                        issues: 1,
+                        ..WorkspaceCounts::default()
+                    },
+                    clients: Vec::new(),
+                    issues: vec![problem],
+                };
+            }
+        };
 
     let studio = StudioSummary {
         studio_id: studio_document.studio_id,
@@ -75,8 +70,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
     let entries = match directory_entries(&clients_path) {
         Ok(entries) => entries,
         Err(failure) => {
-            let problem =
-                failure.into_issue(root, &clients_path, DiscoveryScope::Workspace, None);
+            let problem = failure.into_issue(root, &clients_path, DiscoveryScope::Workspace, None);
             return WorkspaceSnapshot {
                 workspace_path,
                 status: WorkspaceStatus::Invalid,
@@ -112,22 +106,19 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
         }
 
         let client_file = client_path.join("client.json");
-        let client = match read_document::<ClientDocument>(
-            &client_file,
-            CLIENT_SCHEMA,
-            "mixing-client",
-        ) {
-            Ok(client) => client,
-            Err(failure) => {
-                issues.push(failure.into_issue(
-                    root,
-                    &client_file,
-                    DiscoveryScope::Client,
-                    Some(file_name(&client_path)),
-                ));
-                continue;
-            }
-        };
+        let client =
+            match read_document::<ClientDocument>(&client_file, CLIENT_SCHEMA, "mixing-client") {
+                Ok(client) => client,
+                Err(failure) => {
+                    issues.push(failure.into_issue(
+                        root,
+                        &client_file,
+                        DiscoveryScope::Client,
+                        Some(file_name(&client_path)),
+                    ));
+                    continue;
+                }
+            };
 
         let projects_path = client_path.join("Projects");
         let project_entries = match directory_entries(&projects_path) {
@@ -263,8 +254,7 @@ fn read_document<T: DeserializeOwned>(
             DocumentFailure::Unreadable
         }
     })?;
-    let value: Value =
-        serde_json::from_str(&content).map_err(|_| DocumentFailure::InvalidJson)?;
+    let value: Value = serde_json::from_str(&content).map_err(|_| DocumentFailure::InvalidJson)?;
 
     let metadata = value
         .get("metadata")
@@ -419,15 +409,7 @@ impl DocumentFailure {
                 "Open this workspace with a compatible JL Mixing Studio version.",
             ),
         };
-        issue_for_path(
-            root,
-            path,
-            scope,
-            code,
-            display_name,
-            message,
-            recovery,
-        )
+        issue_for_path(root, path, scope, code, display_name, message, recovery)
     }
 }
 
@@ -436,8 +418,7 @@ mod tests {
     use super::*;
     use std::collections::BTreeMap;
 
-    const PROJECT: &str =
-        include_str!("../../fixtures/project with spaces/project-manifest.json");
+    const PROJECT: &str = include_str!("../../fixtures/project with spaces/project-manifest.json");
 
     #[test]
     fn discovers_valid_workspace_and_sorts_case_insensitively() {
@@ -455,7 +436,10 @@ mod tests {
         assert_eq!(snapshot.counts.clients, 2);
         assert_eq!(snapshot.counts.projects, 2);
         assert_eq!(snapshot.clients[0].client_name, "alpha Client");
-        assert_eq!(snapshot.clients[1].projects[0].project_name, "alpha Project");
+        assert_eq!(
+            snapshot.clients[1].projects[0].project_name,
+            "alpha Project"
+        );
         assert_eq!(snapshot.clients[1].projects[1].project_name, "Zulu Project");
     }
 
@@ -503,17 +487,20 @@ mod tests {
         write_workspace(&root);
         write_client(&root, "client", "Client", "Artist");
         write_project(&root, "client", "old", "Old Project", "old-project");
-        let manifest = root
-            .join("Clients/client/Projects/old/00_Admin/project-manifest.json");
+        let manifest = root.join("Clients/client/Projects/old/00_Admin/project-manifest.json");
         let historical = fs::read_to_string(&manifest)
             .expect("manifest")
             .replace("jl-mixing 1.2.0", "jl-mixing 1.1.1");
         fs::write(&manifest, historical).expect("historical manifest");
-        assert_eq!(discover_workspace_at(&root).status, WorkspaceStatus::Healthy);
+        assert_eq!(
+            discover_workspace_at(&root).status,
+            WorkspaceStatus::Healthy
+        );
 
-        let unsupported = fs::read_to_string(&manifest)
-            .expect("manifest")
-            .replace("\"schema_version\": \"1.1.0\"", "\"schema_version\": \"2.0.0\"");
+        let unsupported = fs::read_to_string(&manifest).expect("manifest").replace(
+            "\"schema_version\": \"1.1.0\"",
+            "\"schema_version\": \"2.0.0\"",
+        );
         fs::write(&manifest, unsupported).expect("unsupported manifest");
         let snapshot = discover_workspace_at(&root);
         assert_eq!(snapshot.status, WorkspaceStatus::Partial);
