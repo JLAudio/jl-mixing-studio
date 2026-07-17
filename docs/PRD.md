@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Initial approved baseline  
+**Status:** Approved baseline; architecture validated  
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
 **Functional baseline:** JL Mixing Automation v1.2.0
@@ -135,7 +135,7 @@ An open-source developer who needs clear architecture boundaries, reproducible b
 
 ## 8. Architecture constraints
 
-The provisional architecture is:
+The accepted architecture is:
 
 - Tauri 2 desktop shell.
 - React and TypeScript frontend.
@@ -145,7 +145,7 @@ The provisional architecture is:
 - JL Mixing Automation invoked as a versioned external dependency during the initial architecture.
 - JSON schemas or generated types used to keep Rust and TypeScript models aligned where practical.
 
-The architecture remains provisional until ADR-0001's validation spike passes.
+ADR-0001 is accepted. The architecture spike passed automated macOS and Windows gates and manual Intel macOS Monterey 12.7.6 validation.
 
 ## 9. Quality requirements
 
@@ -170,21 +170,36 @@ The architecture remains provisional until ADR-0001's validation spike passes.
 - Avoid following untrusted symbolic links during destructive operations.
 - Require explicit confirmation for material deletion or overwrite operations.
 
-## 11. Initial milestone: architecture validation
+## 11. Completed milestone: architecture validation
 
-The first implementation milestone is complete when a minimal application:
+The first implementation milestone delivered a minimal application that:
 
 1. Launches on an Intel Mac running macOS Monterey.
-2. Builds and launches on a supported Windows environment.
+2. Builds on Windows through reproducible CI.
 3. Invokes `jl-mixing --version` through a restricted Rust command and displays the structured result.
 4. Reads a representative JL Mixing Automation v1.2.0 project manifest through Rust and displays selected fields in React.
 5. Includes automated tests for version-output handling and manifest parsing.
 6. Passes formatting, linting, type checking, tests, and builds in GitHub Actions.
 7. Documents setup and reproduction steps.
 
-This milestone is an architecture spike, not the first production release.
+This milestone was an architecture spike, not the first production release. It is complete and recorded by ADR-0001.
 
-## 12. Future decisions requiring approval
+## 12. Next milestone: read-only workspace discovery and project overview
+
+The next milestone establishes the production read path before any project mutation is introduced. The application shall:
+
+1. Resolve and inspect the default JL Mixing workspace at `~/Music/Mixes`.
+2. Read and validate the studio configuration, clients, and project manifests through typed Rust commands.
+3. Display workspace health, client and project counts, and project lifecycle summaries.
+4. Distinguish healthy, empty, unavailable, invalid, unsupported, and partially valid workspaces.
+5. Allow an explicit refresh without restarting the application.
+6. Preserve project files as the source of truth and perform no filesystem mutation during discovery.
+7. Continue to prohibit arbitrary shell execution and unrestricted frontend filesystem access.
+8. Include isolated Rust fixtures and frontend tests for supported states, partial failures, paths containing spaces, and non-mutation.
+
+Creation or editing of studios, clients, projects, revisions, approvals, deliveries, settings, or other workflow state is outside this milestone. The detailed scope and acceptance criteria are tracked in [Issue #3](https://github.com/JLAudio/jl-mixing-studio/issues/3).
+
+## 13. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.
