@@ -1,8 +1,12 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
-import type { VersionCheck, WorkspaceSnapshot } from "./types";
+import type {
+  ClientOperationResult,
+  VersionCheck,
+  WorkspaceSnapshot,
+} from "./types";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 const mockedInvoke = vi.mocked(invoke);
@@ -11,8 +15,27 @@ afterEach(cleanup);
 
 const version: VersionCheck = {
   available: true,
+  supported: true,
+  clientCreationSupported: true,
   version: "1.2.0",
   message: "JL Mixing Automation 1.2.0 detected",
+};
+
+const preflightResult: ClientOperationResult = {
+  ok: true,
+  code: "ready",
+  message: "Preflight passed. No changes were made.",
+  client: {
+    clientId: "new-client",
+    clientName: "New Client",
+    defaultArtist: "New Artist",
+  },
+};
+
+const createResult: ClientOperationResult = {
+  ...preflightResult,
+  code: "created",
+  message: "Client created successfully.",
 };
 
 const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
@@ -95,6 +118,7 @@ describe("workspace dashboard", () => {
     expect(screen.getByText(/1 workspace item needs attention/i)).toBeInTheDocument();
     expect(screen.getByText("Broken Project")).toBeInTheDocument();
     expect(screen.getByText(/correct or recreate/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
 
   it("shows setup guidance for an unavailable workspace", async () => {
@@ -159,15 +183,18 @@ describe("workspace dashboard", () => {
   it("reports a missing CLI without hiding workspace data", async () => {
     respondWith(healthyWorkspace(), {
       available: false,
+      supported: false,
+      clientCreationSupported: false,
       version: null,
-      message: "JL Mixing Automation was not found on PATH",
+      message: "JL Mixing Automation was not found in its default install location or on PATH",
     });
 
     render(<App />);
 
     expect(await screen.findByText("Blue Sky")).toBeInTheDocument();
-    expect(screen.getByText("JL Mixing Automation was not found on PATH")).toBeInTheDocument();
+    expect(screen.getAllByText(/not found in its default install location or on PATH/i)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
 
   it("refreshes workspace and version state independently", async () => {
@@ -204,5 +231,222 @@ describe("workspace dashboard", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unexpected internal failure");
     expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
+
+  it("validates the client form before invoking preflight", async () => {
+    render(<App />);
+    await screen.findByText("Blue Sky");
+
+    fireEvent.click(screen.getByRole("button", { name: "New client" }));
+    const idInput = screen.getByLabelText(/client id/i);
+    expect(idInput).toHaveFocus();
+    expect(idInput).toHaveAttribute("autocapitalize", "none");
+    expect(idInput).toHaveAttribute("autocorrect", "off");
+    expect(idInput).toHaveAttribute("spellcheck", "false");
+    fireEvent.change(idInput, { target: { value: "Not Valid" } });
+    fireEvent.change(screen.getByLabelText(/display name/i), {
+      target: { value: "New Client" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review client" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/lowercase letters and numbers/i);
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "preflight_client_creation",
+      expect.anything(),
+    );
+  });
+
+  it("preflights, focuses confirmation, and cancels without creating", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_client_creation") return Promise.resolve(preflightResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("Blue Sky");
+
+    fireEvent.click(screen.getByRole("button", { name: "New client" }));
+    fireEvent.change(screen.getByLabelText(/client id/i), {
+      target: { value: "new-client" },
+    });
+    fireEvent.change(screen.getByLabelText(/display name/i), {
+      target: { value: " New Client " },
+    });
+    fireEvent.change(screen.getByLabelText(/default artist/i), {
+      target: { value: " New Artist " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review client" }));
+
+    expect(await screen.findByRole("heading", { name: "Confirm new client" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Create client" })).toHaveFocus();
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("preflight_client_creation", {
+      request: {
+        clientId: "new-client",
+        clientName: "New Client",
+        defaultArtist: "New Artist",
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith("create_client", expect.anything());
+  });
+
+  it("creates a client once and reconciles it through workspace discovery", async () => {
+    let workspaceCalls = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") {
+        workspaceCalls += 1;
+        const snapshot = healthyWorkspace();
+        if (workspaceCalls > 1) {
+          snapshot.clients.push({
+            clientId: "new-client",
+            clientName: "New Client",
+            defaultArtist: "New Artist",
+            projects: [],
+          });
+          snapshot.counts.clients = 2;
+        }
+        return Promise.resolve(snapshot);
+      }
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_client_creation") return Promise.resolve(preflightResult);
+      if (command === "create_client") return Promise.resolve(createResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("Blue Sky");
+
+    fireEvent.click(screen.getByRole("button", { name: "New client" }));
+    fireEvent.change(screen.getByLabelText(/client id/i), {
+      target: { value: "new-client" },
+    });
+    fireEvent.change(screen.getByLabelText(/display name/i), {
+      target: { value: "New Client" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review client" }));
+    await screen.findByRole("heading", { name: "Confirm new client" });
+    fireEvent.click(screen.getByRole("button", { name: "Create client" }));
+
+    expect(await screen.findByText(/was created and added to the workspace/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "New Client" })).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("create_client", {
+      request: {
+        clientId: "new-client",
+        clientName: "New Client",
+        defaultArtist: null,
+      },
+    });
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_client")).toHaveLength(1);
+  });
+
+  it("preserves form values after a confirmed command is rejected", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_client_creation") return Promise.resolve(preflightResult);
+      if (command === "create_client") {
+        return Promise.resolve({
+          ok: false,
+          code: "collision",
+          message: "Client destination already exists",
+          client: preflightResult.client,
+        } satisfies ClientOperationResult);
+      }
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("Blue Sky");
+
+    fireEvent.click(screen.getByRole("button", { name: "New client" }));
+    fireEvent.change(screen.getByLabelText(/client id/i), {
+      target: { value: "new-client" },
+    });
+    fireEvent.change(screen.getByLabelText(/display name/i), {
+      target: { value: "New Client" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review client" }));
+    await screen.findByRole("heading", { name: "Confirm new client" });
+    fireEvent.click(screen.getByRole("button", { name: "Create client" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/already exists/i);
+    expect(screen.getByLabelText(/client id/i)).toHaveValue("new-client");
+    expect(screen.getByLabelText(/display name/i)).toHaveValue("New Client");
+  });
+
+  it("does not retry when creation succeeds but reconciliation fails", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_client_creation") return Promise.resolve(preflightResult);
+      if (command === "create_client") return Promise.resolve(createResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("Blue Sky");
+
+    fireEvent.click(screen.getByRole("button", { name: "New client" }));
+    fireEvent.change(screen.getByLabelText(/client id/i), {
+      target: { value: "new-client" },
+    });
+    fireEvent.change(screen.getByLabelText(/display name/i), {
+      target: { value: "New Client" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review client" }));
+    await screen.findByRole("heading", { name: "Confirm new client" });
+    fireEvent.click(screen.getByRole("button", { name: "Create client" }));
+
+    expect(await screen.findByRole("heading", { name: "Creation needs verification" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/may have completed/i);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_client")).toHaveLength(1);
+  });
+
+  it("prevents duplicate submission while preflight is running", async () => {
+    let resolvePreflight: ((result: ClientOperationResult) => void) | undefined;
+    const pendingPreflight = new Promise<ClientOperationResult>((resolve) => {
+      resolvePreflight = resolve;
+    });
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_client_creation") return pendingPreflight;
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("Blue Sky");
+
+    fireEvent.click(screen.getByRole("button", { name: "New client" }));
+    fireEvent.change(screen.getByLabelText(/client id/i), {
+      target: { value: "new-client" },
+    });
+    fireEvent.change(screen.getByLabelText(/display name/i), {
+      target: { value: "New Client" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Review client" }));
+    const pendingButton = screen.getByRole("button", { name: "Checking…" });
+    expect(pendingButton).toBeDisabled();
+    fireEvent.click(pendingButton);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "preflight_client_creation")).toHaveLength(1);
+
+    resolvePreflight?.(preflightResult);
+    expect(await screen.findByRole("heading", { name: "Confirm new client" })).toBeInTheDocument();
+  });
+
+  it("keeps the read-only dashboard usable for an unsupported automation version", async () => {
+    respondWith(healthyWorkspace(), {
+      available: true,
+      supported: false,
+      clientCreationSupported: false,
+      version: "1.3.0",
+      message: "JL Mixing Automation 1.3.0 detected; client creation requires 1.2.0",
+    });
+    render(<App />);
+
+    expect(await screen.findByText("Blue Sky")).toBeInTheDocument();
+    expect(screen.getAllByText(/client creation requires 1.2.0/i)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
 });

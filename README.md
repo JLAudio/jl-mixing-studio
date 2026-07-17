@@ -41,7 +41,7 @@ The architecture spike passed its automated macOS and Windows gates and manual I
 
 ## Development status
 
-The architecture spike is complete. The current milestone adds a read-only workspace dashboard that:
+The architecture spike and read-only workspace dashboard are complete. The dashboard:
 
 1. Discovers the fixed default workspace at `~/Music/Mixes`.
 2. Validates released studio, client, and project metadata schemas.
@@ -49,7 +49,7 @@ The architecture spike is complete. The current milestone adds a read-only works
 4. Keeps valid projects visible when another workspace item is malformed.
 5. Reports actionable setup and recovery guidance without modifying project data.
 
-Creation and lifecycle workflows remain out of scope for this milestone.
+The current milestone adds the first controlled write workflow: guided client creation through JL Mixing Automation v1.2.0. It performs a non-mutating dry-run, requires explicit confirmation, runs only the allowlisted `new-client` operation, and refreshes the dashboard after success. Project creation and lifecycle workflows remain out of scope.
 
 ## Contributing
 

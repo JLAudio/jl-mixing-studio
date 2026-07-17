@@ -11,8 +11,50 @@ pub struct SystemInfo {
 #[serde(rename_all = "camelCase")]
 pub struct VersionCheck {
     pub available: bool,
+    pub supported: bool,
+    pub client_creation_supported: bool,
     pub version: Option<String>,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientCreationRequest {
+    pub client_id: String,
+    pub client_name: String,
+    pub default_artist: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientCreationSummary {
+    pub client_id: String,
+    pub client_name: String,
+    pub default_artist: Option<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientOperationResult {
+    pub ok: bool,
+    pub code: ClientOperationCode,
+    pub message: String,
+    pub client: Option<ClientCreationSummary>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ClientOperationCode {
+    Ready,
+    Created,
+    InvalidInput,
+    AutomationUnavailable,
+    UnsupportedVersion,
+    UnsupportedPlatform,
+    WorkspaceBlocked,
+    Collision,
+    Rejected,
+    Failed,
 }
 
 #[derive(Debug, Deserialize)]
@@ -132,7 +174,7 @@ pub struct DiscoveryIssue {
     pub recovery: String,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum WorkspaceStatus {
     Healthy,
