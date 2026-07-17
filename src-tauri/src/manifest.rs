@@ -9,6 +9,7 @@ const SUPPORTED_SCHEMA_VERSION: &str = "1.1.0";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ManifestError {
+    #[cfg(test)]
     ReadFailed,
     InvalidJson,
     UnsupportedSchema(String),
@@ -18,6 +19,7 @@ pub enum ManifestError {
 impl fmt::Display for ManifestError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            #[cfg(test)]
             Self::ReadFailed => write!(formatter, "The project manifest could not be read"),
             Self::InvalidJson => write!(formatter, "The project manifest contains invalid JSON"),
             Self::UnsupportedSchema(schema) => {
