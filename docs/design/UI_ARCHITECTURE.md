@@ -47,7 +47,7 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 
 | Screen | Intended responsibility | Implementation status |
 | --- | --- | --- |
-| Dashboard | Summarize authoritative workspace and workflow state and expose common next actions | Existing workspace overview will move into the shell |
+| Dashboard | Answer “What do I need to work on today?” through authoritative summary, Today’s Work, Studio Health, Quick Actions, and Recent Activity sections | Existing workspace overview and guided New Client action will move into the shell; unsupported sections remain Planned |
 | Studio | Display studio identity, configured defaults, workspace information, and approved diagnostics | Future milestone |
 | Clients | List clients and enter approved client workflows | Guided creation exists; client directory is future work |
 | Client Details | Present validated client defaults and the client's projects; enter a selected project | Future milestone; client editing is not yet supported |
@@ -60,6 +60,25 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Reports | Present generated reports without duplicating their state | Future milestone |
 | Activity Log | Present the supported activity that can be reconstructed from authoritative timestamps | Approved derived source; future milestone |
 | Settings | Separate application preferences from approved studio configuration changes | Future milestone |
+
+## Screen-content preservation
+
+The revised wireframe retains the useful information density and operational structure of the original concept while correcting unsupported assumptions:
+
+- **Dashboard:** greeting/context, four workflow summary cards, Today’s Work, Studio Health, Quick Actions, and Recent Activity. Its primary purpose is to answer **“What do I need to work on today?”**
+- **Studio:** studio identity, workspace, installed tools, audio defaults, storage, statistics, and recent studio activity.
+- **Clients and Client Details:** searchable client directory, validated client defaults, project list, and the route into a selected project.
+- **Projects:** search, client and workflow filters, sortable project table, revision/delivery context, and project selection.
+- **Project Overview:** project status, project information, revision summary, recommended next step, workflow tabs, and restricted folder/DAW actions.
+- **Intake:** validation status, file/error/warning counts, validation summary, warning detail, and the approved future validation action.
+- **Revisions:** revision history, selected revision detail, notes, files, and approved future revision actions.
+- **Delivery:** delivery overview, contents, manifest/checksum state, notes, ZIP, open, and verification actions.
+- **Tasks:** derived category counts, project-specific reason, and recommended action.
+- **Reports:** report type, project, update context, search, and filters.
+- **Activity Log:** event filters, search, timestamp, event, project, and persisted-result context.
+- **Settings:** section navigation and representative studio, workspace, integration, validation, audio, delivery, appearance, and advanced fields.
+
+Visible content does not authorize functionality. Any action or diagnostic without an approved source or command mapping must remain disabled and labeled **Planned** or **Unavailable**.
 
 ## Source-of-truth rules
 
@@ -155,19 +174,21 @@ The following sample elements are not approved product behavior as drawn:
 
 1. Build the persistent white sidebar and route structure.
 2. Reserve the consistent disabled **Search — Planned** surface without implementing queries, indexing, or results.
-3. Move the existing workspace dashboard into the Dashboard route.
-4. Preserve guided client creation and all current safety constraints.
-5. Establish reusable layout, navigation, card, table, status, and action styles.
-6. Provide honest unavailable states for routes that are not implemented.
-7. Do not add new workflow state, broad filesystem access, arbitrary command execution, functional search, or unsupported mutations.
+3. Move the existing workspace dashboard into the Dashboard route and organize it around the approved “What do I need to work on today?” composition.
+4. Preserve the four workflow summary areas, Today’s Work, Studio Health, Quick Actions, and Recent Activity as layout regions; populate only currently authoritative data and label deferred regions or actions Planned.
+5. Preserve guided client creation and all current safety constraints.
+6. Establish reusable layout, navigation, card, table, status, and action styles.
+7. Preserve the approved screen-content structure in unavailable route compositions without activating deferred controls.
+8. Provide honest unavailable states for routes that are not implemented.
+9. Do not add new workflow state, broad filesystem access, arbitrary command execution, functional search, or unsupported mutations.
 
-The shell milestone does not implement the complete ten-screen wireframe.
+The shell milestone establishes the complete product-level layout vocabulary but does not implement every screen, data source, diagnostic, or workflow shown in the wireframe.
 
 ## Accessibility and responsive requirements
 
 - All navigation and actions must be operable with a keyboard.
 - Active navigation must be exposed programmatically and not rely on color alone.
-- Focus must remain visible against both the dark sidebar and light content area.
+- Focus must remain visible against both the white navigation pane and light content area.
 - Status must use text or icons in addition to color.
 - Tables must retain meaningful reading order and provide a usable narrow-window treatment.
 - Dialog focus, Escape behavior, pending-operation protection, and confirmation semantics from guided client creation must be preserved.
