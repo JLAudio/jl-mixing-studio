@@ -5,7 +5,7 @@
 **Implementation milestone:** [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8)  
 **Functional baseline:** JL Mixing Automation v1.2.0
 
-![JL Mixing Studio product wireframe](./jl-mixing-studio-wireframe.png)
+![JL Mixing Studio revised product wireframe](./jl-mixing-studio-wireframe-rev2.svg)
 
 ## Purpose
 
@@ -29,21 +29,34 @@ The following patterns are approved:
 
 The wireframe is a layout and interaction reference. Exact copy, sample values, dates, people, versions, spacing, and colors may change during accessible implementation.
 
+## Navigation hierarchy
+
+The primary navigation and nested workflow routes have distinct responsibilities:
+
+1. **Clients** opens the client directory.
+2. Selecting a client opens **Client Details**, which presents validated `client.json` fields and that client's projects.
+3. Selecting a project from Client Details opens the same **Project Overview** route used by the cross-client Projects directory.
+4. Project Overview and the project workflow tabs are project routes. **Projects**, not Clients, remains the active primary navigation item.
+5. A breadcrumb may preserve the originating client context without changing the active project route.
+
+Client modification is not implied by the Client Details screen. JL Mixing Automation v1.2.0 has no client-edit command, so editing requires a separately approved safe workflow.
+
 ## Screen inventory
 
 | Screen | Intended responsibility | Implementation status |
 | --- | --- | --- |
 | Dashboard | Summarize authoritative workspace and workflow state and expose common next actions | Existing workspace overview will move into the shell |
 | Studio | Display studio identity, configured defaults, workspace information, and approved diagnostics | Future milestone |
-| Clients | List clients and enter approved client workflows | Guided creation exists; full client screen is future work |
+| Clients | List clients and enter approved client workflows | Guided creation exists; client directory is future work |
+| Client Details | Present validated client defaults and the client's projects; enter a selected project | Future milestone; client editing is not yet supported |
 | Projects | Search, filter, and inspect projects using derived lifecycle state | Future milestone |
-| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action | Future milestone |
+| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Future milestone |
 | Intake | Run and present non-destructive validation | Future milestone |
 | Revisions | Present revision history and approved revision actions | Future milestone |
 | Delivery | Present delivery readiness and approved delivery actions | Future milestone |
-| Tasks | Derive actionable work from authoritative project state | Data model decision required |
+| Tasks | Derive actionable work from authoritative project state | Approved derivation rules; future milestone |
 | Reports | Present generated reports without duplicating their state | Future milestone |
-| Activity Log | Present an approved, authoritative history of operations | Data-source decision required |
+| Activity Log | Present the supported activity that can be reconstructed from authoritative timestamps | Approved derived source; future milestone |
 | Settings | Separate application preferences from approved studio configuration changes | Future milestone |
 
 ## Source-of-truth rules
@@ -55,8 +68,9 @@ JL Mixing Automation v1.2.0 and the files in the selected JL Mixing workspace re
 | Client and project counts | Derived from validated workspace discovery |
 | Current, approved, and delivered revisions | Derived from supported project manifests |
 | Active, awaiting approval, needs delivery, and other workflow labels | Must have an explicitly documented derivation from supported metadata |
+| Recommended priorities | Highest-ranked derived tasks, with the reason for each ranking displayed |
 | Tasks | Derived view only; no competing application-only task state |
-| Recent activity | Requires an approved durable source before implementation |
+| Recent activity | Derived only from supported persisted creation, revision, approval, and delivery timestamps |
 | Tool health | Restricted Rust diagnostics with fixed executable and argument allowlists |
 | Workspace identity | Current approved workspace resolution; arbitrary selection is not implied |
 | Settings | Application preferences or supported studio structures, kept distinct |
@@ -66,6 +80,45 @@ JL Mixing Automation v1.2.0 and the files in the selected JL Mixing workspace re
 
 Opening or inspecting a workspace must not rewrite project metadata. The interface must not report a successful mutation until the underlying operation and subsequent state verification succeed.
 
+## Derived activity, recommended priorities, and tasks
+
+These three views use one read-only derivation layer over validated workspace data. They do not introduce a database, task file, completion flag, or hidden GUI-owned workflow state.
+
+### Activity
+
+The supported activity feed is reconstructed from persisted timestamps that identify a specific event:
+
+- client creation from client `metadata.created_at`;
+- project creation from project `metadata.created_at`;
+- revision creation from each revision `created_at`;
+- revision approval from `approval.approved_at`; and
+- delivery creation from delivery-manifest `metadata.created_at`.
+
+Events sort newest first with deterministic project and event-type tie-breakers. Generic `last_modified_at`, file access, report viewing, failed commands, cancelled commands, and actions that leave no authoritative timestamp are not activity events. The view must state that it is a derived project-event feed, not a complete audit log.
+
+### Recommended priorities
+
+The Dashboard shows the highest-ranked actionable project conditions and explains the rule that produced each item. The ranking is:
+
+1. invalid or unreadable workspace data requiring recovery;
+2. an overdue deadline for a project whose revision state is not fully aligned as `current_revision == approved_revision == delivered_revision`;
+3. an approved revision whose number differs from `delivered_revision`;
+4. the nearest future deadlines for projects whose revision state is not fully aligned as `current_revision == approved_revision == delivered_revision`; and
+5. a current revision whose number differs from `approved_revision`, described as requiring review without implying that it is ready for approval.
+
+Within the same class, items sort by deadline when available, then client name, project name, and stable project ID. A project with `current_revision == approved_revision == delivered_revision` may be omitted from deadline priorities, but it must not be labeled completed.
+
+### Tasks
+
+The Tasks screen exposes the full derived action list produced by the same conditions:
+
+- resolve a workspace recovery issue;
+- review an overdue or approaching project deadline;
+- create or update delivery for the approved revision; or
+- review a newer unapproved current revision.
+
+Tasks have no manual completion checkbox in v1.0. They disappear or change when refreshed authoritative state no longer produces the condition. The Dashboard may show a smaller top-ranked subset, but both views must use the same derivation and ordering rules.
+
 ## Wireframe corrections and deferred assumptions
 
 The following sample elements are not approved product behavior as drawn:
@@ -74,8 +127,10 @@ The following sample elements are not approved product behavior as drawn:
 - The Studio application version and the JL Mixing Automation compatibility version are separate. The sample `v2.0.0 (Preview)` label is not an approved release version.
 - JL Mixing Automation v1.2.0 has no project-completion state. JL Mixing Studio must not invent completed-project counts or completion status.
 - Global search, arbitrary workspace switching, user accounts, multi-user activity, system storage diagnostics, editable studio defaults, and unrestricted settings changes require separate approval.
-- Activity history requires an authoritative data source; it must not be synthesized in a way that can contradict project files.
-- Tasks and dashboard priorities must be derived from supported project state.
+- Project Overview is reached after project selection from either Client Details or Projects; Projects remains the active primary route.
+- The Clients route requires a client directory and Client Details screen before it can represent the approved product flow.
+- Derived Activity is limited to the specific persisted events defined above and must not imply a complete audit trail.
+- Tasks and Dashboard priorities use the single approved derivation and ordering rules above.
 - Screen controls must not imply that an unsupported operation is available. Use explicit unavailable or planned states instead.
 - Windows must remain usable for supported read-only behavior when JL Mixing Automation v1.2.0 is unavailable.
 
