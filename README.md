@@ -18,9 +18,9 @@ JL Mixing Studio will help engineers:
 
 JL Mixing Automation v1.2.0 is the current functional baseline. The GUI must preserve its project semantics unless a change is explicitly designed and approved.
 
-## Provisional architecture
+## Architecture
 
-The current architecture direction is:
+The accepted architecture is:
 
 - **Desktop framework:** Tauri 2
 - **Frontend:** React and TypeScript
@@ -28,7 +28,7 @@ The current architecture direction is:
 - **License:** Apache-2.0
 - **Initial platforms:** macOS and Windows
 
-This direction remains provisional until the architecture spike in [ADR-0001](docs/adr/0001-tauri-2.md) passes.
+The architecture spike passed its automated macOS and Windows gates and manual Intel macOS Monterey validation. See [ADR-0001](docs/adr/0001-tauri-2.md).
 
 ## Project documents
 
@@ -41,14 +41,14 @@ This direction remains provisional until the architecture spike in [ADR-0001](do
 
 ## Development status
 
-The next milestone is a minimal architecture spike proving that the application can:
+The completed architecture spike demonstrated that the application can:
 
 1. Launch on an Intel Mac running macOS Monterey.
-2. Build and launch on Windows.
+2. Build on Windows through reproducible CI.
 3. Invoke `jl-mixing --version` through a restricted Rust command.
 4. Read and display a representative JL Mixing Automation v1.2.0 project manifest through a typed Rust boundary.
 
-No product feature implementation should begin until the spike is reviewed.
+Product feature implementation may begin after the architecture-spike pull request is reviewed and merged.
 
 ## Contributing
 
