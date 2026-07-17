@@ -26,7 +26,9 @@ fn discover_default_workspace(app: tauri::AppHandle) -> Result<WorkspaceSnapshot
         .path()
         .home_dir()
         .map_err(|_| "The current user's home directory could not be resolved".to_owned())?;
-    Ok(workspace::discover_workspace_at(&home.join("Music").join("Mixes")))
+    Ok(workspace::discover_workspace_at(
+        &home.join("Music").join("Mixes"),
+    ))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
