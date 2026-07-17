@@ -32,6 +32,7 @@ This direction remains provisional until the architecture spike in [ADR-0001](do
 
 ## Project documents
 
+- [Developer setup and validation](docs/DEVELOPMENT.md)
 - [Product Requirements Document](docs/PRD.md)
 - [Architecture decision: Tauri 2](docs/adr/0001-tauri-2.md)
 - [Definition of Done](docs/DEFINITION_OF_DONE.md)
