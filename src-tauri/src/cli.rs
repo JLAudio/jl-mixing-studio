@@ -1,3 +1,6 @@
+use std::env;
+use std::ffi::OsStr;
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -7,9 +10,10 @@ use crate::models::{
     VersionCheck,
 };
 
-const VERSION_EXECUTABLE: &str = "jl-mixing";
 const CLIENT_EXECUTABLE: &str = "new-client";
+const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.2.0";
+const MAX_VERSION_FILE_BYTES: usize = 64;
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
 
 pub fn check_jl_mixing_version(home: &Path) -> VersionCheck {
@@ -125,7 +129,12 @@ fn run_client_operation<R: ProcessRunner>(
         return blocked_client_operation(ClientOperationCode::UnsupportedVersion, &version.message);
     }
 
-    let executable = resolve_command(home, CLIENT_EXECUTABLE);
+    let Some(executable) = resolve_command(home, CLIENT_EXECUTABLE) else {
+        return blocked_client_operation(
+            ClientOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation new-client command was not found",
+        );
+    };
     let arguments = client_arguments(&client, operation);
     match runner.run(&executable, &arguments, Some(workspace)) {
         Ok(output) if output.success => ClientOperationResult {
@@ -245,78 +254,124 @@ fn rejected_operation(
 }
 
 fn check_version_with_runner<R: ProcessRunner>(home: &Path, runner: &R) -> VersionCheck {
-    let executable = resolve_command(home, VERSION_EXECUTABLE);
-    let arguments = vec!["--version".to_owned()];
+    let Some(executable) = resolve_command(home, CLIENT_EXECUTABLE) else {
+        return unavailable_version(
+            "JL Mixing Automation was not found in its default install location or on PATH",
+        );
+    };
+    let Some(version_file) = version_file_for_command(&executable) else {
+        return unavailable_version(
+            "The JL Mixing Automation installation location could not be verified",
+        );
+    };
+    let version = match read_version_file(&version_file) {
+        Ok(version) => version,
+        Err(message) => return unavailable_version(message),
+    };
+
+    let arguments = vec!["--help".to_owned()];
     match runner.run(&executable, &arguments, None) {
-        Ok(output) => evaluate_version_result(output),
-        Err(error) => evaluate_version_error(error),
+        Ok(output) if output.success => evaluate_version(&version),
+        Ok(output) => unavailable_version(&format!(
+            "JL Mixing Automation health check failed with exit code {}",
+            output
+                .exit_code
+                .map_or_else(|| "unknown".into(), |code| code.to_string())
+        )),
+        Err(error) => evaluate_health_check_error(error),
     }
 }
 
-fn resolve_command(home: &Path, executable: &str) -> PathBuf {
+fn resolve_command(home: &Path, executable: &str) -> Option<PathBuf> {
+    let path = env::var_os("PATH");
+    resolve_command_with_path(home, executable, path.as_deref())
+}
+
+fn resolve_command_with_path(
+    home: &Path,
+    executable: &str,
+    search_path: Option<&OsStr>,
+) -> Option<PathBuf> {
     let default_install = home.join(".local").join("bin").join(executable);
     if default_install.is_file() {
-        default_install
-    } else {
-        PathBuf::from(executable)
+        return Some(default_install);
     }
+
+    search_path.and_then(|value| {
+        env::split_paths(value)
+            .map(|directory| directory.join(executable))
+            .find(|candidate| candidate.is_file())
+    })
 }
 
-fn evaluate_version_error(error: io::Error) -> VersionCheck {
+fn version_file_for_command(executable: &Path) -> Option<PathBuf> {
+    let bin_directory = executable.parent()?;
+    if bin_directory.file_name()? != OsStr::new("bin") {
+        return None;
+    }
+    let prefix = bin_directory.parent()?;
+    Some(prefix.join("share").join("jl-mixing").join(VERSION_FILE))
+}
+
+fn read_version_file(path: &Path) -> Result<String, &'static str> {
+    let bytes = fs::read(path)
+        .map_err(|_| "The JL Mixing Automation VERSION file could not be read")?;
+    if bytes.len() > MAX_VERSION_FILE_BYTES {
+        return Err("The JL Mixing Automation VERSION file is invalid");
+    }
+    let text = std::str::from_utf8(&bytes)
+        .map_err(|_| "The JL Mixing Automation VERSION file is invalid")?;
+    parse_version(text).ok_or("The JL Mixing Automation VERSION file is invalid")
+}
+
+fn evaluate_health_check_error(error: io::Error) -> VersionCheck {
     let message = if error.kind() == io::ErrorKind::NotFound {
         "JL Mixing Automation was not found in its default install location or on PATH"
     } else {
         "JL Mixing Automation could not be started"
     };
+    unavailable_version(message)
+}
+
+fn evaluate_version(version: &str) -> VersionCheck {
+    let supported = version == SUPPORTED_VERSION;
+    VersionCheck {
+        available: true,
+        supported,
+        client_creation_supported: supported && !cfg!(target_os = "windows"),
+        message: if supported {
+            format!("JL Mixing Automation {version} detected")
+        } else {
+            format!(
+                "JL Mixing Automation {version} detected; client creation requires {SUPPORTED_VERSION}"
+            )
+        },
+        version: Some(version.to_owned()),
+    }
+}
+
+fn unavailable_version(message: &str) -> VersionCheck {
     VersionCheck {
         available: false,
         supported: false,
         client_creation_supported: false,
         version: None,
-        message: message.into(),
+        message: message.to_owned(),
     }
 }
 
-fn evaluate_version_result(output: ProcessResult) -> VersionCheck {
-    if output.success {
-        match parse_version(&output.stdout) {
-            Some(version) => {
-                let supported = version == SUPPORTED_VERSION;
-                VersionCheck {
-                    available: true,
-                    supported,
-                    client_creation_supported: supported && !cfg!(target_os = "windows"),
-                    message: if supported {
-                        format!("JL Mixing Automation {version} detected")
-                    } else {
-                        format!(
-                            "JL Mixing Automation {version} detected; client creation requires {SUPPORTED_VERSION}"
-                        )
-                    },
-                    version: Some(version),
-                }
-            }
-            None => VersionCheck {
-                available: false,
-                supported: false,
-                client_creation_supported: false,
-                version: None,
-                message: "JL Mixing Automation returned unrecognized version output".into(),
-            },
-        }
+fn parse_version(input: &str) -> Option<String> {
+    let version = input.trim();
+    let parts: Vec<_> = version.split('.').collect();
+
+    if parts.len() == 3
+        && parts.iter().all(|part| {
+            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
+        })
+    {
+        Some(version.to_owned())
     } else {
-        VersionCheck {
-            available: false,
-            supported: false,
-            client_creation_supported: false,
-            version: None,
-            message: format!(
-                "JL Mixing Automation version check failed with exit code {}",
-                output
-                    .exit_code
-                    .map_or_else(|| "unknown".into(), |code| code.to_string())
-            ),
-        }
+        None
     }
 }
 
@@ -338,21 +393,6 @@ fn bounded_process_message(stderr: &str, stdout: &str, fallback: &str) -> String
         fallback.to_owned()
     } else {
         filtered
-    }
-}
-
-fn parse_version(output: &str) -> Option<String> {
-    let version = output.trim().strip_prefix("jl-mixing ")?.trim();
-    let parts: Vec<_> = version.split('.').collect();
-
-    if parts.len() == 3
-        && parts.iter().all(|part| {
-            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
-        })
-    {
-        Some(version.to_owned())
-    } else {
-        None
     }
 }
 
@@ -429,13 +469,24 @@ mod tests {
         }
     }
 
+    fn installed_home(version: &str) -> tempfile::TempDir {
+        let home = tempfile::tempdir().unwrap();
+        let bin = home.path().join(".local/bin");
+        let application = home.path().join(".local/share/jl-mixing");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::create_dir_all(&application).unwrap();
+        std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(application.join(VERSION_FILE), format!("{version}\n")).unwrap();
+        home
+    }
+
     #[test]
     fn accepts_only_the_released_supported_version_for_creation() {
-        let supported = evaluate_version_result(success("jl-mixing 1.2.0\n").unwrap());
+        let supported = evaluate_version("1.2.0");
         assert!(supported.available);
         assert!(supported.supported);
 
-        let future = evaluate_version_result(success("jl-mixing 1.3.0\n").unwrap());
+        let future = evaluate_version("1.3.0");
         assert!(future.available);
         assert!(!future.supported);
         assert!(future.message.contains("requires 1.2.0"));
@@ -444,15 +495,13 @@ mod tests {
     #[test]
     fn rejects_unrecognized_version_output() {
         assert_eq!(parse_version("version one"), None);
-        let result = evaluate_version_result(success("version one").unwrap());
-        assert!(!result.available);
-        assert!(!result.supported);
+        assert_eq!(parse_version("jl-mixing 1.2.0"), None);
     }
 
     #[test]
     fn reports_missing_executable_without_exposing_system_details() {
         let result =
-            evaluate_version_error(io::Error::new(io::ErrorKind::NotFound, "private path"));
+            evaluate_health_check_error(io::Error::new(io::ErrorKind::NotFound, "private path"));
         assert!(!result.available);
         assert!(result
             .message
@@ -461,22 +510,69 @@ mod tests {
 
     #[test]
     fn prefers_the_documented_default_install_location() {
-        let home = tempfile::tempdir().unwrap();
-        let bin = home.path().join(".local/bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        std::fs::write(bin.join(VERSION_EXECUTABLE), "launcher").unwrap();
+        let home = installed_home(SUPPORTED_VERSION);
         assert_eq!(
-            resolve_command(home.path(), VERSION_EXECUTABLE),
-            bin.join(VERSION_EXECUTABLE)
+            resolve_command_with_path(home.path(), CLIENT_EXECUTABLE, None),
+            Some(home.path().join(".local/bin").join(CLIENT_EXECUTABLE))
+        );
+    }
+
+    #[test]
+    fn resolves_a_documented_custom_prefix_from_path() {
+        let home = tempfile::tempdir().unwrap();
+        let prefix = tempfile::tempdir().unwrap();
+        let bin = prefix.path().join("bin");
+        std::fs::create_dir_all(&bin).unwrap();
+        std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
+        let search_path = env::join_paths([&bin]).unwrap();
+
+        let executable = resolve_command_with_path(
+            home.path(),
+            CLIENT_EXECUTABLE,
+            Some(search_path.as_os_str()),
+        )
+        .unwrap();
+        assert_eq!(executable, bin.join(CLIENT_EXECUTABLE));
+        assert_eq!(
+            version_file_for_command(&executable),
+            Some(prefix.path().join("share/jl-mixing/VERSION"))
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_invalid_version_metadata_without_running_a_command() {
+        let home = installed_home("not-a-version");
+        let runner = FakeRunner::new(Vec::new());
+        let result = check_version_with_runner(home.path(), &runner);
+
+        assert!(!result.available);
+        assert!(result.message.contains("VERSION file is invalid"));
+        assert!(runner.invocations.borrow().is_empty());
+    }
+
+    #[test]
+    fn checks_new_client_health_after_reading_the_installed_version() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("Usage: new-client CLIENT_ID [options]")]);
+        let result = check_version_with_runner(home.path(), &runner);
+
+        assert!(result.available);
+        assert!(result.supported);
+        assert_eq!(result.version.as_deref(), Some(SUPPORTED_VERSION));
+        assert_eq!(runner.invocations.borrow().len(), 1);
+        assert_eq!(
+            runner.invocations.borrow()[0].arguments,
+            vec!["--help"]
         );
     }
 
     #[test]
     fn preflight_uses_dry_run_without_directory_change_flags() {
-        let runner = FakeRunner::new(vec![success("jl-mixing 1.2.0\n"), success("preview")]);
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("preview")]);
         let workspace = Path::new("/fixed/workspace");
         let result = run_client_operation(
-            Path::new("/home/tester"),
+            home.path(),
             workspace,
             request(Some(" The Artist ")),
             ClientOperation::Preflight,
@@ -487,7 +583,10 @@ mod tests {
         assert_eq!(result.code, ClientOperationCode::Ready);
         let invocations = runner.invocations.borrow();
         assert_eq!(invocations.len(), 2);
-        assert_eq!(invocations[1].executable, PathBuf::from("new-client"));
+        assert_eq!(
+            invocations[1].executable,
+            home.path().join(".local/bin/new-client")
+        );
         assert_eq!(
             invocations[1].arguments,
             vec![
@@ -505,9 +604,10 @@ mod tests {
 
     #[test]
     fn confirmed_creation_uses_no_cd_and_omits_empty_artist() {
-        let runner = FakeRunner::new(vec![success("jl-mixing 1.2.0\n"), success("created")]);
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("created")]);
         let result = run_client_operation(
-            Path::new("/home/tester"),
+            home.path(),
             Path::new("/fixed/workspace"),
             request(Some("   ")),
             ClientOperation::Create,
@@ -540,9 +640,10 @@ mod tests {
 
     #[test]
     fn unsupported_version_never_starts_new_client() {
-        let runner = FakeRunner::new(vec![success("jl-mixing 2.0.0\n")]);
+        let home = installed_home("2.0.0");
+        let runner = FakeRunner::new(vec![success("help")]);
         let result = run_client_operation(
-            Path::new("/home/tester"),
+            home.path(),
             Path::new("/fixed/workspace"),
             request(None),
             ClientOperation::Preflight,
@@ -554,12 +655,13 @@ mod tests {
 
     #[test]
     fn reports_collision_from_rejected_dry_run() {
+        let home = installed_home(SUPPORTED_VERSION);
         let runner = FakeRunner::new(vec![
-            success("jl-mixing 1.2.0\n"),
+            success("help"),
             failure(4, "Client destination already exists"),
         ]);
         let result = run_client_operation(
-            Path::new("/home/tester"),
+            home.path(),
             Path::new("/fixed/workspace"),
             request(None),
             ClientOperation::Preflight,
@@ -572,12 +674,13 @@ mod tests {
 
     #[test]
     fn reports_missing_new_client_separately() {
+        let home = installed_home(SUPPORTED_VERSION);
         let runner = FakeRunner::new(vec![
-            success("jl-mixing 1.2.0\n"),
+            success("help"),
             Err(io::Error::new(io::ErrorKind::NotFound, "missing")),
         ]);
         let result = run_client_operation(
-            Path::new("/home/tester"),
+            home.path(),
             Path::new("/fixed/workspace"),
             request(None),
             ClientOperation::Create,
