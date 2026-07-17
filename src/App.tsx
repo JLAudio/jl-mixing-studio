@@ -549,7 +549,7 @@ export default function App() {
         </div>
         <p className={"automation-status " + (automationReady ? "success" : "warning")}>
           {version.status === "loading"
-            ? "Checking the fixed jl-mixing --version operation."
+            ? "Checking the installed JL Mixing Automation release."
             : version.status === "ready"
               ? version.value.message
               : version.message}
