@@ -88,7 +88,7 @@
     <text class="body" x="156" y="241">Coastal Drive — delivery ready</text><text class="ok" x="379" y="241">OPEN</text>
     <text class="body" x="156" y="272">Summer Single — 2 warnings</text><text class="warn" x="377" y="272">CHECK</text>
     <rect class="card" x="430" y="178" width="147" height="79"/><text class="heading" x="441" y="198">Studio Health</text>
-    <text class="ok" x="441" y="216">● Automation v1.2</text><text class="ok" x="441" y="232">● Workspace healthy</text><text class="small" x="441" y="248">ffmpeg • ffprobe ready</text>
+    <text class="ok" x="441" y="216">● Automation v1.2</text><text class="ok" x="441" y="232">● Workspace healthy</text><text class="planned-text" x="441" y="248">ffmpeg • ffprobe PLANNED</text>
     <rect class="card" x="430" y="264" width="147" height="73"/><text class="heading" x="441" y="283">Quick Actions</text>
     <rect class="mini-button" x="441" y="290" width="125" height="16"/><rect class="planned" x="441" y="309" width="60" height="16"/><rect class="planned" x="506" y="309" width="60" height="16"/>
     <text class="mini-button-text" x="472" y="301">NEW CLIENT</text><text class="planned-text" x="449" y="320">PROJECT</text><text class="planned-text" x="513" y="320">VALIDATE</text>
@@ -106,7 +106,7 @@
     <rect class="card" x="145" y="98" width="136" height="91"/><rect class="card" x="289" y="98" width="136" height="91"/><rect class="card" x="433" y="98" width="144" height="91"/>
     <text class="heading" x="157" y="120">My Studio</text><text class="small" x="157" y="140">Primary mixing studio</text><text class="small" x="157" y="159">studio.json validated</text><text class="planned-text" x="157" y="178">EDIT PLANNED</text>
     <text class="heading" x="301" y="120">Workspace</text><text class="small" x="301" y="140">~/Music/Mixes</text><text class="small" x="301" y="159">macOS • Intel</text><text class="planned-text" x="301" y="178">CHANGE PLANNED</text>
-    <text class="heading" x="445" y="120">System Tools</text><text class="ok" x="445" y="140">● Automation 1.2</text><text class="ok" x="445" y="157">● ffmpeg / ffprobe</text><text class="ok" x="445" y="174">● ShellCheck</text>
+    <text class="heading" x="445" y="120">System Tools</text><text class="ok" x="445" y="140">● Automation 1.2</text><text class="planned-text" x="445" y="157">ffmpeg / ffprobe PLANNED</text><text class="planned-text" x="445" y="174">ShellCheck PLANNED</text>
     <rect class="card" x="145" y="198" width="136" height="82"/><rect class="card" x="289" y="198" width="136" height="82"/><rect class="card" x="433" y="198" width="144" height="82"/>
     <text class="heading" x="157" y="220">Audio Defaults</text><text class="small" x="157" y="239">48 kHz • 24-bit</text><text class="small" x="157" y="256">WAV • Logic Pro</text><text class="planned-text" x="157" y="272">EDIT PLANNED</text>
     <text class="heading" x="301" y="220">Storage</text><text class="small" x="301" y="239">Workspace size</text><text class="small" x="301" y="256">Free-space diagnostic</text><text class="planned-text" x="301" y="272">PLANNED</text>
