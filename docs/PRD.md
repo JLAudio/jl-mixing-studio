@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Approved baseline; architecture validated  
+**Status:** Approved baseline; read-only dashboard complete  
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
 **Functional baseline:** JL Mixing Automation v1.2.0
@@ -184,9 +184,9 @@ The first implementation milestone delivered a minimal application that:
 
 This milestone was an architecture spike, not the first production release. It is complete and recorded by ADR-0001.
 
-## 12. Next milestone: read-only workspace discovery and project overview
+## 12. Completed milestone: read-only workspace discovery and project overview
 
-The next milestone establishes the production read path before any project mutation is introduced. The application shall:
+This completed milestone established the production read path before any project mutation was introduced. The application:
 
 1. Resolve and inspect the default JL Mixing workspace at `~/Music/Mixes`.
 2. Read and validate the studio configuration, clients, and project manifests through typed Rust commands.
@@ -198,9 +198,25 @@ The next milestone establishes the production read path before any project mutat
 8. Include isolated Rust fixtures and frontend tests for supported states, partial failures, paths containing spaces, historical valid `created_with` values, and non-mutation.
 9. Validate the full installed-workspace flow on macOS while retaining Windows CI builds and a graceful unavailable-CLI state on Windows.
 
-Creation or editing of studios, clients, projects, revisions, approvals, deliveries, settings, or other workflow state is outside this milestone. JL Mixing Automation v1.2.0 has no project-completion state, and the GUI must not invent one. The detailed scope and acceptance criteria are tracked in [Issue #3](https://github.com/JLAudio/jl-mixing-studio/issues/3).
+Creation or editing of studios, clients, projects, revisions, approvals, deliveries, settings, or other workflow state is outside this milestone. JL Mixing Automation v1.2.0 has no project-completion state, and the GUI must not invent one. The completed scope and acceptance criteria are tracked in [Issue #3](https://github.com/JLAudio/jl-mixing-studio/issues/3).
 
-## 13. Future decisions requiring approval
+## 13. Current milestone: safe automation bridge and guided client creation
+
+The current milestone introduces the first controlled write workflow while preserving JL Mixing Automation v1.2.0 as the functional baseline. The application shall:
+
+1. Require a valid healthy or empty default workspace and a detected JL Mixing Automation v1.2.0 installation.
+2. Collect only client ID, display name, and optional default artist; all other values inherit studio defaults.
+3. Preflight the fixed `new-client` operation with `--dry-run` and no directory-change flag.
+4. Require explicit confirmation before invoking `new-client` with `--no-cd`.
+5. Construct a fixed executable and separate allowlisted arguments in Rust without a shell.
+6. Refresh discovery after success and verify that the new client is present without automatically retrying an uncertain result.
+7. Disable the workflow for invalid or partially valid workspaces, missing or unsupported automation, and Windows.
+8. Keep the read-only dashboard available when client creation is unavailable.
+9. Test command construction through an injected fake runner and keep automated tests isolated from real workspaces.
+
+Studio creation, project creation, client editing or deletion, arbitrary workspace or executable selection, automation installation, and all project lifecycle mutations remain outside this milestone. The detailed scope and acceptance criteria are tracked in [Issue #6](https://github.com/JLAudio/jl-mixing-studio/issues/6).
+
+## 14. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.
@@ -210,3 +226,4 @@ Creation or editing of studios, clients, projects, revisions, approvals, deliver
 - Release signing, notarization, and update distribution.
 - Telemetry or crash reporting, if any.
 - Public release roadmap and versioning policy.
+
