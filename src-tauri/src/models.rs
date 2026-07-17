@@ -27,7 +27,8 @@ pub struct ProjectManifest {
 
 #[derive(Debug, Deserialize)]
 pub struct Metadata {
-    pub schema: String,
+    #[serde(rename = "schema")]
+    pub _schema: String,
     pub schema_version: String,
     pub created_with: String,
 }
