@@ -1,0 +1,224 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="2390" viewBox="0 0 1920 2390" role="img" aria-labelledby="title desc">
+  <title id="title">JL Mixing Studio revised product wireframe</title>
+  <desc id="desc">Fifteen desktop wireframe panels showing the approved application shell, client-to-project navigation, project workflow screens, and derived activity, priority, and task views.</desc>
+  <defs>
+    <style>
+      .page { fill: #f4f6f8; }
+      .panel { fill: #ffffff; stroke: #8b98a8; stroke-width: 2; rx: 10; }
+      .chrome { fill: #e7ebef; }
+      .sidebar { fill: #172333; }
+      .brand { fill: #ffffff; font: 700 14px system-ui, sans-serif; }
+      .nav { fill: #cbd5df; font: 12px system-ui, sans-serif; }
+      .active { fill: #2e86de; opacity: .38; }
+      .screen-no { fill: #526274; font: 700 13px system-ui, sans-serif; letter-spacing: 1px; }
+      .screen-title { fill: #172333; font: 700 18px system-ui, sans-serif; }
+      .heading { fill: #26384c; font: 700 14px system-ui, sans-serif; }
+      .body { fill: #526274; font: 12px system-ui, sans-serif; }
+      .small { fill: #6b7887; font: 11px system-ui, sans-serif; }
+      .card { fill: #f5f7f9; stroke: #cbd3dc; stroke-width: 1; rx: 6; }
+      .row { fill: #ffffff; stroke: #d7dde4; stroke-width: 1; }
+      .button { fill: #2e86de; rx: 5; }
+      .button-text { fill: #ffffff; font: 700 11px system-ui, sans-serif; }
+      .planned { fill: #fff6d8; stroke: #d8b850; stroke-width: 1; rx: 5; }
+      .planned-text { fill: #765f0a; font: 700 11px system-ui, sans-serif; }
+      .tab { fill: #e9edf2; rx: 4; }
+      .tab-active { fill: #d7eafd; stroke: #2e86de; stroke-width: 1; rx: 4; }
+      .flow { fill: none; stroke: #2e86de; stroke-width: 3; marker-end: url(#arrow); }
+      .rule { fill: #edf5fd; stroke: #9cc8ee; stroke-width: 1; rx: 6; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2e86de"/>
+    </marker>
+    <g id="sidebar-base">
+      <rect class="sidebar" x="0" y="0" width="125" height="363"/>
+      <text class="brand" x="12" y="23">JL MIXING</text>
+      <text class="brand" x="12" y="40">STUDIO</text>
+      <text class="nav" x="14" y="70">Dashboard</text>
+      <text class="nav" x="14" y="98">Studio</text>
+      <text class="nav" x="14" y="126">Clients</text>
+      <text class="nav" x="14" y="154">Projects</text>
+      <text class="nav" x="14" y="182">Tasks</text>
+      <text class="nav" x="14" y="210">Reports</text>
+      <text class="nav" x="14" y="238">Activity Log</text>
+      <text class="nav" x="14" y="266">Settings</text>
+      <text class="small" x="12" y="337" fill="#aebdca">Workspace</text>
+      <text class="nav" x="12" y="354">~/Music/Mixes</text>
+    </g>
+  </defs>
+
+  <rect class="page" width="1920" height="2390"/>
+  <text x="40" y="43" class="screen-title" style="font-size:28px">JL Mixing Studio — revised product wireframe</text>
+  <text x="40" y="72" class="body" style="font-size:14px">Approved navigation hierarchy, client screens, project workflow, and authoritative derived views</text>
+
+  <!-- 01 Dashboard -->
+  <g transform="translate(20 100)">
+    <rect class="panel" width="600" height="420"/>
+    <rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">01 DASHBOARD</text>
+    <use href="#sidebar-base" x="0" y="42"/>
+    <rect class="active" x="5" y="96" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Studio Dashboard</text>
+    <rect class="card" x="145" y="95" width="132" height="58"/><rect class="card" x="286" y="95" width="132" height="58"/><rect class="card" x="427" y="95" width="150" height="58"/>
+    <text class="small" x="157" y="116">Clients</text><text class="heading" x="157" y="140">12</text>
+    <text class="small" x="298" y="116">Projects</text><text class="heading" x="298" y="140">18</text>
+    <text class="small" x="439" y="116">Needs attention</text><text class="heading" x="439" y="140">4</text>
+    <text class="heading" x="145" y="182">Recommended priorities</text>
+    <rect class="row" x="145" y="192" width="432" height="35"/><rect class="row" x="145" y="227" width="432" height="35"/><rect class="row" x="145" y="262" width="432" height="35"/>
+    <text class="body" x="157" y="214">1  Resolve invalid workspace data</text><text class="body" x="157" y="249">2  Deliver approved revision</text><text class="body" x="157" y="284">3  Review approaching deadline</text>
+    <text class="heading" x="145" y="326">Recent derived activity</text>
+    <text class="small" x="145" y="348">Created • Revision • Approval • Delivery timestamps only</text>
+    <text class="small" x="145" y="370">No separate GUI activity database</text>
+  </g>
+
+  <!-- 02 Studio -->
+  <g transform="translate(660 100)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">02 STUDIO</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="124" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Studio</text><rect class="card" x="145" y="98" width="432" height="94"/>
+    <text class="heading" x="160" y="125">Studio identity and defaults</text><text class="body" x="160" y="151">Read approved studio.json fields</text><text class="small" x="160" y="174">Editing remains a future reviewed workflow</text>
+    <rect class="planned" x="145" y="215" width="205" height="34"/><text class="planned-text" x="160" y="237">Future milestone</text>
+  </g>
+
+  <!-- 03 Clients list -->
+  <g transform="translate(1300 100)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">03 CLIENTS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="152" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Clients</text><rect class="button" x="475" y="57" width="102" height="29"/><text class="button-text" x="494" y="76">NEW CLIENT</text>
+    <text class="small" x="145" y="110">Select a client to view details and projects</text>
+    <rect class="row" x="145" y="126" width="432" height="34"/><rect class="row" x="145" y="160" width="432" height="52"/><rect class="row" x="145" y="212" width="432" height="52"/><rect class="row" x="145" y="264" width="432" height="52"/>
+    <text class="heading" x="157" y="148">Client name</text><text class="small" x="450" y="148">Projects</text>
+    <text class="body" x="157" y="190">Acme Records</text><text class="body" x="486" y="190">4  ›</text>
+    <text class="body" x="157" y="242">North Shore Music</text><text class="body" x="486" y="242">2  ›</text>
+    <text class="body" x="157" y="294">Studio Client</text><text class="body" x="486" y="294">1  ›</text>
+  </g>
+
+  <!-- 04 Client details -->
+  <g transform="translate(20 560)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">04 CLIENT DETAILS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="152" width="115" height="22" rx="4"/>
+    <text class="small" x="145" y="68">Clients / Acme Records</text><text class="screen-title" x="145" y="94">Acme Records</text>
+    <rect class="planned" x="447" y="69" width="130" height="29"/><text class="planned-text" x="462" y="88">EDIT PLANNED</text>
+    <rect class="card" x="145" y="112" width="432" height="72"/><text class="heading" x="158" y="137">Client defaults</text><text class="body" x="158" y="160">Artist • 48 kHz • 24-bit • WAV • Deliverables</text>
+    <text class="heading" x="145" y="213">Projects</text>
+    <rect class="row" x="145" y="226" width="432" height="45"/><rect class="row" x="145" y="271" width="432" height="45"/><rect class="row" x="145" y="316" width="432" height="45"/>
+    <text class="body" x="158" y="254">Blue Sky</text><text class="small" x="470" y="254">OPEN ›</text>
+    <text class="body" x="158" y="299">After Midnight</text><text class="small" x="470" y="299">OPEN ›</text>
+    <text class="body" x="158" y="344">Coastal Drive</text><text class="small" x="470" y="344">OPEN ›</text>
+    <text class="small" x="145" y="388">Selecting a project opens Project Overview</text>
+  </g>
+
+  <!-- 05 Projects list -->
+  <g transform="translate(660 560)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">05 PROJECTS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Projects</text><text class="small" x="145" y="106">Cross-client project directory</text>
+    <rect class="row" x="145" y="122" width="432" height="34"/><rect class="row" x="145" y="156" width="432" height="52"/><rect class="row" x="145" y="208" width="432" height="52"/><rect class="row" x="145" y="260" width="432" height="52"/>
+    <text class="heading" x="157" y="144">Project</text><text class="small" x="370" y="144">Client</text><text class="small" x="515" y="144">State</text>
+    <text class="body" x="157" y="187">Blue Sky</text><text class="small" x="370" y="187">Acme</text><text class="small" x="515" y="187">Rev 3</text>
+    <text class="body" x="157" y="239">Coastal Drive</text><text class="small" x="370" y="239">Acme</text><text class="small" x="515" y="239">Deliver</text>
+    <text class="body" x="157" y="291">New Horizon</text><text class="small" x="370" y="291">North Shore</text><text class="small" x="515" y="291">Rev 1</text>
+    <text class="small" x="145" y="350">Select any row → same Project Overview route</text>
+  </g>
+
+  <!-- 06 Project overview -->
+  <g transform="translate(1300 560)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">06 PROJECT OVERVIEW</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
+    <text class="small" x="145" y="65">Clients / Acme Records / Blue Sky</text><text class="screen-title" x="145" y="91">Blue Sky</text>
+    <rect class="tab-active" x="145" y="105" width="67" height="25"/><rect class="tab" x="217" y="105" width="52" height="25"/><rect class="tab" x="274" y="105" width="68" height="25"/><rect class="tab" x="347" y="105" width="62" height="25"/><rect class="tab" x="414" y="105" width="57" height="25"/><rect class="tab" x="476" y="105" width="45" height="25"/><rect class="tab" x="526" y="105" width="51" height="25"/>
+    <text class="small" x="153" y="122">Overview</text><text class="small" x="226" y="122">Intake</text><text class="small" x="282" y="122">Revisions</text><text class="small" x="355" y="122">Delivery</text><text class="small" x="421" y="122">Reports</text><text class="small" x="483" y="122">Files</text><text class="small" x="532" y="122">Metadata</text>
+    <rect class="card" x="145" y="150" width="206" height="82"/><rect class="card" x="365" y="150" width="212" height="82"/>
+    <text class="heading" x="158" y="175">Revision state</text><text class="body" x="158" y="199">Current 3 • Approved 2</text><text class="small" x="158" y="218">Delivered 2</text>
+    <text class="heading" x="378" y="175">Recommended next step</text><text class="body" x="378" y="199">Review current revision</text><text class="small" x="378" y="218">Reason shown explicitly</text>
+    <text class="heading" x="145" y="270">Project route, not Client route</text><text class="body" x="145" y="295">Projects remains active after selection from a client.</text>
+    <text class="small" x="145" y="324">The breadcrumb preserves the originating client context.</text>
+  </g>
+
+  <!-- 07 Intake -->
+  <g transform="translate(20 1020)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">07 PROJECT / INTAKE</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
+    <text class="small" x="145" y="65">Blue Sky / Intake</text><text class="screen-title" x="145" y="91">Intake validation</text>
+    <rect class="card" x="145" y="110" width="432" height="84"/><text class="heading" x="160" y="138">Non-destructive validation</text><text class="body" x="160" y="164">Source files, warnings, and generated report</text>
+    <rect class="planned" x="145" y="220" width="185" height="34"/><text class="planned-text" x="160" y="242">FUTURE WORKFLOW</text>
+  </g>
+
+  <!-- 08 Revisions -->
+  <g transform="translate(660 1020)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">08 PROJECT / REVISIONS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
+    <text class="small" x="145" y="65">Blue Sky / Revisions</text><text class="screen-title" x="145" y="91">Revision history</text>
+    <rect class="row" x="145" y="112" width="432" height="52"/><rect class="row" x="145" y="164" width="432" height="52"/><rect class="row" x="145" y="216" width="432" height="52"/>
+    <text class="body" x="158" y="142">Revision 03 — Current</text><text class="body" x="158" y="194">Revision 02 — Approved</text><text class="body" x="158" y="246">Revision 01 — Superseded</text>
+    <text class="small" x="145" y="305">Created and approval timestamps feed Activity</text>
+  </g>
+
+  <!-- 09 Delivery -->
+  <g transform="translate(1300 1020)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">09 PROJECT / DELIVERY</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="180" width="115" height="22" rx="4"/>
+    <text class="small" x="145" y="65">Blue Sky / Delivery</text><text class="screen-title" x="145" y="91">Delivery</text>
+    <rect class="card" x="145" y="112" width="432" height="92"/><text class="heading" x="160" y="140">Approved revision 02</text><text class="body" x="160" y="166">Delivery manifest and verified files</text><text class="small" x="160" y="187">Delivery creation timestamp feeds Activity</text>
+    <rect class="planned" x="145" y="230" width="185" height="34"/><text class="planned-text" x="160" y="252">FUTURE WORKFLOW</text>
+  </g>
+
+  <!-- 10 Tasks -->
+  <g transform="translate(20 1480)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">10 TASKS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="208" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Derived tasks</text><text class="small" x="145" y="103">Generated from current project state; never stored separately</text>
+    <rect class="row" x="145" y="122" width="432" height="48"/><rect class="row" x="145" y="170" width="432" height="48"/><rect class="row" x="145" y="218" width="432" height="48"/><rect class="row" x="145" y="266" width="432" height="48"/>
+    <text class="body" x="158" y="151">Fix invalid workspace item</text><text class="body" x="158" y="199">Create delivery for approved revision</text><text class="body" x="158" y="247">Review project due soon</text><text class="body" x="158" y="295">Review newer unapproved revision</text>
+    <text class="small" x="145" y="347">No manual checkbox; task disappears when source state changes</text>
+  </g>
+
+  <!-- 11 Reports -->
+  <g transform="translate(660 1480)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">11 REPORTS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="236" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Reports</text><text class="small" x="145" y="104">Workspace view of generated authoritative reports</text>
+    <rect class="row" x="145" y="124" width="432" height="50"/><rect class="row" x="145" y="174" width="432" height="50"/><rect class="row" x="145" y="224" width="432" height="50"/>
+    <text class="body" x="158" y="154">Blue Sky — Intake Report</text><text class="body" x="158" y="204">Coastal Drive — Preparation Report</text><text class="body" x="158" y="254">After Midnight — Delivery Notes</text>
+  </g>
+
+  <!-- 12 Activity -->
+  <g transform="translate(1300 1480)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">12 ACTIVITY LOG</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="264" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Derived activity</text><text class="small" x="145" y="103">Reconstructed from validated persisted timestamps</text>
+    <rect class="row" x="145" y="120" width="432" height="46"/><rect class="row" x="145" y="166" width="432" height="46"/><rect class="row" x="145" y="212" width="432" height="46"/><rect class="row" x="145" y="258" width="432" height="46"/>
+    <text class="body" x="158" y="148">Delivery created — Coastal Drive</text><text class="body" x="158" y="194">Revision approved — Blue Sky R02</text><text class="body" x="158" y="240">Revision created — Blue Sky R03</text><text class="body" x="158" y="286">Project created — After Midnight</text>
+    <text class="small" x="145" y="338">Not a complete audit log; failed/read-only actions are omitted</text>
+  </g>
+
+  <!-- 13 Settings -->
+  <g transform="translate(20 1940)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">13 SETTINGS</text><use href="#sidebar-base" x="0" y="42"/><rect class="active" x="5" y="292" width="115" height="22" rx="4"/>
+    <text class="screen-title" x="145" y="78">Settings</text><rect class="planned" x="145" y="105" width="185" height="34"/><text class="planned-text" x="160" y="127">FUTURE MILESTONE</text>
+    <text class="body" x="145" y="175">Application preferences remain separate</text><text class="body" x="145" y="198">from studio configuration.</text>
+    <text class="small" x="145" y="235">No workspace switching or settings mutation in Issue #8</text>
+  </g>
+
+  <!-- 14 Navigation flow -->
+  <g transform="translate(660 1940)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">14 NAVIGATION FLOW</text><text class="screen-title" x="25" y="80">Client-to-project hierarchy</text>
+    <rect class="rule" x="35" y="120" width="120" height="55"/><rect class="rule" x="240" y="120" width="120" height="55"/><rect class="rule" x="445" y="120" width="120" height="55"/>
+    <text class="heading" x="68" y="153">Clients</text><text class="heading" x="255" y="153">Client Details</text><text class="heading" x="463" y="153">Select Project</text>
+    <path class="flow" d="M 155 148 L 235 148"/><path class="flow" d="M 360 148 L 440 148"/>
+    <rect class="rule" x="190" y="245" width="220" height="65"/><text class="heading" x="236" y="274">Project Overview</text><text class="small" x="223" y="295">Projects navigation active</text>
+    <path class="flow" d="M 505 175 C 505 220 410 225 410 264"/>
+    <text class="body" x="76" y="357">Projects list also opens the same Project Overview route.</text>
+  </g>
+
+  <!-- 15 Rule summary -->
+  <g transform="translate(1300 1940)">
+    <rect class="panel" width="600" height="420"/><rect class="chrome" width="600" height="42" rx="10"/>
+    <text class="screen-no" x="15" y="27">15 DERIVATION RULES</text><text class="screen-title" x="25" y="80">One authoritative rule engine</text>
+    <rect class="rule" x="25" y="105" width="550" height="54"/><text class="heading" x="42" y="128">Sources</text><text class="body" x="120" y="128">Validated client, project, revision, delivery metadata</text><text class="small" x="120" y="147">plus project deadlines and recovery errors</text>
+    <rect class="rule" x="25" y="178" width="550" height="54"/><text class="heading" x="42" y="201">Activity</text><text class="body" x="120" y="201">Chronological persisted events</text><text class="small" x="120" y="220">Creation, revision, approval, delivery only</text>
+    <rect class="rule" x="25" y="251" width="550" height="54"/><text class="heading" x="42" y="274">Priorities</text><text class="body" x="120" y="274">Ranked actionable project conditions</text><text class="small" x="120" y="293">Health → overdue → delivery → due soon → review</text>
+    <rect class="rule" x="25" y="324" width="550" height="54"/><text class="heading" x="42" y="347">Tasks</text><text class="body" x="120" y="347">Full derived action list from the same conditions</text><text class="small" x="120" y="366">No competing GUI-only state</text>
+  </g>
+</svg>
