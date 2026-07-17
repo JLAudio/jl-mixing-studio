@@ -90,7 +90,7 @@ An open-source developer who needs clear architecture boundaries, reproducible b
 ### 6.4 Project creation and overview
 
 - Create a mix project using the JL Mixing Automation v1.2.0 rules.
-- Display artist, project identity, current revision, approved revision, delivered revision, and completion state.
+- Display artist, project identity, current revision, approved revision, and delivered revision.
 - Link to the underlying project directory.
 - Avoid duplicating manifest state in an application-only database.
 
@@ -108,11 +108,10 @@ An open-source developer who needs clear architecture boundaries, reproducible b
 - Approve a selected revision using established lifecycle rules.
 - Make superseded, approved, and current states visually distinct.
 
-### 6.7 Delivery and completion
+### 6.7 Delivery
 
 - Guide the user through delivery preparation, notes, ZIP creation, and overwrite rules.
 - Display the delivered revision.
-- Complete a project through the supported metadata-only workflow.
 
 ### 6.8 Settings
 
@@ -131,7 +130,8 @@ An open-source developer who needs clear architecture boundaries, reproducible b
 - CLI failures must be reported without leaving the GUI in a falsely successful state.
 - Paths containing spaces must be supported.
 - Intel and Apple Silicon macOS builds should be considered in packaging design.
-- Windows support must be validated in CI and on a real Windows environment before release.
+- Windows application builds must be validated in CI and on a real Windows environment before release.
+- JL Mixing Automation v1.2.0 supports macOS and Linux, not Windows; Windows must report the CLI as unavailable without crashing unrelated read-only UI.
 
 ## 8. Architecture constraints
 
@@ -195,9 +195,10 @@ The next milestone establishes the production read path before any project mutat
 5. Allow an explicit refresh without restarting the application.
 6. Preserve project files as the source of truth and perform no filesystem mutation during discovery.
 7. Continue to prohibit arbitrary shell execution and unrestricted frontend filesystem access.
-8. Include isolated Rust fixtures and frontend tests for supported states, partial failures, paths containing spaces, and non-mutation.
+8. Include isolated Rust fixtures and frontend tests for supported states, partial failures, paths containing spaces, historical valid `created_with` values, and non-mutation.
+9. Validate the full installed-workspace flow on macOS while retaining Windows CI builds and a graceful unavailable-CLI state on Windows.
 
-Creation or editing of studios, clients, projects, revisions, approvals, deliveries, settings, or other workflow state is outside this milestone. The detailed scope and acceptance criteria are tracked in [Issue #3](https://github.com/JLAudio/jl-mixing-studio/issues/3).
+Creation or editing of studios, clients, projects, revisions, approvals, deliveries, settings, or other workflow state is outside this milestone. JL Mixing Automation v1.2.0 has no project-completion state, and the GUI must not invent one. The detailed scope and acceptance criteria are tracked in [Issue #3](https://github.com/JLAudio/jl-mixing-studio/issues/3).
 
 ## 13. Future decisions requiring approval
 
