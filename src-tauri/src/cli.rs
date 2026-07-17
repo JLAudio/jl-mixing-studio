@@ -63,23 +63,22 @@ fn evaluate_result(output: ProcessResult) -> VersionCheck {
             version: None,
             message: format!(
                 "JL Mixing Automation version check failed with exit code {}",
-                output.exit_code.map_or_else(|| "unknown".into(), |code| code.to_string())
+                output
+                    .exit_code
+                    .map_or_else(|| "unknown".into(), |code| code.to_string())
             ),
         }
     }
 }
 
 fn parse_version(output: &str) -> Option<String> {
-    let version = output
-        .trim()
-        .strip_prefix("jl-mixing ")?
-        .trim();
+    let version = output.trim().strip_prefix("jl-mixing ")?.trim();
     let parts: Vec<_> = version.split('.').collect();
 
     if parts.len() == 3
-        && parts
-            .iter()
-            .all(|part| !part.is_empty() && part.chars().all(|character| character.is_ascii_digit()))
+        && parts.iter().all(|part| {
+            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
+        })
     {
         Some(version.to_owned())
     } else {
@@ -109,8 +108,15 @@ mod tests {
 
     #[test]
     fn reports_failed_process() {
-        let result = evaluate_result(ProcessResult { success: false, exit_code: Some(2), stdout: String::new() });
+        let result = evaluate_result(ProcessResult {
+            success: false,
+            exit_code: Some(2),
+            stdout: String::new(),
+        });
         assert!(!result.available);
-        assert_eq!(result.message, "JL Mixing Automation version check failed with exit code 2");
+        assert_eq!(
+            result.message,
+            "JL Mixing Automation version check failed with exit code 2"
+        );
     }
 }
