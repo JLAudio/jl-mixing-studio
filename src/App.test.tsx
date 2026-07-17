@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
@@ -276,7 +276,9 @@ describe("workspace dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review client" }));
 
     expect(await screen.findByRole("heading", { name: "Confirm new client" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create client" })).toHaveFocus();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Create client" })).toHaveFocus();
+    });
     expect(mockedInvoke).toHaveBeenCalledWith("preflight_client_creation", {
       request: {
         clientId: "new-client",
