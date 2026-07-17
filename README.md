@@ -3,7 +3,7 @@
 JL Mixing Studio is an open-source desktop application for small-studio and home-studio mix engineers. It provides a visual, studio-aware workflow over the project structure and automation capabilities established by [JL Mixing Automation](https://github.com/JLAudio/jl-mixing).
 
 > [!IMPORTANT]
-> JL Mixing Studio is in the planning and architecture-validation stage. It is not yet ready for production use.
+> JL Mixing Studio is in early development. It is not yet ready for production use.
 
 ## Product direction
 
@@ -41,14 +41,15 @@ The architecture spike passed its automated macOS and Windows gates and manual I
 
 ## Development status
 
-The completed architecture spike demonstrated that the application can:
+The architecture spike is complete. The current milestone adds a read-only workspace dashboard that:
 
-1. Launch on an Intel Mac running macOS Monterey.
-2. Build on Windows through reproducible CI.
-3. Invoke `jl-mixing --version` through a restricted Rust command.
-4. Read and display a representative JL Mixing Automation v1.2.0 project manifest through a typed Rust boundary.
+1. Discovers the fixed default workspace at `~/Music/Mixes`.
+2. Validates released studio, client, and project metadata schemas.
+3. Displays clients, projects, and current, approved, and delivered revisions.
+4. Keeps valid projects visible when another workspace item is malformed.
+5. Reports actionable setup and recovery guidance without modifying project data.
 
-Product feature implementation may begin after the architecture-spike pull request is reviewed and merged.
+Creation and lifecycle workflows remain out of scope for this milestone.
 
 ## Contributing
 
