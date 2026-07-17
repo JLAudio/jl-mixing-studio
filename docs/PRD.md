@@ -176,7 +176,7 @@ The first implementation milestone delivered a minimal application that:
 
 1. Launches on an Intel Mac running macOS Monterey.
 2. Builds on Windows through reproducible CI.
-3. Invokes `jl-mixing --version` through a restricted Rust command and displays the structured result.
+3. Resolves the fixed `new-client` launcher, reads its installation's fixed `VERSION` metadata, runs a restricted `new-client --help` health check, and displays the structured result.
 4. Reads a representative JL Mixing Automation v1.2.0 project manifest through Rust and displays selected fields in React.
 5. Includes automated tests for version-output handling and manifest parsing.
 6. Passes formatting, linting, type checking, tests, and builds in GitHub Actions.
@@ -226,4 +226,3 @@ Studio creation, project creation, client editing or deletion, arbitrary workspa
 - Release signing, notarization, and update distribution.
 - Telemetry or crash reporting, if any.
 - Public release roadmap and versioning policy.
-
