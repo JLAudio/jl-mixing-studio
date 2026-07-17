@@ -314,8 +314,8 @@ fn version_file_for_command(executable: &Path) -> Option<PathBuf> {
 }
 
 fn read_version_file(path: &Path) -> Result<String, &'static str> {
-    let bytes = fs::read(path)
-        .map_err(|_| "The JL Mixing Automation VERSION file could not be read")?;
+    let bytes =
+        fs::read(path).map_err(|_| "The JL Mixing Automation VERSION file could not be read")?;
     if bytes.len() > MAX_VERSION_FILE_BYTES {
         return Err("The JL Mixing Automation VERSION file is invalid");
     }
@@ -560,10 +560,7 @@ mod tests {
         assert!(result.supported);
         assert_eq!(result.version.as_deref(), Some(SUPPORTED_VERSION));
         assert_eq!(runner.invocations.borrow().len(), 1);
-        assert_eq!(
-            runner.invocations.borrow()[0].arguments,
-            vec!["--help"]
-        );
+        assert_eq!(runner.invocations.borrow()[0].arguments, vec!["--help"]);
     }
 
     #[test]
