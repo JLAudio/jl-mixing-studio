@@ -122,10 +122,7 @@ fn run_client_operation<R: ProcessRunner>(
         );
     }
     if !version.supported {
-        return blocked_client_operation(
-            ClientOperationCode::UnsupportedVersion,
-            &version.message,
-        );
+        return blocked_client_operation(ClientOperationCode::UnsupportedVersion, &version.message);
     }
 
     let executable = resolve_command(home, CLIENT_EXECUTABLE);
@@ -169,8 +166,7 @@ fn normalize_request(request: ClientCreationRequest) -> Result<ClientCreationSum
     }
     if !is_valid_client_id(&client_id) {
         return Err(
-            "Client ID must use lowercase letters and numbers separated by single hyphens"
-                .into(),
+            "Client ID must use lowercase letters and numbers separated by single hyphens".into(),
         );
     }
     if client_name.is_empty() {
@@ -335,9 +331,7 @@ fn bounded_process_message(stderr: &str, stdout: &str, fallback: &str) -> String
     let filtered: String = source
         .trim()
         .chars()
-        .filter(|character| {
-            !character.is_control() || *character == '\n' || *character == '\t'
-        })
+        .filter(|character| !character.is_control() || *character == '\n' || *character == '\t')
         .take(MAX_PROCESS_MESSAGE_CHARS)
         .collect();
     if filtered.is_empty() {
@@ -457,12 +451,12 @@ mod tests {
 
     #[test]
     fn reports_missing_executable_without_exposing_system_details() {
-        let result = evaluate_version_error(io::Error::new(
-            io::ErrorKind::NotFound,
-            "private path",
-        ));
+        let result =
+            evaluate_version_error(io::Error::new(io::ErrorKind::NotFound, "private path"));
         assert!(!result.available);
-        assert!(result.message.contains("default install location or on PATH"));
+        assert!(result
+            .message
+            .contains("default install location or on PATH"));
     }
 
     #[test]
@@ -506,10 +500,7 @@ mod tests {
             ]
         );
         assert!(!invocations[1].arguments.contains(&"--no-cd".into()));
-        assert_eq!(
-            invocations[1].current_directory,
-            Some(workspace.to_owned())
-        );
+        assert_eq!(invocations[1].current_directory, Some(workspace.to_owned()));
     }
 
     #[test]
