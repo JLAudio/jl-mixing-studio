@@ -292,7 +292,7 @@ pub fn find_validated_project_path(
         .filter(|path| path.is_dir() && !is_symlink(path))
         .filter(|path| {
             read_project_document(&path.join("00_Admin").join("project-manifest.json"))
-            .is_ok_and(|project| project.project_id == project_id)
+                .is_ok_and(|project| project.project_id == project_id)
         });
     let matched = matches.next()?;
     if matches.next().is_some() {
@@ -568,10 +568,9 @@ mod tests {
         write_client(&root, "client", "Client", "Artist");
         write_project(&root, "client", "project", "Project", "project");
         let path = root.join("Clients/client/Projects/project/00_Admin/project-manifest.json");
-        let mut manifest: Value = serde_json::from_str(
-            &fs::read_to_string(&path).expect("project manifest"),
-        )
-        .expect("valid project JSON");
+        let mut manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("project manifest"))
+                .expect("valid project JSON");
         manifest["state"]["current_revision"] = Value::from(2);
         fs::write(
             &path,
@@ -594,10 +593,9 @@ mod tests {
         write_client(&root, "client", "Client", "Artist");
         write_project(&root, "client", "project", "Project", "project");
         let path = root.join("Clients/client/Projects/project/00_Admin/project-manifest.json");
-        let mut manifest: Value = serde_json::from_str(
-            &fs::read_to_string(&path).expect("project manifest"),
-        )
-        .expect("valid project JSON");
+        let mut manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&path).expect("project manifest"))
+                .expect("valid project JSON");
         manifest["state"]["approved_revision"] = Value::from(1);
         fs::write(
             &path,
