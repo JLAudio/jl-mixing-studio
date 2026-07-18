@@ -87,8 +87,8 @@ h3 { margin: 0; font-size: 1rem; }
 .status-dot.good { background: #28a36a; box-shadow: 0 0 0 3px #e3f7ed; }
 .workspace-path { display: block; margin-top: 16px; color: #4f5d74; background: #f3f6f9; border-radius: 6px; padding: 8px 9px; font-size: .72rem; }
 .health-detail { color: #7a8699; font-size: .75rem; line-height: 1.5; margin: 11px 0 0; }
-.quick-actions { grid-column: 2 / 3; }
-.activity-panel { grid-column: 1 / 2; }
+.quick-actions { grid-column: 2 / 3; grid-row: 2; }
+.activity-panel { grid-column: 1 / 2; grid-row: 2; }
 .quick-actions .action-grid { grid-template-columns: 1fr; }
 .action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .action-grid button { display: flex; justify-content: center; align-items: center; gap: 8px; }
@@ -257,7 +257,7 @@ tbody tr:last-child td { border-bottom: 0; }
 @media (max-width: 1040px) {
   .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dashboard-grid { grid-template-columns: 1fr; }
-  .quick-actions, .activity-panel { grid-column: auto; }
+  .quick-actions, .activity-panel { grid-column: auto; grid-row: auto; }
   .project-detail-grid { grid-template-columns: 1fr; }
   .intake-findings { grid-template-columns: 1fr; }
   .revision-history-layout { grid-template-columns: 1fr; }
