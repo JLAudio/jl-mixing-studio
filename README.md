@@ -53,8 +53,11 @@ The architecture spike, application shell, guided creation and intake workflows,
 8. Previews, confirms, and verifies approval of a selected revision.
 9. Validates delivery manifests and presents authoritative package readiness, contents, and recorded checksums.
 10. Previews, confirms, and verifies safe creation of a project's first delivery package.
+11. Derives ranked priorities, Tasks, and persisted Activity from validated workspace state.
 
 Guided client creation, project creation, intake validation, revision creation, revision approval, and first-delivery creation are the approved controlled workflows. Each previews a fixed JL Mixing Automation v1.2.0 command without a shell and requires explicit confirmation before a workspace file is changed. Intake validation uses Automation defaults and never modifies intake source files. Revision creation accepts only an optional description and exposes no source-path picker. Approval accepts only a selected revision and approver identity, uses Automation's execution time, and clearly previews lifecycle impact. First-delivery creation exposes no packaging options and refuses projects with an existing package. Every workflow reconciles the authoritative transition after Automation succeeds. Delivery replacement, ZIP generation, and custom filters remain Planned.
+
+Dashboard priorities, Tasks, and Activity are rebuilt on refresh from validated recovery findings, deadlines, revision pointers, and persisted timestamps. They create no hidden task state or audit database.
 
 ## Contributing
 

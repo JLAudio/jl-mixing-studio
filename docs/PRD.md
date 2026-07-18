@@ -358,7 +358,7 @@ This milestone activates the Delivery route without running `create-delivery` or
 
 The scope and acceptance criteria are tracked in [Issue #23](https://github.com/JLAudio/jl-mixing-studio/issues/23).
 
-## 22. Current milestone: safe guided first-delivery creation
+## 22. Completed milestone: safe guided first-delivery creation
 
 This milestone activates controlled creation of a project's first authoritative delivery package while retaining Automation v1.2.0 as the sole package writer. The application shall:
 
@@ -375,7 +375,11 @@ This milestone activates controlled creation of a project's first authoritative 
 
 The scope and acceptance criteria are tracked in [Issue #25](https://github.com/JLAudio/jl-mixing-studio/issues/25).
 
-## 23. Future decisions requiring approval
+## 23. Current milestone: derived priorities, tasks, and activity
+
+This milestone activates one read-only derivation layer shared by Dashboard priorities, Tasks, and Activity. It preserves schema-validated client/project creation timestamps and project deadlines; derives recovery, overdue, delivery, upcoming-deadline, and revision-review tasks in the approved deterministic order; and reconstructs activity only from persisted client, project, revision, approval, and delivery timestamps. Refresh rebuilds every item without a database, cache, completion flag, event log, process execution, or workspace mutation. Activity is explicitly a derived persisted-event feed, not a complete audit log. The scope is tracked in [Issue #28](https://github.com/JLAudio/jl-mixing-studio/issues/28).
+
+## 24. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.

@@ -8,6 +8,7 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ActivityEvent,
   ApprovalOperationResult,
   ClientCreationRequest,
   ClientCreationSummary,
@@ -16,6 +17,7 @@ import type {
   DeliveryCreationPreview,
   DeliveryCreationRequest,
   DeliveryOperationResult,
+  DerivedTask,
   DiscoveryIssue,
   IntakeOperationResult,
   IntakeReport,
@@ -231,7 +233,7 @@ const routes: RouteDefinition[] = [
   },
 ];
 
-type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "clients" | "projects">;
+type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "clients" | "projects" | "tasks" | "activity">;
 
 const plannedRouteContent: Record<PlannedRouteId, {
   status: string;
@@ -248,16 +250,6 @@ const plannedRouteContent: Record<PlannedRouteId, {
       { title: "Storage & statistics", detail: "Requires approved diagnostics before activation" },
     ],
   },
-  tasks: {
-    status: "Derived tasks are planned",
-    sections: [
-      { title: "Recovery", detail: "Resolve invalid or unreadable workspace data" },
-      { title: "Review", detail: "Review newer unapproved revisions and approaching deadlines" },
-      { title: "Delivery", detail: "Create or update delivery for an approved revision" },
-    ],
-    tableColumns: ["Priority", "Task", "Project", "Reason", "Recommended action"],
-    routeNote: "Tasks will be derived on refresh. They will not have manual completion state or a GUI-owned database.",
-  },
   reports: {
     status: "Report browsing is planned",
     sections: [
@@ -266,16 +258,6 @@ const plannedRouteContent: Record<PlannedRouteId, {
       { title: "Project context", detail: "Report type, project, and persisted update information" },
     ],
     tableColumns: ["Report", "Type", "Project", "Updated"],
-  },
-  activity: {
-    status: "Derived activity is planned",
-    sections: [
-      { title: "Creation", detail: "Client and project creation timestamps" },
-      { title: "Revisions & approvals", detail: "Persisted revision and approval events" },
-      { title: "Delivery", detail: "Persisted delivery-manifest creation events" },
-    ],
-    tableColumns: ["Timestamp", "Event", "Project", "Persisted source"],
-    routeNote: "This will be a derived project-event feed, not a complete audit log.",
   },
   settings: {
     status: "Settings changes are planned",
@@ -504,6 +486,18 @@ function RouteHeader({ route }: { route: RouteDefinition }) {
   );
 }
 
+const taskPriorityLabel: Record<DerivedTask["priority"], string> = { recovery: "Recovery", overdue: "Overdue", delivery: "Delivery", upcoming: "Upcoming", review: "Review" };
+const activityEventLabel: Record<ActivityEvent["eventType"], string> = { clientCreated: "Client created", projectCreated: "Project created", revisionCreated: "Revision created", revisionApproved: "Revision approved", deliveryCreated: "Delivery created" };
+const formatEventTimestamp = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
+function TaskSummary({ task, onOpenProject }: { task: DerivedTask; onOpenProject: (clientId: string, projectId: string) => void }) {
+  return <article className="derived-item"><span className={`priority-pill ${task.priority}`}>{taskPriorityLabel[task.priority]}</span><div><strong>{task.title}</strong><p>{task.reason}</p><small>{task.deadline ? `Deadline ${task.deadline} · ` : ""}{task.recommendedAction}</small></div>{task.clientId && task.projectId && <button type="button" className="table-link" onClick={() => onOpenProject(task.clientId!, task.projectId!)}>{task.projectName}</button>}</article>;
+}
+function ActivitySummary({ event, onOpenProject }: { event: ActivityEvent; onOpenProject: (clientId: string, projectId: string) => void }) {
+  const label = event.revision === null ? activityEventLabel[event.eventType] : `${activityEventLabel[event.eventType]} · Revision ${event.revision}`;
+  return <article className="derived-item activity-item"><time dateTime={event.timestamp}>{formatEventTimestamp(event.timestamp)}</time><div><strong>{label}</strong><small>{event.projectName ?? event.clientName}</small></div>{event.projectId && <button type="button" className="table-link" onClick={() => onOpenProject(event.clientId, event.projectId!)}>Open project</button>}</article>;
+}
+
 function Dashboard({
   workspace,
   version,
@@ -513,6 +507,9 @@ function Dashboard({
   clientCreationHelp,
   onRefresh,
   onNewClient,
+  onTasks,
+  onActivity,
+  onOpenProject,
 }: {
   workspace: ResourceState<WorkspaceSnapshot>;
   version: ResourceState<VersionCheck>;
@@ -522,6 +519,9 @@ function Dashboard({
   clientCreationHelp: string;
   onRefresh: () => void;
   onNewClient: () => void;
+  onTasks: () => void;
+  onActivity: () => void;
+  onOpenProject: (clientId: string, projectId: string) => void;
 }) {
   const snapshot = workspace.status === "ready" ? workspace.value : null;
   const projects = snapshot?.clients.flatMap((client) => client.projects) ?? [];
@@ -573,12 +573,9 @@ function Dashboard({
         <section className="panel today-panel" aria-labelledby="today-heading">
           <div className="panel-heading">
             <div><p className="kicker">Today’s work</p><h2 id="today-heading">Recommended priorities</h2></div>
-            <span className="planned-pill">Planned</span>
+            <button type="button" className="table-link" onClick={onTasks}>View all</button>
           </div>
-          <div className="planned-message">
-            <strong>Priority ranking is not active yet.</strong>
-            <p>Future priorities will be derived from validated recovery, revision, delivery, and deadline state—never from hidden task data.</p>
-          </div>
+          {snapshot && snapshot.tasks.length > 0 ? <div className="derived-list">{snapshot.tasks.slice(0, 4).map((task) => <TaskSummary key={task.id} task={task} onOpenProject={onOpenProject} />)}</div> : <div className="planned-message"><strong>No derived actions need attention.</strong><p>Refresh rebuilds priorities from authoritative state.</p></div>}
         </section>
 
         <section className="panel health-panel" aria-labelledby="health-heading">
@@ -605,11 +602,8 @@ function Dashboard({
         </section>
 
         <section className="panel activity-panel" aria-labelledby="activity-heading">
-          <div className="panel-heading"><div><p className="kicker">Recent activity</p><h2 id="activity-heading">Persisted project events</h2></div><span className="planned-pill">Planned</span></div>
-          <div className="planned-message compact">
-            <strong>No activity feed is generated yet.</strong>
-            <p>Only supported creation, revision, approval, and delivery timestamps will appear here.</p>
-          </div>
+          <div className="panel-heading"><div><p className="kicker">Recent activity</p><h2 id="activity-heading">Persisted project events</h2></div><button type="button" className="table-link" onClick={onActivity}>View all</button></div>
+          {snapshot && snapshot.activity.length > 0 ? <div className="derived-list">{snapshot.activity.slice(0, 5).map((event) => <ActivitySummary key={event.id} event={event} onOpenProject={onOpenProject} />)}</div> : <div className="planned-message compact"><strong>No supported persisted events found.</strong><p>Only validated creation, revision, approval, and delivery timestamps appear here.</p></div>}
         </section>
       </div>
 
@@ -644,6 +638,20 @@ function RouteIssues({ snapshot }: { snapshot: WorkspaceSnapshot }) {
       </ul>
     </section>
   );
+}
+
+function TasksRoute({ workspace, loading, onRefresh, onOpenProject }: { workspace: ResourceState<WorkspaceSnapshot>; loading: boolean; onRefresh: () => void; onOpenProject: (clientId: string, projectId: string) => void }) {
+  if (workspace.status === "loading") return <section className="notice">Deriving tasks…</section>;
+  if (workspace.status === "error") return <section className="notice error"><strong>Tasks could not be derived</strong><span>{workspace.message}</span></section>;
+  const snapshot = workspace.value;
+  return <><section className="directory-toolbar"><div><p className="kicker">Authoritative workspace</p><h2>{snapshot.tasks.length} derived {snapshot.tasks.length === 1 ? "task" : "tasks"}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section><ContextSearch label="Tasks" />{snapshot.tasks.length === 0 ? <section className="empty-state"><h2>No derived tasks</h2><p>No validated condition currently requires attention.</p></section> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Priority</th><th>Task</th><th>Project</th><th>Reason</th><th>Recommended action</th></tr></thead><tbody>{snapshot.tasks.map((task) => <tr key={task.id}><td><span className={`priority-pill ${task.priority}`}>{taskPriorityLabel[task.priority]}</span></td><td><strong>{task.title}</strong>{task.deadline && <small className="table-detail">Deadline {task.deadline}</small>}</td><td>{task.clientId && task.projectId ? <button type="button" className="table-link" onClick={() => onOpenProject(task.clientId!, task.projectId!)}>{task.projectName}</button> : task.projectName ?? "Workspace"}</td><td>{task.reason}</td><td>{task.recommendedAction}</td></tr>)}</tbody></table></div></section>}<aside className="route-note"><strong>Derived on refresh</strong><span>Tasks have no manual completion state or application-owned database.</span></aside></>;
+}
+
+function ActivityRoute({ workspace, loading, onRefresh, onOpenProject }: { workspace: ResourceState<WorkspaceSnapshot>; loading: boolean; onRefresh: () => void; onOpenProject: (clientId: string, projectId: string) => void }) {
+  if (workspace.status === "loading") return <section className="notice">Deriving activity…</section>;
+  if (workspace.status === "error") return <section className="notice error"><strong>Activity could not be derived</strong><span>{workspace.message}</span></section>;
+  const snapshot = workspace.value;
+  return <><section className="directory-toolbar"><div><p className="kicker">Persisted timestamps</p><h2>{snapshot.activity.length} derived {snapshot.activity.length === 1 ? "event" : "events"}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section><ContextSearch label="Activity" />{snapshot.activity.length === 0 ? <section className="empty-state"><h2>No supported activity events</h2><p>No validated event timestamps are available.</p></section> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Timestamp</th><th>Event</th><th>Project or client</th><th>Persisted source</th></tr></thead><tbody>{snapshot.activity.map((event) => <tr key={event.id}><td><time dateTime={event.timestamp}>{formatEventTimestamp(event.timestamp)}</time></td><td>{activityEventLabel[event.eventType]}{event.revision !== null && <small className="table-detail">Revision {event.revision}</small>}</td><td>{event.projectId ? <button type="button" className="table-link" onClick={() => onOpenProject(event.clientId, event.projectId!)}>{event.projectName}</button> : event.clientName}</td><td><code>{event.persistedSource}</code></td></tr>)}</tbody></table></div></section>}<aside className="route-note"><strong>Derived event feed</strong><span>This is not a complete audit log. It includes only timestamps persisted by JL Mixing Automation.</span></aside></>;
 }
 
 function ClientsRoute({
@@ -879,7 +887,7 @@ function ProjectOverview({
         <section className="panel" aria-labelledby="project-information-heading">
           <div className="panel-heading"><div><p className="kicker">Project information</p><h2 id="project-information-heading">Authoritative metadata</h2></div></div>
           <dl className="metadata-list">
-            <div><dt>Client</dt><dd>{client.clientName}</dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate / 1000} kHz / {project.bitDepth}-bit / {project.fileFormat}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Created with</dt><dd>{project.createdWith}</dd></div>
+            <div><dt>Client</dt><dd>{client.clientName}</dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Deadline</dt><dd>{project.deadline ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate / 1000} kHz / {project.bitDepth}-bit / {project.fileFormat}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Created with</dt><dd>{project.createdWith}</dd></div>
           </dl>
         </section>
         <section className="panel" aria-labelledby="project-actions-heading">
@@ -2462,6 +2470,10 @@ export default function App() {
   const resolvedProject = resolvedProjectClient && selectedProject
     ? resolvedProjectClient.projects.find((project) => project.projectId === selectedProject.projectId) ?? null
     : null;
+  const openDerivedProject = (clientId: string, projectId: string) => {
+    setSelectedClientId(null); setSelectedProject({ clientId, projectId, fromClient: false });
+    setProjectView("overview"); setActiveRoute("projects"); setRouteNotice(null);
+  };
   const deliveryCreationAvailable =
     deliveryCreationSupported &&
     resolvedProject !== null &&
@@ -2536,8 +2548,13 @@ export default function App() {
             clientCreationHelp={clientCreationHelp}
             onRefresh={refresh}
             onNewClient={openClientWorkflow}
+            onTasks={() => navigate("tasks")}
+            onActivity={() => navigate("activity")}
+            onOpenProject={openDerivedProject}
           />
         )}
+        {activeRoute === "tasks" && <TasksRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
+        {activeRoute === "activity" && <ActivityRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
         {activeRoute === "clients" && (resolvedClient ? (
           <ClientDetails
             client={resolvedClient}
@@ -2640,7 +2657,7 @@ export default function App() {
             }}
           />
         ) : null}
-        {activeRoute !== "dashboard" && activeRoute !== "clients" && activeRoute !== "projects" && (
+        {activeRoute !== "dashboard" && activeRoute !== "clients" && activeRoute !== "projects" && activeRoute !== "tasks" && activeRoute !== "activity" && (
           <PlannedRoute route={activeRoute} />
         )}
       </main>

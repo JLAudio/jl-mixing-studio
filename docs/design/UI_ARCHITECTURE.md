@@ -271,6 +271,10 @@ The shell milestone establishes the complete product-level layout vocabulary but
 5. Confirmed success refreshes the authoritative Delivery view; an unreconciled result becomes uncertain and is never retried automatically.
 6. Existing packages disable creation and explain that overwrite and destructive clean replacement require a separate reviewed workflow.
 
+## Derived priorities, tasks, and activity milestone
+
+[Issue #28](https://github.com/JLAudio/jl-mixing-studio/issues/28) activates the single approved read-only derivation layer. Dashboard and Tasks consume one deterministic task collection; Activity uses only supported persisted timestamps and identifies their sources. Project links reuse stable client/project identities. Refresh introduces no database, completion state, event log, filesystem scan, process execution, or metadata mutation, and Activity remains explicitly incomplete rather than an audit log.
+
 ## Accessibility and responsive requirements
 
 - All navigation and actions must be operable with a keyboard.

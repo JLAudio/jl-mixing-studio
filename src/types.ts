@@ -263,6 +263,8 @@ export interface WorkspaceSnapshot {
   counts: WorkspaceCounts;
   clients: ClientSummary[];
   issues: DiscoveryIssue[];
+  tasks: DerivedTask[];
+  activity: ActivityEvent[];
 }
 
 export interface StudioSummary {
@@ -281,6 +283,7 @@ export interface WorkspaceCounts {
 export interface ClientSummary {
   clientId: string;
   clientName: string;
+  createdAt: string;
   defaultArtist: string;
   projects: ProjectSummary[];
 }
@@ -291,6 +294,8 @@ export interface ProjectSummary {
   artist: string;
   schemaVersion: string;
   createdWith: string;
+  createdAt: string;
+  deadline: string | null;
   sampleRate: number;
   bitDepth: number;
   fileFormat: string;
@@ -300,6 +305,18 @@ export interface ProjectSummary {
   deliveredRevision: number | null;
   delivery: DeliverySummary | null;
   revisions: RevisionSummary[];
+}
+
+export type TaskPriority = "recovery" | "overdue" | "delivery" | "upcoming" | "review";
+export interface DerivedTask {
+  id: string; priority: TaskPriority; title: string; reason: string; recommendedAction: string;
+  clientId: string | null; clientName: string | null; projectId: string | null;
+  projectName: string | null; deadline: string | null;
+}
+export type ActivityEventType = "clientCreated" | "projectCreated" | "revisionCreated" | "revisionApproved" | "deliveryCreated";
+export interface ActivityEvent {
+  id: string; eventType: ActivityEventType; timestamp: string; clientId: string; clientName: string;
+  projectId: string | null; projectName: string | null; revision: number | null; persistedSource: string;
 }
 
 export interface DeliveryFile {
