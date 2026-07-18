@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Approved baseline; guided intake validation current
+**Status:** Approved baseline; guided revision creation current
 
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
@@ -292,9 +292,9 @@ This milestone activates the project Intake route while preserving JL Mixing Aut
 
 Custom intake sources, expected-format overrides, disabled duplicate detection, intake-file mutation, automatic conversion, DAW import, revision creation or approval, and delivery remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #15](https://github.com/JLAudio/jl-mixing-studio/issues/15).
 
-## 18. Current milestone: authoritative revision history
+## 18. Completed milestone: authoritative revision history
 
-This milestone activates the project Revisions route without introducing a new command or competing state. The application shall:
+This milestone activated the project Revisions route without introducing a new command or competing state. The application:
 
 1. Preserve revision number, stable revision ID, creation timestamp, description, and paired approval metadata from validated project manifests.
 2. Apply semantic consistency checks beyond the released JSON Schema: revision numbers must be unique and contiguous through the current revision, revision IDs must be unique, and approved or delivered pointers must identify a revision with approval metadata.
@@ -302,11 +302,29 @@ This milestone activates the project Revisions route without introducing a new c
 4. Present selected revision details and approval identity only when those values exist in the manifest.
 5. Keep valid project revision history readable when a sibling workspace item makes discovery partial.
 6. Scan no arbitrary project files, create no application-owned lifecycle state, and perform no filesystem mutation or process execution.
-7. Keep revision creation and approval actions disabled and labeled Planned until their exact Automation commands and post-write verification rules are separately approved.
+7. Kept revision creation and approval actions disabled and labeled Planned until their exact Automation commands and post-write verification rules were separately approved.
 
 Revision notes-file browsing, revision creation, approval, delivery, folder or DAW launch, and arbitrary manifest editing remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #17](https://github.com/JLAudio/jl-mixing-studio/issues/17).
 
-## 19. Future decisions requiring approval
+## 19. Current milestone: safe guided revision creation
+
+This milestone activates controlled creation of the next project revision while preserving JL Mixing Automation v1.2.0 and the project manifest as authoritative. The application shall:
+
+1. Launch one guided New Revision workflow from Project Overview or the Revisions route.
+2. Resolve the selected project's working directory internally from validated client and project IDs without accepting a frontend path.
+3. Collect only an optional revision description; Automation derives the next number, stable ID, timestamp, folder, notes template, and default description.
+4. Preview only `new-revision [--description TEXT] --dry-run` and require explicit confirmation before invoking `new-revision [--description TEXT] --no-cd`.
+5. Construct the fixed executable and separate allowlisted arguments in Rust without a shell.
+6. Expose no source-path picker or `--source` argument in this milestone.
+7. Re-read authoritative workspace state after success and require exactly one new contiguous revision with a unique ID, unchanged prior records, and unchanged approved and delivered pointers.
+8. Open the verified new revision in the existing Revisions route.
+9. Treat transport failures or unverifiable confirmed outcomes as uncertain and never retry automatically.
+10. Disable creation for partial, invalid, empty, or unavailable workspaces, missing or unsupported Automation, and Windows while keeping validated history readable.
+11. Test fixed command construction, input normalization, cancellation, rejection, success, exact reconciliation, and uncertain outcomes.
+
+Revision source import, notes-file browsing, approval, delivery, deletion, editing, folder or DAW launch, and arbitrary manifest changes remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #19](https://github.com/JLAudio/jl-mixing-studio/issues/19).
+
+## 20. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.

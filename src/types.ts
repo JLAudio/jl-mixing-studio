@@ -4,8 +4,42 @@ export interface VersionCheck {
   clientCreationSupported: boolean;
   projectCreationSupported: boolean;
   intakeValidationSupported: boolean;
+  revisionCreationSupported: boolean;
   version: string | null;
   message: string;
+}
+
+export interface RevisionCreationRequest {
+  clientId: string;
+  projectId: string;
+  description: string | null;
+}
+
+export interface RevisionCreationSummary {
+  clientId: string;
+  projectId: string;
+  number: number;
+  description: string;
+}
+
+export type RevisionOperationCode =
+  | "ready"
+  | "created"
+  | "invalidInput"
+  | "automationUnavailable"
+  | "unsupportedVersion"
+  | "unsupportedPlatform"
+  | "workspaceBlocked"
+  | "projectUnavailable"
+  | "rejected"
+  | "uncertain"
+  | "failed";
+
+export interface RevisionOperationResult {
+  ok: boolean;
+  code: RevisionOperationCode;
+  message: string;
+  revision: RevisionCreationSummary | null;
 }
 
 export interface IntakeRequest {

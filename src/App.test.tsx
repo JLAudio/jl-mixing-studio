@@ -7,6 +7,7 @@ import type {
   IntakeOperationResult,
   IntakeReport,
   ProjectOperationResult,
+  RevisionOperationResult,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -22,6 +23,7 @@ const version: VersionCheck = {
   clientCreationSupported: true,
   projectCreationSupported: true,
   intakeValidationSupported: true,
+  revisionCreationSupported: true,
   version: "1.2.0",
   message: "JL Mixing Automation 1.2.0 detected",
 };
@@ -59,6 +61,24 @@ const projectCreateResult: ProjectOperationResult = {
   ...projectPreflightResult,
   code: "created",
   message: "Project created successfully.",
+};
+
+const revisionPreviewResult: RevisionOperationResult = {
+  ok: true,
+  code: "ready",
+  message: "Revision preview completed. No changes were made.",
+  revision: {
+    clientId: "acme",
+    projectId: "blue-sky",
+    number: 3,
+    description: "Vocal lift",
+  },
+};
+
+const revisionCreateResult: RevisionOperationResult = {
+  ...revisionPreviewResult,
+  code: "created",
+  message: "Revision created successfully.",
 };
 
 const intakeReport: IntakeReport = {
@@ -254,7 +274,7 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
 
     expect(screen.getByRole("heading", { name: "Revision history" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "New revision Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "New revision" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Approve revision Planned" })).toBeDisabled();
     expect(screen.getByRole("heading", { name: "Revision 2" })).toBeInTheDocument();
     expect(screen.getByText("Balance update")).toBeInTheDocument();
@@ -282,6 +302,107 @@ describe("JL Mixing Studio", () => {
 
     expect(screen.getByRole("heading", { name: "Revision history" })).toBeInTheDocument();
     expect(screen.getByText("Balance update")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New revision" })).toBeDisabled();
+    expect(screen.getByText(/history remains readable/i)).toBeInTheDocument();
+  });
+
+  it("preflights a trimmed revision description and cancels without creating", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_revision_creation") return Promise.resolve(revisionPreviewResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
+    fireEvent.click(screen.getByRole("button", { name: "New revision" }));
+
+    expect(screen.getByRole("heading", { name: "New revision" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/revision description/i)).toHaveFocus();
+    fireEvent.change(screen.getByLabelText(/revision description/i), { target: { value: " Vocal lift " } });
+    fireEvent.click(screen.getByRole("button", { name: "Review revision" }));
+
+    expect(await screen.findByRole("heading", { name: "Confirm new revision" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Revision 3")).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("preflight_revision_creation", {
+      request: { clientId: "acme", projectId: "blue-sky", description: "Vocal lift" },
+    });
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith("create_revision", expect.anything());
+  });
+
+  it("creates, refreshes, and selects the verified authoritative revision", async () => {
+    let workspaceCalls = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") {
+        workspaceCalls += 1;
+        const snapshot = healthyWorkspace();
+        if (workspaceCalls > 1) {
+          const project = snapshot.clients[0].projects[0];
+          project.currentRevision = 3;
+          project.revisions.push({
+            number: 3,
+            revisionId: "dd0cb190-bd55-4200-bca0-b5472cbef368",
+            createdAt: "2026-07-18T12:00:00Z",
+            description: "Vocal lift",
+            approvedAt: null,
+            approvedBy: null,
+          });
+        }
+        return Promise.resolve(snapshot);
+      }
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_revision_creation") return Promise.resolve(revisionPreviewResult);
+      if (command === "create_revision") return Promise.resolve(revisionCreateResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "New revision" }));
+    fireEvent.change(screen.getByLabelText(/revision description/i), { target: { value: "Vocal lift" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review revision" }));
+    await screen.findByRole("heading", { name: "Confirm new revision" });
+    fireEvent.click(screen.getByRole("button", { name: "Create revision" }));
+
+    expect(await screen.findByText("Revision 3 was created and verified.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Revision history" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Revision 3" })).toBeInTheDocument();
+    expect(screen.getAllByText("Vocal lift").length).toBeGreaterThan(0);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_revision")).toHaveLength(1);
+  });
+
+  it("does not retry an uncertain revision-creation result", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_revision_creation") return Promise.resolve(revisionPreviewResult);
+      if (command === "create_revision") return Promise.resolve({
+        ok: false,
+        code: "uncertain",
+        message: "The operation may have completed; do not retry automatically.",
+        revision: null,
+      } satisfies RevisionOperationResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "New revision" }));
+    fireEvent.change(screen.getByLabelText(/revision description/i), { target: { value: "Vocal lift" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review revision" }));
+    await screen.findByRole("heading", { name: "Confirm new revision" });
+    fireEvent.click(screen.getByRole("button", { name: "Create revision" }));
+
+    expect(await screen.findByRole("heading", { name: "Creation needs verification" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/do not retry automatically/i);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_revision")).toHaveLength(1);
   });
 
   it("opens the functional Intake route and reads the authoritative report", async () => {
@@ -776,8 +897,9 @@ describe("JL Mixing Studio", () => {
       available: false,
       supported: false,
       clientCreationSupported: false,
-      projectCreationSupported: false,
-      intakeValidationSupported: false,
+        projectCreationSupported: false,
+        intakeValidationSupported: false,
+        revisionCreationSupported: false,
       version: null,
       message: "JL Mixing Automation was not found in its default install location or on PATH",
     });
@@ -1033,8 +1155,9 @@ describe("JL Mixing Studio", () => {
       available: true,
       supported: false,
       clientCreationSupported: false,
-      projectCreationSupported: false,
-      intakeValidationSupported: false,
+        projectCreationSupported: false,
+        intakeValidationSupported: false,
+        revisionCreationSupported: false,
       version: "1.3.0",
       message: "JL Mixing Automation 1.3.0 detected; guided creation requires 1.2.0",
     });

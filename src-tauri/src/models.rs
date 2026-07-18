@@ -15,8 +15,51 @@ pub struct VersionCheck {
     pub client_creation_supported: bool,
     pub project_creation_supported: bool,
     pub intake_validation_supported: bool,
+    pub revision_creation_supported: bool,
     pub version: Option<String>,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionCreationRequest {
+    pub client_id: String,
+    pub project_id: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionCreationSummary {
+    pub client_id: String,
+    pub project_id: String,
+    pub number: u32,
+    pub description: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionOperationResult {
+    pub ok: bool,
+    pub code: RevisionOperationCode,
+    pub message: String,
+    pub revision: Option<RevisionCreationSummary>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum RevisionOperationCode {
+    Ready,
+    Created,
+    InvalidInput,
+    AutomationUnavailable,
+    UnsupportedVersion,
+    UnsupportedPlatform,
+    WorkspaceBlocked,
+    ProjectUnavailable,
+    Rejected,
+    Uncertain,
+    Failed,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -214,7 +257,7 @@ pub struct RevisionApproval {
     pub approved_by: Option<String>,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct RevisionSummary {
     pub number: u32,
@@ -225,7 +268,7 @@ pub struct RevisionSummary {
     pub approved_by: Option<String>,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSummary {
     pub project_id: String,
