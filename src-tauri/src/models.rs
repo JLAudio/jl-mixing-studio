@@ -287,20 +287,46 @@ pub struct DeliveryManifest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct DeliveryMetadata { pub document_id: String, pub created_with: String, pub created_at: String }
+pub struct DeliveryMetadata {
+    pub document_id: String,
+    pub created_with: String,
+    pub created_at: String,
+}
 #[derive(Debug, Deserialize)]
-pub struct DeliveryProject { pub project_document_id: String, pub project_id: String, pub project_name: String }
+pub struct DeliveryProject {
+    pub project_document_id: String,
+    pub project_id: String,
+    pub project_name: String,
+}
 #[derive(Debug, Deserialize)]
-pub struct DeliveryClient { pub client_document_id: String, pub client_id: String }
+pub struct DeliveryClient {
+    pub client_document_id: String,
+    pub client_id: String,
+}
 #[derive(Debug, Deserialize)]
-pub struct DeliveryRevision { pub number: u32, pub revision_id: String, pub description: String, pub approval: DeliveredApproval }
+pub struct DeliveryRevision {
+    pub number: u32,
+    pub revision_id: String,
+    pub description: String,
+    pub approval: DeliveredApproval,
+}
 #[derive(Debug, Deserialize)]
-pub struct DeliveredApproval { pub approved_at: String, pub approved_by: String }
+pub struct DeliveredApproval {
+    pub approved_at: String,
+    pub approved_by: String,
+}
 #[derive(Debug, Deserialize)]
-pub struct DeliveryMethod { pub method: String }
+pub struct DeliveryMethod {
+    pub method: String,
+}
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
-pub struct DeliveryFile { pub path: String, pub deliverable_type: String, pub size_bytes: u64, pub sha256: String }
+pub struct DeliveryFile {
+    pub path: String,
+    pub deliverable_type: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+}
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]

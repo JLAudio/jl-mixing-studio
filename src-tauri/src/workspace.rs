@@ -6,9 +6,9 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::models::{
-    ClientDocument, ClientSummary, DeliveryManifest, DeliverySummary, DiscoveryCode, DiscoveryIssue,
-    DiscoveryScope, ProjectManifest, ProjectSummary, RevisionSummary, StudioDocument,
-    StudioSummary, WorkspaceCounts, WorkspaceSnapshot, WorkspaceStatus,
+    ClientDocument, ClientSummary, DeliveryManifest, DeliverySummary, DiscoveryCode,
+    DiscoveryIssue, DiscoveryScope, ProjectManifest, ProjectSummary, RevisionSummary,
+    StudioDocument, StudioSummary, WorkspaceCounts, WorkspaceSnapshot, WorkspaceStatus,
 };
 
 const STUDIO_SCHEMA: &str = include_str!("../../schemas/jl-mixing-v1.2.0/studio.schema.json");
@@ -398,13 +398,15 @@ fn read_delivery_summary(
         || delivery.revision.number != delivered
         || delivery.revision.revision_id != revision.revision_id
         || delivery.revision.description != revision.description
-        || delivery.revision.approval.approved_at != revision.approval.approved_at.as_deref().unwrap_or("")
-        || delivery.revision.approval.approved_by != revision.approval.approved_by.as_deref().unwrap_or("")
     {
         return Err(DocumentFailure::InvalidSchema);
     }
     let mut paths = BTreeSet::new();
-    if !delivery.files.iter().all(|file| paths.insert(file.path.as_str())) {
+    if !delivery
+        .files
+        .iter()
+        .all(|file| paths.insert(file.path.as_str()))
+    {
         return Err(DocumentFailure::InvalidSchema);
     }
     Ok(Some(DeliverySummary {
@@ -650,6 +652,35 @@ mod tests {
     }
 
     #[test]
+    fn preserves_an_immutable_delivery_approval_snapshot_after_reapproval() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "client", "Client", "Artist");
+        write_project(&root, "client", "project", "Project", "project");
+        write_delivery(&root, "client", "project", false);
+
+        let manifest_path =
+            root.join("Clients/client/Projects/project/00_Admin/project-manifest.json");
+        let mut manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        manifest["revisions"][0]["approval"]["approved_at"] =
+            Value::from("2026-07-18T14:00:00Z");
+        manifest["revisions"][0]["approval"]["approved_by"] = Value::from("JL");
+        fs::write(
+            &manifest_path,
+            serde_json::to_string_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let snapshot = discover_workspace_at(&root);
+        let delivery = snapshot.clients[0].projects[0].delivery.as_ref().unwrap();
+        assert_eq!(snapshot.status, WorkspaceStatus::Healthy);
+        assert_eq!(delivery.approved_at, "2026-07-18T12:00:00Z");
+        assert_eq!(delivery.approved_by, "Client");
+    }
+
+    #[test]
     fn rejects_missing_or_mismatched_delivery_manifests_without_hiding_siblings() {
         let temp = tempfile::tempdir().expect("temporary directory");
         let root = temp.path().join("Mixes");
@@ -665,7 +696,8 @@ mod tests {
         assert_eq!(snapshot.clients[0].projects[0].project_id, "good");
         assert_eq!(snapshot.issues[0].code, DiscoveryCode::InvalidSchema);
 
-        let delivery = root.join("Clients/client/Projects/bad/05_Final_Delivery/delivery-manifest.json");
+        let delivery =
+            root.join("Clients/client/Projects/bad/05_Final_Delivery/delivery-manifest.json");
         fs::remove_file(delivery).unwrap();
         let missing = discover_workspace_at(&root);
         assert_eq!(missing.status, WorkspaceStatus::Partial);
@@ -980,21 +1012,34 @@ mod tests {
     }
 
     fn write_delivery(root: &Path, client: &str, project: &str, mismatch: bool) {
-        let project_root = root.join("Clients").join(client).join("Projects").join(project);
+        let project_root = root
+            .join("Clients")
+            .join(client)
+            .join("Projects")
+            .join(project);
         let manifest_path = project_root.join("00_Admin/project-manifest.json");
-        let mut manifest: Value = serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        let mut manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
         manifest["state"]["approved_revision"] = Value::from(1);
         manifest["state"]["delivered_revision"] = Value::from(1);
         manifest["revisions"][0]["approval"]["approved_at"] = Value::from("2026-07-18T12:00:00Z");
         manifest["revisions"][0]["approval"]["approved_by"] = Value::from("Client");
-        fs::write(&manifest_path, serde_json::to_string_pretty(&manifest).unwrap()).unwrap();
+        fs::write(
+            &manifest_path,
+            serde_json::to_string_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
         let delivery_root = project_root.join("05_Final_Delivery");
         fs::create_dir_all(&delivery_root).unwrap();
         let project_id = manifest["project_id"].as_str().unwrap();
         let project_name = manifest["project_name"].as_str().unwrap();
         let project_document_id = manifest["metadata"]["document_id"].as_str().unwrap();
         let revision_id = manifest["revisions"][0]["revision_id"].as_str().unwrap();
-        let recorded_project = if mismatch { "wrong-project" } else { project_id };
+        let recorded_project = if mismatch {
+            "wrong-project"
+        } else {
+            project_id
+        };
         let delivery = serde_json::json!({
             "metadata":{"schema":"mixing-delivery","schema_version":"1.1.0","document_id":"f5a3d96c-5d1a-4d0f-9712-cfc4f070d065","created_with":"jl-mixing 1.2.0","created_at":"2026-07-18T13:00:00Z"},
             "project":{"project_document_id":project_document_id,"project_id":recorded_project,"project_name":project_name},
@@ -1003,7 +1048,11 @@ mod tests {
             "delivery":{"method":"Download"},
             "files":[{"path":"Project Main Mix.wav","deliverable_type":"main_mix","size_bytes":12,"sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]
         });
-        fs::write(delivery_root.join("delivery-manifest.json"), serde_json::to_string_pretty(&delivery).unwrap()).unwrap();
+        fs::write(
+            delivery_root.join("delivery-manifest.json"),
+            serde_json::to_string_pretty(&delivery).unwrap(),
+        )
+        .unwrap();
     }
 
     fn file_snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {

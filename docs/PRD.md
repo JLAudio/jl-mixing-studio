@@ -348,7 +348,7 @@ This milestone activates the Delivery route without running `create-delivery` or
 
 1. Validate the released v1.2.0 delivery-manifest schema locally and offline.
 2. Require a delivery manifest and `state.delivered_revision` to exist together.
-3. Correlate delivery client, project, revision identity, description, and approval metadata with the containing validated manifests.
+3. Correlate delivery client, project, revision identity, and description with the containing validated manifests while preserving approval metadata as an immutable package-time snapshot.
 4. Reject duplicate or unsafe recorded file paths while preserving valid sibling projects during partial discovery.
 5. Present approval-required, ready-for-first-delivery, current-delivery, and replacement-review-required states.
 6. Display delivery identity, creation provenance, method, revision, approval, file count, total bytes, deliverable types, relative paths, and recorded SHA-256 values.
