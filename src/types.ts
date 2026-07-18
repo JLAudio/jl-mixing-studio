@@ -3,8 +3,62 @@ export interface VersionCheck {
   supported: boolean;
   clientCreationSupported: boolean;
   projectCreationSupported: boolean;
+  intakeValidationSupported: boolean;
   version: string | null;
   message: string;
+}
+
+export interface IntakeRequest {
+  clientId: string;
+  projectId: string;
+}
+
+export interface IntakeInventoryItem {
+  file: string;
+  sizeBytes: number;
+  technicalDetails: string;
+}
+
+export interface IntakeReport {
+  clientId: string;
+  projectId: string;
+  source: string;
+  filesDiscovered: number;
+  blockingErrors: number;
+  warnings: number;
+  expectedSampleRate: number;
+  expectedBitDepth: number;
+  enhancedInspectionAvailable: boolean;
+  criticalErrors: string[];
+  duplicateFilenames: string[];
+  formatMismatches: string[];
+  unsupportedFiles: string[];
+  unavailableChecks: string[];
+  inventory: IntakeInventoryItem[];
+  recommendations: string[];
+}
+
+export type IntakeOperationCode =
+  | "notRun"
+  | "ready"
+  | "validated"
+  | "blockingFindings"
+  | "invalidInput"
+  | "automationUnavailable"
+  | "unsupportedVersion"
+  | "unsupportedPlatform"
+  | "workspaceBlocked"
+  | "projectUnavailable"
+  | "reportUnavailable"
+  | "rejected"
+  | "uncertain"
+  | "failed";
+
+export interface IntakeOperationResult {
+  ok: boolean;
+  code: IntakeOperationCode;
+  message: string;
+  report: IntakeReport | null;
 }
 
 export interface ClientCreationRequest {

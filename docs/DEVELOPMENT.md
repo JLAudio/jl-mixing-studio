@@ -1,6 +1,6 @@
 # Development setup
 
-JL Mixing Studio is an early-stage desktop application built with Tauri 2, React, TypeScript, and Rust. The current product slice discovers an existing JL Mixing Automation workspace without modifying it.
+JL Mixing Studio is an early-stage desktop application built with Tauri 2, React, TypeScript, and Rust. It discovers the fixed JL Mixing Automation workspace and exposes only focused, reviewed workflow mutations.
 
 ## What you need
 
@@ -50,9 +50,10 @@ rustfmt --version
 cat "$HOME/.local/share/jl-mixing/VERSION"
 new-client --help
 new-mix --help
+validate-intake --help
 ```
 
-For the current functional baseline, the installed `VERSION` file must report `1.2.0`, and both `new-client --help` and `new-mix --help` must succeed. JL Mixing Automation v1.2.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.2.0 is not supported, the application reports guided creation as unavailable without preventing read-only browsing.
+For the current functional baseline, the installed `VERSION` file must report `1.2.0`, and `new-client --help`, `new-mix --help`, and `validate-intake --help` must succeed. JL Mixing Automation v1.2.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.2.0 is not supported, the application reports guided automation as unavailable without preventing supported report reading and workspace browsing.
 
 On macOS, also confirm the Apple developer tools path:
 
@@ -93,17 +94,26 @@ The browser view cannot call Tauri commands. Use it only for layout work with su
 npm run tauri dev
 ```
 
-The application exposes five typed Rust commands:
+The application exposes ten typed Rust commands:
 
 - `get_system_info`
 - `get_jl_mixing_version`
 - `discover_default_workspace`
 - `preflight_client_creation`
 - `create_client`
+- `preflight_project_creation`
+- `create_project`
+- `get_intake_report`
+- `preflight_intake_validation`
+- `run_intake_validation`
 
 The dashboard uses the version and discovery commands independently. Rust resolves the fixed `new-client` launcher from the release installer's default `~/.local/bin` command location before falling back to the inherited process `PATH`. It derives that launcher's installation prefix, reads the fixed `share/jl-mixing/VERSION` file, and runs `new-client --help` as a health check. The frontend cannot select an executable, executable path, version path, working directory, process arguments, workspace, or manifest path. Rust resolves the fixed default workspace at `~/Music/Mixes`.
 
 Client creation is available only with JL Mixing Automation v1.2.0 and a healthy or empty workspace. Preflight invokes the allowlisted `new-client` command with `--dry-run` and no directory-change flag. Confirmed creation repeats validation and invokes the same fixed command with `--no-cd`. User values are passed as separate process arguments; no shell command string is constructed.
+
+Project creation follows the same fixed-command boundary with `new-mix --dry-run` and confirmed `new-mix --no-cd` from an internally resolved validated client directory.
+
+Intake reads `00_Admin/Intake_Report.md` only after Rust resolves an exact validated client/project identity. Preview invokes only `validate-intake --dry-run` from that project directory. Confirmation invokes `validate-intake` with no arguments, then re-reads and parses the authoritative managed report section. Exit code 5 is a completed validation with blocking findings. The initial Studio workflow does not expose source, expected-format, or duplicate-check overrides, and it never modifies intake source files.
 
 Workspace discovery validates `studio.json`, `client.json`, and project manifests against copies of the released JL Mixing Automation v1.2.0 schemas in `schemas/jl-mixing-v1.2.0/`. Those document schemas remain version `1.1.0`.
 
@@ -151,6 +161,13 @@ On the Intel MacBook running macOS Monterey 12.7.6, while signed into the dispos
 19. Verify the new project opens in Project Overview with Revision 1 and that its standard JL Mixing Automation structure is present under the selected client.
 20. Repeat the same project name and confirm a collision is reported without unrelated changes.
 21. Start another confirmed creation and simulate or observe a refresh failure only in an isolated test environment; verify Studio warns that the result is uncertain and does not retry automatically.
+22. Copy disposable audio and documentation into the created project's default `01_Client_Files/Original_Delivery/` directory.
+23. Open **Intake**, confirm the current report is shown as not yet validated, and select **Preview validation**.
+24. Verify the preview counts and findings reflect the disposable source while the project inventory and `Intake_Report.md` checksum remain unchanged.
+25. Cancel once, then preview again and confirm **Update intake report**.
+26. Verify only the managed section of `00_Admin/Intake_Report.md` changed and the source-file checksums did not change.
+27. Include an unreadable candidate audio file in a disposable copy and verify blocking findings are presented as a completed result rather than a command failure.
+28. Simulate an unverifiable confirmed result only in the disposable environment and verify Studio warns not to retry automatically.
 
 Record the results on the guided-project-creation pull request. Keep or manually archive the disposable test account after validation; JL Mixing Studio must not add unapproved deletion behavior for test cleanup.
 
@@ -158,9 +175,10 @@ Record the results on the guided-project-creation pull request. Keep or manually
 
 - Automation detection reads only the fixed `VERSION` metadata associated with the resolved `new-client` launcher and executes only its fixed `--help` health check.
 - Only the fixed default workspace can be discovered; arbitrary workspace selection is not implemented.
-- Discovery remains read-only; only the approved guided client and project creation commands mutate the workspace.
+- Discovery remains read-only; only approved guided client creation, project creation, and intake-report updates mutate the workspace.
 - Client creation exposes only client ID, display name, and optional default artist; other values inherit studio defaults.
 - Project creation exposes only a validated client, project display name, and optional artist; Automation derives all other values and creates Revision 1.
+- Intake validation uses only Automation defaults; custom source, expected-format, and duplicate-check options are not exposed.
 - Client editing and deletion are not implemented.
 - JL Mixing Automation v1.2.0 does not run natively on Windows.
 - Browser rendering does not validate native Tauri integration.

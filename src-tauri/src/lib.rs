@@ -1,11 +1,12 @@
 mod cli;
+mod intake;
 mod models;
 mod workspace;
 
 use models::{
     ClientCreationRequest, ClientOperationCode, ClientOperationResult, ProjectCreationRequest,
-    ProjectOperationCode, ProjectOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot,
-    WorkspaceStatus,
+    IntakeOperationCode, IntakeOperationResult, IntakeRequest, ProjectOperationCode,
+    ProjectOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
 };
 use std::path::PathBuf;
 use tauri::Manager;
@@ -29,6 +30,7 @@ fn get_jl_mixing_version(app: tauri::AppHandle) -> VersionCheck {
             supported: false,
             client_creation_supported: false,
             project_creation_supported: false,
+            intake_validation_supported: false,
             version: None,
             message,
         },
@@ -70,6 +72,48 @@ fn create_project(
     request: ProjectCreationRequest,
 ) -> ProjectOperationResult {
     run_project_operation(&app, request, cli::create_project)
+}
+
+#[tauri::command]
+fn get_intake_report(app: tauri::AppHandle, request: IntakeRequest) -> IntakeOperationResult {
+    let home = match resolve_home(&app) {
+        Ok(home) => home,
+        Err(message) => {
+            return cli::blocked_intake_operation(IntakeOperationCode::Failed, &message)
+        }
+    };
+    let workspace_path = home.join("Music").join("Mixes");
+    let snapshot = workspace::discover_workspace_at(&workspace_path);
+    if !workspace_allows_intake_report_read(snapshot.status) {
+        return cli::blocked_intake_operation(
+            IntakeOperationCode::ProjectUnavailable,
+            "The selected project is not available in the validated workspace",
+        );
+    }
+    let Some(project_directory) = validated_project_directory(&workspace_path, &snapshot, &request)
+    else {
+        return cli::blocked_intake_operation(
+            IntakeOperationCode::ProjectUnavailable,
+            "The selected project directory could not be resolved safely",
+        );
+    };
+    cli::read_intake_report(&project_directory, request)
+}
+
+#[tauri::command]
+fn preflight_intake_validation(
+    app: tauri::AppHandle,
+    request: IntakeRequest,
+) -> IntakeOperationResult {
+    run_intake_operation(&app, request, cli::preflight_intake_validation)
+}
+
+#[tauri::command]
+fn run_intake_validation(
+    app: tauri::AppHandle,
+    request: IntakeRequest,
+) -> IntakeOperationResult {
+    run_intake_operation(&app, request, cli::run_intake_validation)
 }
 
 fn resolve_home(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -173,6 +217,70 @@ fn workspace_allows_project_creation(status: WorkspaceStatus) -> bool {
     matches!(status, WorkspaceStatus::Healthy)
 }
 
+fn run_intake_operation(
+    app: &tauri::AppHandle,
+    request: IntakeRequest,
+    operation: fn(&std::path::Path, &std::path::Path, IntakeRequest) -> IntakeOperationResult,
+) -> IntakeOperationResult {
+    if cfg!(target_os = "windows") {
+        return cli::blocked_intake_operation(
+            IntakeOperationCode::UnsupportedPlatform,
+            "Intake validation requires JL Mixing Automation on macOS or Linux",
+        );
+    }
+    let home = match resolve_home(app) {
+        Ok(home) => home,
+        Err(message) => {
+            return cli::blocked_intake_operation(IntakeOperationCode::Failed, &message)
+        }
+    };
+    let workspace_path = home.join("Music").join("Mixes");
+    let snapshot = workspace::discover_workspace_at(&workspace_path);
+    if !workspace_allows_intake_validation(snapshot.status) {
+        return cli::blocked_intake_operation(
+            IntakeOperationCode::WorkspaceBlocked,
+            "Resolve workspace issues before running intake validation",
+        );
+    }
+    let Some(project_directory) = validated_project_directory(&workspace_path, &snapshot, &request)
+    else {
+        return cli::blocked_intake_operation(
+            IntakeOperationCode::ProjectUnavailable,
+            "The selected project directory could not be resolved safely",
+        );
+    };
+    operation(&home, &project_directory, request)
+}
+
+fn validated_project_directory(
+    workspace_path: &std::path::Path,
+    snapshot: &WorkspaceSnapshot,
+    request: &IntakeRequest,
+) -> Option<PathBuf> {
+    let exists = snapshot.clients.iter().any(|client| {
+        client.client_id == request.client_id
+            && client
+                .projects
+                .iter()
+                .any(|project| project.project_id == request.project_id)
+    });
+    exists.then(|| {
+        workspace::find_validated_project_path(
+            workspace_path,
+            request.client_id.trim(),
+            request.project_id.trim(),
+        )
+    })?
+}
+
+fn workspace_allows_intake_report_read(status: WorkspaceStatus) -> bool {
+    matches!(status, WorkspaceStatus::Healthy | WorkspaceStatus::Partial)
+}
+
+fn workspace_allows_intake_validation(status: WorkspaceStatus) -> bool {
+    matches!(status, WorkspaceStatus::Healthy)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -184,6 +292,9 @@ pub fn run() {
             create_client,
             preflight_project_creation,
             create_project,
+            get_intake_report,
+            preflight_intake_validation,
+            run_intake_validation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -213,5 +324,21 @@ mod tests {
             WorkspaceStatus::Unavailable
         ));
         assert!(!workspace_allows_project_creation(WorkspaceStatus::Invalid));
+    }
+
+    #[test]
+    fn intake_reports_remain_readable_in_partial_workspaces() {
+        assert!(workspace_allows_intake_report_read(WorkspaceStatus::Healthy));
+        assert!(workspace_allows_intake_report_read(WorkspaceStatus::Partial));
+        assert!(!workspace_allows_intake_report_read(WorkspaceStatus::Empty));
+        assert!(!workspace_allows_intake_report_read(WorkspaceStatus::Invalid));
+    }
+
+    #[test]
+    fn only_healthy_workspaces_allow_intake_validation() {
+        assert!(workspace_allows_intake_validation(WorkspaceStatus::Healthy));
+        assert!(!workspace_allows_intake_validation(WorkspaceStatus::Partial));
+        assert!(!workspace_allows_intake_validation(WorkspaceStatus::Empty));
+        assert!(!workspace_allows_intake_validation(WorkspaceStatus::Invalid));
     }
 }

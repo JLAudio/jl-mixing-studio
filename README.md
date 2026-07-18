@@ -49,7 +49,7 @@ The architecture spike, application shell, and read-only client/project browsing
 4. Keeps valid projects visible when another workspace item is malformed.
 5. Reports actionable setup and recovery guidance without modifying project data.
 
-Guided client and project creation are the approved controlled write workflows. Each performs a non-mutating dry-run, requires explicit confirmation, invokes only its fixed JL Mixing Automation v1.2.0 command without a shell, and verifies the result through refreshed discovery. Project lifecycle workflows remain out of scope.
+Guided client creation, project creation, and intake validation are the approved controlled workflows. Each previews a fixed JL Mixing Automation v1.2.0 command without a shell and requires explicit confirmation before a workspace file is changed. Intake validation uses Automation defaults, never modifies intake source files, and verifies the result by re-reading the authoritative managed report. Revision, approval, and delivery workflows remain out of scope.
 
 ## Contributing
 

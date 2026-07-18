@@ -266,6 +266,34 @@ pub fn find_validated_client_path(root: &Path, client_id: &str) -> Option<PathBu
     Some(matched)
 }
 
+/// Resolves one validated project directory from stable identities only.
+/// Duplicate project IDs are rejected so an action cannot target an ambiguous
+/// directory even when a partially valid workspace remains browsable.
+pub fn find_validated_project_path(
+    root: &Path,
+    client_id: &str,
+    project_id: &str,
+) -> Option<PathBuf> {
+    let client_path = find_validated_client_path(root, client_id)?;
+    let mut matches = directory_entries(&client_path.join("Projects"))
+        .ok()?
+        .into_iter()
+        .filter(|path| path.is_dir() && !is_symlink(path))
+        .filter(|path| {
+            read_document::<ProjectManifest>(
+                &path.join("00_Admin").join("project-manifest.json"),
+                PROJECT_SCHEMA,
+                "mixing-project",
+            )
+            .is_ok_and(|project| project.project_id == project_id)
+        });
+    let matched = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(matched)
+}
+
 fn read_document<T: DeserializeOwned>(
     path: &Path,
     schema_json: &str,
@@ -575,6 +603,39 @@ mod tests {
         write_client(&root, "duplicate id", "Second Client", "Artist");
 
         assert_eq!(find_validated_client_path(&root, "duplicate-id"), None);
+    }
+
+    #[test]
+    fn resolves_a_validated_project_directory_by_stable_id() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "Acme Records", "Acme Records", "The Artist");
+        write_project(&root, "Acme Records", "Blue Sky", "Blue Sky", "blue-sky");
+
+        assert_eq!(
+            find_validated_project_path(&root, "acme-records", "blue-sky"),
+            Some(root.join("Clients/Acme Records/Projects/Blue Sky"))
+        );
+        assert_eq!(
+            find_validated_project_path(&root, "acme-records", "missing"),
+            None
+        );
+    }
+
+    #[test]
+    fn refuses_an_ambiguous_project_id() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "client", "Client", "Artist");
+        write_project(&root, "client", "first", "First", "duplicate-project");
+        write_project(&root, "client", "second", "Second", "duplicate-project");
+
+        assert_eq!(
+            find_validated_project_path(&root, "client", "duplicate-project"),
+            None
+        );
     }
 
     fn write_workspace(root: &Path) {

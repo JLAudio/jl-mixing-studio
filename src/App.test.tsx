@@ -4,6 +4,8 @@ import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
 import type {
   ClientOperationResult,
+  IntakeOperationResult,
+  IntakeReport,
   ProjectOperationResult,
   VersionCheck,
   WorkspaceSnapshot,
@@ -19,6 +21,7 @@ const version: VersionCheck = {
   supported: true,
   clientCreationSupported: true,
   projectCreationSupported: true,
+  intakeValidationSupported: true,
   version: "1.2.0",
   message: "JL Mixing Automation 1.2.0 detected",
 };
@@ -56,6 +59,42 @@ const projectCreateResult: ProjectOperationResult = {
   ...projectPreflightResult,
   code: "created",
   message: "Project created successfully.",
+};
+
+const intakeReport: IntakeReport = {
+  clientId: "acme",
+  projectId: "blue-sky",
+  source: "/Users/engineer/Music/Mixes/Clients/Acme/Projects/Blue Sky/01_Client_Files/Original_Delivery",
+  filesDiscovered: 2,
+  blockingErrors: 0,
+  warnings: 1,
+  expectedSampleRate: 48000,
+  expectedBitDepth: 24,
+  enhancedInspectionAvailable: true,
+  criticalErrors: [],
+  duplicateFilenames: ["`one/song.wav`, `two/song.wav`"],
+  formatMismatches: [],
+  unsupportedFiles: [],
+  unavailableChecks: [],
+  inventory: [
+    { file: "one/song.wav", sizeBytes: 1200, technicalDetails: "48000 Hz, 24-bit, 2 ch" },
+    { file: "two/song.wav", sizeBytes: 2400, technicalDetails: "48000 Hz, 24-bit, 2 ch" },
+  ],
+  recommendations: ["Review duplicate filenames to avoid ambiguous DAW imports."],
+};
+
+const intakeNotRun: IntakeOperationResult = {
+  ok: true,
+  code: "notRun",
+  message: "No intake validation has been run for this project.",
+  report: null,
+};
+
+const intakePreview: IntakeOperationResult = {
+  ok: true,
+  code: "ready",
+  message: "Intake preview completed. No changes were made.",
+  report: intakeReport,
 };
 
 const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
@@ -96,6 +135,7 @@ const respondWith = (
   mockedInvoke.mockImplementation((command) => {
     if (command === "discover_default_workspace") return Promise.resolve(workspace);
     if (command === "get_jl_mixing_version") return Promise.resolve(automation);
+    if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
     return Promise.reject(new Error("Unexpected command"));
   });
 };
@@ -183,8 +223,170 @@ describe("JL Mixing Studio", () => {
     ).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "Blue Sky", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("48 kHz / 24-bit / WAV")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Intake Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Intake" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Revisions Planned" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Open folder — Planned" })).toBeDisabled();
+  });
+
+  it("opens the functional Intake route and reads the authoritative report", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve({ ...intakePreview, code: "validated" } satisfies IntakeOperationResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Intake" }));
+
+    expect(await screen.findByRole("heading", { name: "Intake validation" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "2 inspected files" })).toBeInTheDocument();
+    expect(screen.getByText("one/song.wav")).toBeInTheDocument();
+    expect(screen.getByText(/review duplicate filenames/i)).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("get_intake_report", {
+      request: { clientId: "acme", projectId: "blue-sky" },
+    });
+  });
+
+  it("shows the authoritative not-yet-validated state", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Validate intake" }));
+
+    expect(await screen.findByRole("heading", { name: "Intake validation has not been run" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview validation" })).toBeEnabled();
+  });
+
+  it("previews intake validation and cancels without updating the report", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "preflight_intake_validation") return Promise.resolve(intakePreview);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Intake" }));
+    await screen.findByRole("heading", { name: "Intake validation has not been run" });
+    fireEvent.click(screen.getByRole("button", { name: "Preview validation" }));
+
+    expect(await screen.findByRole("heading", { name: "Confirm intake report update" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Update intake report" })).toHaveFocus());
+    expect(screen.getByText(/intake source files will not be modified/i)).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("preflight_intake_validation", {
+      request: { clientId: "acme", projectId: "blue-sky" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith("run_intake_validation", expect.anything());
+  });
+
+  it("presents exit-code-five blocking findings as a completed preview", async () => {
+    const blockingReport: IntakeReport = {
+      ...intakeReport,
+      blockingErrors: 1,
+      criticalErrors: ["Unreadable audio file `broken.wav`: invalid data"],
+    };
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "preflight_intake_validation") return Promise.resolve({
+        ok: true,
+        code: "blockingFindings",
+        message: "Intake validation completed with blocking findings.",
+        report: blockingReport,
+      } satisfies IntakeOperationResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Intake" }));
+    await screen.findByRole("heading", { name: "Intake validation has not been run" });
+    fireEvent.click(screen.getByRole("button", { name: "Preview validation" }));
+
+    expect(await screen.findByRole("heading", { name: "Confirm intake report update" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Blocking errors").nextElementSibling).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "Update intake report" })).toBeEnabled();
+  });
+
+  it("updates and displays the verified authoritative intake report", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "preflight_intake_validation") return Promise.resolve(intakePreview);
+      if (command === "run_intake_validation") return Promise.resolve({ ...intakePreview, code: "validated" } satisfies IntakeOperationResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Intake" }));
+    await screen.findByRole("heading", { name: "Intake validation has not been run" });
+    fireEvent.click(screen.getByRole("button", { name: "Preview validation" }));
+    await screen.findByRole("heading", { name: "Confirm intake report update" });
+    fireEvent.click(screen.getByRole("button", { name: "Update intake report" }));
+
+    expect(await screen.findByText(/report was updated and verified/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "2 inspected files" })).toBeInTheDocument();
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "run_intake_validation")).toHaveLength(1);
+  });
+
+  it("keeps existing intake reports readable while partial workspaces block validation", async () => {
+    const partial = healthyWorkspace();
+    partial.status = "partial";
+    partial.counts.issues = 1;
+    partial.issues = [{ scope: "project", code: "invalidJson", displayName: "Other Project", relativePath: "other.json", message: "Invalid JSON", recovery: "Repair it." }];
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(partial);
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve({ ...intakePreview, code: "validated" } satisfies IntakeOperationResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Intake" }));
+
+    expect(await screen.findByRole("heading", { name: "2 inspected files" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Preview validation" })).toBeDisabled();
+    expect(screen.getByText(/existing report remains readable/i)).toBeInTheDocument();
+  });
+
+  it("does not retry an uncertain intake-validation result", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "preflight_intake_validation") return Promise.resolve(intakePreview);
+      if (command === "run_intake_validation") return Promise.resolve({ ok: false, code: "uncertain", message: "The report may have been updated; do not retry automatically.", report: null } satisfies IntakeOperationResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Intake" }));
+    await screen.findByRole("heading", { name: "Intake validation has not been run" });
+    fireEvent.click(screen.getByRole("button", { name: "Preview validation" }));
+    await screen.findByRole("heading", { name: "Confirm intake report update" });
+    fireEvent.click(screen.getByRole("button", { name: "Update intake report" }));
+
+    expect(await screen.findByRole("heading", { name: "Validation needs verification" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/do not retry automatically/i);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "run_intake_validation")).toHaveLength(1);
   });
 
   it("uses the client and project ID pair when opening projects across clients", async () => {
@@ -519,6 +721,7 @@ describe("JL Mixing Studio", () => {
       supported: false,
       clientCreationSupported: false,
       projectCreationSupported: false,
+      intakeValidationSupported: false,
       version: null,
       message: "JL Mixing Automation was not found in its default install location or on PATH",
     });
@@ -775,6 +978,7 @@ describe("JL Mixing Studio", () => {
       supported: false,
       clientCreationSupported: false,
       projectCreationSupported: false,
+      intakeValidationSupported: false,
       version: "1.3.0",
       message: "JL Mixing Automation 1.3.0 detected; guided creation requires 1.2.0",
     });

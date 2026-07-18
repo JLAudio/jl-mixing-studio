@@ -7,12 +7,15 @@ use std::process::Command;
 
 use crate::models::{
     ClientCreationRequest, ClientCreationSummary, ClientOperationCode, ClientOperationResult,
+    IntakeOperationCode, IntakeOperationResult, IntakeRequest,
     ProjectCreationRequest, ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult,
     VersionCheck,
 };
+use crate::{intake, intake::IntakeReportError};
 
 const CLIENT_EXECUTABLE: &str = "new-client";
 const PROJECT_EXECUTABLE: &str = "new-mix";
+const INTAKE_EXECUTABLE: &str = "validate-intake";
 const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.2.0";
 const MAX_VERSION_FILE_BYTES: usize = 64;
@@ -78,6 +81,44 @@ pub fn create_project(
     )
 }
 
+pub fn read_intake_report(
+    project_directory: &Path,
+    request: IntakeRequest,
+) -> IntakeOperationResult {
+    match normalize_intake_request(request) {
+        Ok(request) => report_result(intake::read_report(project_directory, &request), false),
+        Err(message) => blocked_intake_operation(IntakeOperationCode::InvalidInput, &message),
+    }
+}
+
+pub fn preflight_intake_validation(
+    home: &Path,
+    project_directory: &Path,
+    request: IntakeRequest,
+) -> IntakeOperationResult {
+    run_intake_operation(
+        home,
+        project_directory,
+        request,
+        IntakeOperation::Preflight,
+        &SystemProcessRunner,
+    )
+}
+
+pub fn run_intake_validation(
+    home: &Path,
+    project_directory: &Path,
+    request: IntakeRequest,
+) -> IntakeOperationResult {
+    run_intake_operation(
+        home,
+        project_directory,
+        request,
+        IntakeOperation::Run,
+        &SystemProcessRunner,
+    )
+}
+
 pub fn blocked_client_operation(code: ClientOperationCode, message: &str) -> ClientOperationResult {
     ClientOperationResult {
         ok: false,
@@ -96,6 +137,18 @@ pub fn blocked_project_operation(
         code,
         message: message.to_owned(),
         project: None,
+    }
+}
+
+pub fn blocked_intake_operation(
+    code: IntakeOperationCode,
+    message: &str,
+) -> IntakeOperationResult {
+    IntakeOperationResult {
+        ok: false,
+        code,
+        message: message.to_owned(),
+        report: None,
     }
 }
 
@@ -150,6 +203,12 @@ enum ClientOperation {
 enum ProjectOperation {
     Preflight,
     Create,
+}
+
+#[derive(Clone, Copy)]
+enum IntakeOperation {
+    Preflight,
+    Run,
 }
 
 fn run_client_operation<R: ProcessRunner>(
@@ -299,6 +358,154 @@ fn run_project_operation<R: ProcessRunner>(
     }
 }
 
+fn run_intake_operation<R: ProcessRunner>(
+    home: &Path,
+    project_directory: &Path,
+    request: IntakeRequest,
+    operation: IntakeOperation,
+    runner: &R,
+) -> IntakeOperationResult {
+    let request = match normalize_intake_request(request) {
+        Ok(request) => request,
+        Err(message) => {
+            return blocked_intake_operation(IntakeOperationCode::InvalidInput, &message)
+        }
+    };
+
+    let version = check_version_with_runner(home, runner);
+    if !version.available {
+        return blocked_intake_operation(
+            IntakeOperationCode::AutomationUnavailable,
+            &version.message,
+        );
+    }
+    if !version.supported {
+        return blocked_intake_operation(IntakeOperationCode::UnsupportedVersion, &version.message);
+    }
+
+    let Some(executable) = resolve_command(home, INTAKE_EXECUTABLE) else {
+        return blocked_intake_operation(
+            IntakeOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation validate-intake command was not found",
+        );
+    };
+    let arguments = match operation {
+        IntakeOperation::Preflight => vec!["--dry-run".to_owned()],
+        IntakeOperation::Run => Vec::new(),
+    };
+    match runner.run(&executable, &arguments, Some(project_directory)) {
+        Ok(output) if output.success || output.exit_code == Some(5) => {
+            let parsed = match operation {
+                IntakeOperation::Preflight => intake::parse_report(&output.stdout, &request),
+                IntakeOperation::Run => intake::read_report(project_directory, &request),
+            };
+            let mut result = report_result(parsed, matches!(operation, IntakeOperation::Preflight));
+            let expected_blocking = output.exit_code == Some(5);
+            let actual_blocking = result
+                .report
+                .as_ref()
+                .is_some_and(|report| report.blocking_errors > 0);
+            if result.report.is_none() || expected_blocking != actual_blocking {
+                return blocked_intake_operation(
+                    match operation {
+                        IntakeOperation::Preflight => IntakeOperationCode::Failed,
+                        IntakeOperation::Run => IntakeOperationCode::Uncertain,
+                    },
+                    match operation {
+                        IntakeOperation::Preflight => {
+                            "The JL Mixing Automation intake preview could not be verified"
+                        }
+                        IntakeOperation::Run => {
+                            "Intake validation may have updated the report, but the authoritative result could not be verified. Do not retry automatically."
+                        }
+                    },
+                );
+            }
+            if matches!(operation, IntakeOperation::Run)
+                && result.code == IntakeOperationCode::Validated
+            {
+                result.message = "Intake validation completed and the report was verified.".into();
+            }
+            result
+        }
+        Ok(output) => blocked_intake_operation(
+            IntakeOperationCode::Rejected,
+            &bounded_process_message(
+                &output.stderr,
+                &output.stdout,
+                &format!(
+                    "JL Mixing Automation rejected intake validation with exit code {}",
+                    output
+                        .exit_code
+                        .map_or_else(|| "unknown".into(), |code| code.to_string())
+                ),
+            ),
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_intake_operation(
+            IntakeOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation validate-intake command was not found",
+        ),
+        Err(_) => blocked_intake_operation(
+            match operation {
+                IntakeOperation::Preflight => IntakeOperationCode::Failed,
+                IntakeOperation::Run => IntakeOperationCode::Uncertain,
+            },
+            match operation {
+                IntakeOperation::Preflight => {
+                    "The JL Mixing Automation validate-intake command could not be started"
+                }
+                IntakeOperation::Run => {
+                    "The intake-validation result could not be confirmed. The report may have been updated; do not retry automatically."
+                }
+            },
+        ),
+    }
+}
+
+fn report_result(
+    report: Result<Option<crate::models::IntakeReport>, IntakeReportError>,
+    preview: bool,
+) -> IntakeOperationResult {
+    match report {
+        Ok(Some(report)) => {
+            let blocking = report.blocking_errors > 0;
+            IntakeOperationResult {
+                ok: true,
+                code: if blocking {
+                    IntakeOperationCode::BlockingFindings
+                } else if preview {
+                    IntakeOperationCode::Ready
+                } else {
+                    IntakeOperationCode::Validated
+                },
+                message: if blocking {
+                    "Intake validation completed with blocking findings."
+                } else if preview {
+                    "Intake preview completed. No changes were made."
+                } else {
+                    "The authoritative intake report was loaded."
+                }
+                .to_owned(),
+                report: Some(report),
+            }
+        }
+        Ok(None) => IntakeOperationResult {
+            ok: true,
+            code: IntakeOperationCode::NotRun,
+            message: "No intake validation has been run for this project.".into(),
+            report: None,
+        },
+        Err(IntakeReportError::Missing | IntakeReportError::Unsafe) => blocked_intake_operation(
+            IntakeOperationCode::ReportUnavailable,
+            "The authoritative intake report is missing or unsafe",
+        ),
+        Err(IntakeReportError::TooLarge | IntakeReportError::Invalid) => blocked_intake_operation(
+            IntakeOperationCode::ReportUnavailable,
+            "The authoritative intake report could not be parsed safely",
+        ),
+    }
+}
+
 fn normalize_request(request: ClientCreationRequest) -> Result<ClientCreationSummary, String> {
     let client_id = request.client_id.trim().to_owned();
     let client_name = request.client_name.trim().to_owned();
@@ -365,6 +572,18 @@ fn normalize_project_request(
         client_id,
         project_name,
         artist,
+    })
+}
+
+fn normalize_intake_request(request: IntakeRequest) -> Result<IntakeRequest, String> {
+    let client_id = request.client_id.trim().to_owned();
+    let project_id = request.project_id.trim().to_owned();
+    if !is_valid_client_id(&client_id) || !is_valid_client_id(&project_id) {
+        return Err("Select a valid project before running intake validation".into());
+    }
+    Ok(IntakeRequest {
+        client_id,
+        project_id,
     })
 }
 
@@ -572,6 +791,7 @@ fn evaluate_version(version: &str) -> VersionCheck {
         supported,
         client_creation_supported: supported && !cfg!(target_os = "windows"),
         project_creation_supported: supported && !cfg!(target_os = "windows"),
+        intake_validation_supported: supported && !cfg!(target_os = "windows"),
         message: if supported {
             format!("JL Mixing Automation {version} detected")
         } else {
@@ -589,6 +809,7 @@ fn unavailable_version(message: &str) -> VersionCheck {
         supported: false,
         client_creation_supported: false,
         project_creation_supported: false,
+        intake_validation_supported: false,
         version: None,
         message: message.to_owned(),
     }
@@ -695,6 +916,15 @@ mod tests {
         })
     }
 
+    fn completed_with_findings(stdout: &str) -> io::Result<ProcessResult> {
+        Ok(ProcessResult {
+            success: false,
+            exit_code: Some(5),
+            stdout: stdout.into(),
+            stderr: String::new(),
+        })
+    }
+
     fn request(artist: Option<&str>) -> ClientCreationRequest {
         ClientCreationRequest {
             client_id: "acme-records".into(),
@@ -715,6 +945,64 @@ mod tests {
         format!("Project: Blue Sky\nProject ID: {project_id}\nArtist: {artist}\n")
     }
 
+    fn intake_request() -> IntakeRequest {
+        IntakeRequest {
+            client_id: "acme-records".into(),
+            project_id: "blue-sky".into(),
+        }
+    }
+
+    fn intake_report(blocking: bool) -> String {
+        let error_count = usize::from(blocking);
+        let errors = if blocking {
+            "- Unreadable audio file `broken.wav`: invalid data"
+        } else {
+            "- None."
+        };
+        format!(
+            r#"## Intake Summary
+
+- Source: `/fixed/project/01_Client_Files/Original_Delivery`
+- Files discovered: 1
+- Blocking errors: {error_count}
+- Warnings: 0
+- Expected sample rate: 48000
+- Expected bit depth: 24
+- Enhanced inspection: unavailable
+
+## Critical Errors
+
+{errors}
+
+## Duplicate Filenames
+
+- None.
+
+## Project-Format Mismatches
+
+- None.
+
+## Unsupported or Non-Audio Files
+
+- None.
+
+## Skipped or Unavailable Checks
+
+- ffprobe is not installed; enhanced audio inspection was unavailable.
+
+## Source Inventory
+
+| File | Size (bytes) | Technical details |
+|---|---:|---|
+| `song.wav` | 12 | not inspected |
+
+## Preparation Recommendations
+
+- Review the intake report.
+"#
+        )
+    }
+
     fn installed_home(version: &str) -> tempfile::TempDir {
         let home = tempfile::tempdir().unwrap();
         let bin = home.path().join(".local/bin");
@@ -723,6 +1011,7 @@ mod tests {
         std::fs::create_dir_all(&application).unwrap();
         std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(application.join(VERSION_FILE), format!("{version}\n")).unwrap();
         home
     }
@@ -732,6 +1021,7 @@ mod tests {
         let supported = evaluate_version("1.2.0");
         assert!(supported.available);
         assert!(supported.supported);
+        assert!(supported.intake_validation_supported);
 
         let future = evaluate_version("1.3.0");
         assert!(future.available);
@@ -1058,6 +1348,110 @@ mod tests {
 
         assert_eq!(result.code, ProjectOperationCode::Uncertain);
         assert!(result.message.contains("may have completed"));
+    }
+
+    #[test]
+    fn intake_preflight_uses_only_dry_run_from_the_validated_project() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success(&intake_report(false))]);
+        let project_directory = Path::new("/fixed/project");
+        let result = run_intake_operation(
+            home.path(),
+            project_directory,
+            intake_request(),
+            IntakeOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, IntakeOperationCode::Ready);
+        let invocations = runner.invocations.borrow();
+        assert_eq!(invocations[1].executable, home.path().join(".local/bin/validate-intake"));
+        assert_eq!(invocations[1].arguments, vec!["--dry-run"]);
+        assert_eq!(invocations[1].current_directory, Some(project_directory.into()));
+    }
+
+    #[test]
+    fn intake_exit_five_is_a_completed_preview_with_blocking_findings() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            completed_with_findings(&intake_report(true)),
+        ]);
+        let result = run_intake_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            intake_request(),
+            IntakeOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, IntakeOperationCode::BlockingFindings);
+        assert_eq!(result.report.unwrap().blocking_errors, 1);
+    }
+
+    #[test]
+    fn confirmed_intake_run_has_no_arguments_and_verifies_the_report_from_disk() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let project = tempfile::tempdir().unwrap();
+        let admin = project.path().join("00_Admin");
+        std::fs::create_dir_all(&admin).unwrap();
+        std::fs::write(
+            admin.join("Intake_Report.md"),
+            format!(
+                "# Intake Report\n\n<!-- BEGIN AUTOMATED SECTION -->\n{}<!-- END AUTOMATED SECTION -->\n",
+                intake_report(false)
+            ),
+        )
+        .unwrap();
+        let runner = FakeRunner::new(vec![success("help"), success("Intake validation completed")]);
+        let result = run_intake_operation(
+            home.path(),
+            project.path(),
+            intake_request(),
+            IntakeOperation::Run,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, IntakeOperationCode::Validated);
+        assert!(runner.invocations.borrow()[1].arguments.is_empty());
+        assert_eq!(runner.invocations.borrow()[1].current_directory, Some(project.path().into()));
+    }
+
+    #[test]
+    fn invalid_intake_identity_never_starts_a_process() {
+        let runner = FakeRunner::new(Vec::new());
+        let mut invalid = intake_request();
+        invalid.project_id = "../unsafe".into();
+        let result = run_intake_operation(
+            Path::new("/home/tester"),
+            Path::new("/fixed/project"),
+            invalid,
+            IntakeOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, IntakeOperationCode::InvalidInput);
+        assert!(runner.invocations.borrow().is_empty());
+    }
+
+    #[test]
+    fn unverifiable_confirmed_intake_result_is_uncertain() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let project = tempfile::tempdir().unwrap();
+        let runner = FakeRunner::new(vec![success("help"), success("completed")]);
+        let result = run_intake_operation(
+            home.path(),
+            project.path(),
+            intake_request(),
+            IntakeOperation::Run,
+            &runner,
+        );
+
+        assert_eq!(result.code, IntakeOperationCode::Uncertain);
+        assert!(result.message.contains("Do not retry automatically"));
     }
 
     #[test]
