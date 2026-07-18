@@ -8,13 +8,15 @@ use std::process::Command;
 use crate::models::{
     ClientCreationRequest, ClientCreationSummary, ClientOperationCode, ClientOperationResult,
     IntakeOperationCode, IntakeOperationResult, IntakeRequest, ProjectCreationRequest,
-    ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult, VersionCheck,
+    ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult, RevisionCreationRequest,
+    RevisionCreationSummary, RevisionOperationCode, RevisionOperationResult, VersionCheck,
 };
 use crate::{intake, intake::IntakeReportError};
 
 const CLIENT_EXECUTABLE: &str = "new-client";
 const PROJECT_EXECUTABLE: &str = "new-mix";
 const INTAKE_EXECUTABLE: &str = "validate-intake";
+const REVISION_EXECUTABLE: &str = "new-revision";
 const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.2.0";
 const MAX_VERSION_FILE_BYTES: usize = 64;
@@ -118,6 +120,34 @@ pub fn run_intake_validation(
     )
 }
 
+pub fn preflight_revision_creation(
+    home: &Path,
+    project_directory: &Path,
+    request: RevisionCreationRequest,
+) -> RevisionOperationResult {
+    run_revision_operation(
+        home,
+        project_directory,
+        request,
+        RevisionOperation::Preflight,
+        &SystemProcessRunner,
+    )
+}
+
+pub fn create_revision(
+    home: &Path,
+    project_directory: &Path,
+    request: RevisionCreationRequest,
+) -> RevisionOperationResult {
+    run_revision_operation(
+        home,
+        project_directory,
+        request,
+        RevisionOperation::Create,
+        &SystemProcessRunner,
+    )
+}
+
 pub fn blocked_client_operation(code: ClientOperationCode, message: &str) -> ClientOperationResult {
     ClientOperationResult {
         ok: false,
@@ -145,6 +175,18 @@ pub fn blocked_intake_operation(code: IntakeOperationCode, message: &str) -> Int
         code,
         message: message.to_owned(),
         report: None,
+    }
+}
+
+pub fn blocked_revision_operation(
+    code: RevisionOperationCode,
+    message: &str,
+) -> RevisionOperationResult {
+    RevisionOperationResult {
+        ok: false,
+        code,
+        message: message.to_owned(),
+        revision: None,
     }
 }
 
@@ -205,6 +247,12 @@ enum ProjectOperation {
 enum IntakeOperation {
     Preflight,
     Run,
+}
+
+#[derive(Clone, Copy)]
+enum RevisionOperation {
+    Preflight,
+    Create,
 }
 
 fn run_client_operation<R: ProcessRunner>(
@@ -458,6 +506,109 @@ fn run_intake_operation<R: ProcessRunner>(
     }
 }
 
+fn run_revision_operation<R: ProcessRunner>(
+    home: &Path,
+    project_directory: &Path,
+    request: RevisionCreationRequest,
+    operation: RevisionOperation,
+    runner: &R,
+) -> RevisionOperationResult {
+    let request = match normalize_revision_request(request) {
+        Ok(request) => request,
+        Err(message) => {
+            return blocked_revision_operation(RevisionOperationCode::InvalidInput, &message)
+        }
+    };
+
+    let version = check_version_with_runner(home, runner);
+    if !version.available {
+        return blocked_revision_operation(
+            RevisionOperationCode::AutomationUnavailable,
+            &version.message,
+        );
+    }
+    if !version.supported {
+        return blocked_revision_operation(
+            RevisionOperationCode::UnsupportedVersion,
+            &version.message,
+        );
+    }
+
+    let Some(executable) = resolve_command(home, REVISION_EXECUTABLE) else {
+        return blocked_revision_operation(
+            RevisionOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation new-revision command was not found",
+        );
+    };
+    let arguments = revision_arguments(&request, operation);
+    match runner.run(&executable, &arguments, Some(project_directory)) {
+        Ok(output) if output.success => {
+            let Some(revision) = parse_revision_output(&output.stdout, &request, operation) else {
+                return blocked_revision_operation(
+                    match operation {
+                        RevisionOperation::Preflight => RevisionOperationCode::Failed,
+                        RevisionOperation::Create => RevisionOperationCode::Uncertain,
+                    },
+                    match operation {
+                        RevisionOperation::Preflight => {
+                            "The JL Mixing Automation revision preview could not be verified"
+                        }
+                        RevisionOperation::Create => {
+                            "JL Mixing Automation reported success, but the new revision identity could not be verified. The operation may have completed; do not retry automatically."
+                        }
+                    },
+                );
+            };
+            RevisionOperationResult {
+                ok: true,
+                code: match operation {
+                    RevisionOperation::Preflight => RevisionOperationCode::Ready,
+                    RevisionOperation::Create => RevisionOperationCode::Created,
+                },
+                message: match operation {
+                    RevisionOperation::Preflight => {
+                        "Revision preview completed. No changes were made."
+                    }
+                    RevisionOperation::Create => "Revision created successfully.",
+                }
+                .to_owned(),
+                revision: Some(revision),
+            }
+        }
+        Ok(output) => blocked_revision_operation(
+            RevisionOperationCode::Rejected,
+            &bounded_process_message(
+                &output.stderr,
+                &output.stdout,
+                &format!(
+                    "JL Mixing Automation rejected revision creation with exit code {}",
+                    output
+                        .exit_code
+                        .map_or_else(|| "unknown".into(), |code| code.to_string())
+                ),
+            ),
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_revision_operation(
+            RevisionOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation new-revision command was not found",
+        ),
+        Err(_) => blocked_revision_operation(
+            match operation {
+                RevisionOperation::Preflight => RevisionOperationCode::Failed,
+                RevisionOperation::Create => RevisionOperationCode::Uncertain,
+            },
+            match operation {
+                RevisionOperation::Preflight => {
+                    "The JL Mixing Automation new-revision command could not be started"
+                }
+                RevisionOperation::Create => {
+                    "The revision-creation result could not be confirmed. The operation may have completed; do not retry automatically."
+                }
+            },
+        ),
+    }
+}
+
 fn report_result(
     report: Result<Option<crate::models::IntakeReport>, IntakeReportError>,
     preview: bool,
@@ -583,6 +734,31 @@ fn normalize_intake_request(request: IntakeRequest) -> Result<IntakeRequest, Str
     })
 }
 
+fn normalize_revision_request(
+    request: RevisionCreationRequest,
+) -> Result<RevisionCreationRequest, String> {
+    let client_id = request.client_id.trim().to_owned();
+    let project_id = request.project_id.trim().to_owned();
+    let description = request
+        .description
+        .map(|description| description.trim().to_owned())
+        .filter(|description| !description.is_empty());
+    if !is_valid_client_id(&client_id) || !is_valid_client_id(&project_id) {
+        return Err("Select a valid project before creating a revision".into());
+    }
+    if description
+        .as_ref()
+        .is_some_and(|value| value.chars().any(char::is_control))
+    {
+        return Err("Revision description cannot contain control characters".into());
+    }
+    Ok(RevisionCreationRequest {
+        client_id,
+        project_id,
+        description,
+    })
+}
+
 fn is_valid_client_id(value: &str) -> bool {
     value.split('-').all(|part| {
         !part.is_empty()
@@ -622,6 +798,22 @@ fn project_arguments(request: &ProjectCreationRequest, operation: ProjectOperati
     arguments
 }
 
+fn revision_arguments(
+    request: &RevisionCreationRequest,
+    operation: RevisionOperation,
+) -> Vec<String> {
+    let mut arguments = Vec::new();
+    if let Some(description) = &request.description {
+        arguments.push("--description".into());
+        arguments.push(description.clone());
+    }
+    match operation {
+        RevisionOperation::Preflight => arguments.push("--dry-run".into()),
+        RevisionOperation::Create => arguments.push("--no-cd".into()),
+    }
+    arguments
+}
+
 fn parse_project_preview(
     stdout: &str,
     request: &ProjectCreationRequest,
@@ -642,6 +834,41 @@ fn parse_project_preview(
         project_id,
         project_name: request.project_name.clone(),
         artist,
+    })
+}
+
+fn parse_revision_output(
+    stdout: &str,
+    request: &RevisionCreationRequest,
+    operation: RevisionOperation,
+) -> Option<RevisionCreationSummary> {
+    let field = |label: &str| {
+        stdout.lines().find_map(|line| {
+            let (candidate, value) = line.split_once(':')?;
+            (candidate.trim() == label).then(|| value.trim().to_owned())
+        })
+    };
+    let number = field(match operation {
+        RevisionOperation::Preflight => "New revision",
+        RevisionOperation::Create => "Revision",
+    })?
+    .parse::<u32>()
+    .ok()?;
+    let description = field("Description")?;
+    if number == 0
+        || description.is_empty()
+        || request
+            .description
+            .as_ref()
+            .is_some_and(|expected| expected != &description)
+    {
+        return None;
+    }
+    Some(RevisionCreationSummary {
+        client_id: request.client_id.clone(),
+        project_id: request.project_id.clone(),
+        number,
+        description,
     })
 }
 
@@ -788,6 +1015,7 @@ fn evaluate_version(version: &str) -> VersionCheck {
         client_creation_supported: supported && !cfg!(target_os = "windows"),
         project_creation_supported: supported && !cfg!(target_os = "windows"),
         intake_validation_supported: supported && !cfg!(target_os = "windows"),
+        revision_creation_supported: supported && !cfg!(target_os = "windows"),
         message: if supported {
             format!("JL Mixing Automation {version} detected")
         } else {
@@ -806,6 +1034,7 @@ fn unavailable_version(message: &str) -> VersionCheck {
         client_creation_supported: false,
         project_creation_supported: false,
         intake_validation_supported: false,
+        revision_creation_supported: false,
         version: None,
         message: message.to_owned(),
     }
@@ -948,6 +1177,25 @@ mod tests {
         }
     }
 
+    fn revision_request(description: Option<&str>) -> RevisionCreationRequest {
+        RevisionCreationRequest {
+            client_id: "acme-records".into(),
+            project_id: "blue-sky".into(),
+            description: description.map(str::to_owned),
+        }
+    }
+
+    fn revision_output(preflight: bool, description: &str) -> String {
+        let revision_label = if preflight {
+            "New revision"
+        } else {
+            "Revision"
+        };
+        format!(
+            "Project: Blue Sky\n{revision_label}: 3\nDescription: {description}\nRevision folder: /fixed/project/04_Revisions/Revision_03\n"
+        )
+    }
+
     fn intake_report(blocking: bool) -> String {
         let error_count = usize::from(blocking);
         let errors = if blocking {
@@ -1008,6 +1256,7 @@ mod tests {
         std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(bin.join(REVISION_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(application.join(VERSION_FILE), format!("{version}\n")).unwrap();
         home
     }
@@ -1018,6 +1267,7 @@ mod tests {
         assert!(supported.available);
         assert!(supported.supported);
         assert!(supported.intake_validation_supported);
+        assert!(supported.revision_creation_supported);
 
         let future = evaluate_version("1.3.0");
         assert!(future.available);
@@ -1344,6 +1594,111 @@ mod tests {
 
         assert_eq!(result.code, ProjectOperationCode::Uncertain);
         assert!(result.message.contains("may have completed"));
+    }
+
+    #[test]
+    fn revision_preflight_uses_description_and_dry_run_from_validated_project() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(&revision_output(true, "Vocal lift")),
+        ]);
+        let project_directory = Path::new("/fixed/project");
+        let result = run_revision_operation(
+            home.path(),
+            project_directory,
+            revision_request(Some(" Vocal lift ")),
+            RevisionOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, RevisionOperationCode::Ready);
+        assert_eq!(result.revision.unwrap().number, 3);
+        let invocations = runner.invocations.borrow();
+        assert_eq!(
+            invocations[1].executable,
+            home.path().join(".local/bin/new-revision")
+        );
+        assert_eq!(
+            invocations[1].arguments,
+            vec!["--description", "Vocal lift", "--dry-run"]
+        );
+        assert_eq!(
+            invocations[1].current_directory,
+            Some(project_directory.to_owned())
+        );
+    }
+
+    #[test]
+    fn confirmed_revision_creation_uses_no_cd_and_automation_default_description() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(&revision_output(false, "Revision 3")),
+        ]);
+        let result = run_revision_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            revision_request(Some("   ")),
+            RevisionOperation::Create,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, RevisionOperationCode::Created);
+        assert_eq!(runner.invocations.borrow()[1].arguments, vec!["--no-cd"]);
+        assert_eq!(result.revision.unwrap().description, "Revision 3");
+    }
+
+    #[test]
+    fn invalid_revision_input_never_starts_a_process() {
+        let runner = FakeRunner::new(Vec::new());
+        let result = run_revision_operation(
+            Path::new("/home/tester"),
+            Path::new("/fixed/project"),
+            revision_request(Some("unsafe\nvalue")),
+            RevisionOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, RevisionOperationCode::InvalidInput);
+        assert!(runner.invocations.borrow().is_empty());
+    }
+
+    #[test]
+    fn successful_revision_creation_without_identity_is_uncertain() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("Revision created")]);
+        let result = run_revision_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            revision_request(None),
+            RevisionOperation::Create,
+            &runner,
+        );
+
+        assert_eq!(result.code, RevisionOperationCode::Uncertain);
+        assert!(result.message.contains("do not retry automatically"));
+    }
+
+    #[test]
+    fn revision_rejection_preserves_the_bounded_automation_message() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            failure(4, "Revision destination already exists"),
+        ]);
+        let result = run_revision_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            revision_request(None),
+            RevisionOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, RevisionOperationCode::Rejected);
+        assert!(result.message.contains("already exists"));
     }
 
     #[test]

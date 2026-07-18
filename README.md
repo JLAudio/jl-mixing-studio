@@ -49,8 +49,9 @@ The architecture spike, application shell, guided creation and intake workflows,
 4. Keeps valid projects visible when another workspace item is malformed.
 5. Reports actionable setup and recovery guidance without modifying project data.
 6. Presents validated revision history and approval metadata directly from project manifests.
+7. Previews, confirms, and verifies safe creation of the next project revision.
 
-Guided client creation, project creation, and intake validation are the approved controlled workflows. Each previews a fixed JL Mixing Automation v1.2.0 command without a shell and requires explicit confirmation before a workspace file is changed. Intake validation uses Automation defaults, never modifies intake source files, and verifies the result by re-reading the authoritative managed report. Revision history is read-only; revision creation, approval, and delivery workflows remain out of scope.
+Guided client creation, project creation, intake validation, and revision creation are the approved controlled workflows. Each previews a fixed JL Mixing Automation v1.2.0 command without a shell and requires explicit confirmation before a workspace file is changed. Intake validation uses Automation defaults and never modifies intake source files. Revision creation accepts only an optional description, does not expose a source-path picker, and verifies the exact manifest transition after Automation succeeds. Revision browsing remains authoritative; approval and delivery workflows remain out of scope.
 
 ## Contributing
 

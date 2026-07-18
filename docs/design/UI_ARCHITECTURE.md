@@ -55,9 +55,9 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Clients | List clients and enter approved client workflows | Implemented directory and guided client creation |
 | Client Details | Present validated client defaults and the client's projects; enter a selected project | Implemented; guided project creation available; client editing unsupported |
 | Projects | Search, filter, and inspect projects using derived lifecycle state | Implemented directory and selection; search and filters remain Planned |
-| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview and Intake entry; remaining lifecycle actions Planned |
+| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview, Intake entry, and guided New Revision; remaining lifecycle actions Planned |
 | Intake | Run and present non-destructive source validation with an authoritative managed-report update | Implemented |
-| Revisions | Present authoritative revision history and approved future revision actions | Current milestone; read-only history |
+| Revisions | Present authoritative revision history and approved revision actions | Implemented history and guided New Revision; approval remains Planned |
 | Delivery | Present delivery readiness and approved delivery actions | Future milestone |
 | Tasks | Derive actionable work from authoritative project state | Approved derivation rules; future milestone |
 | Reports | Present generated reports without duplicating their state | Future milestone |
@@ -221,7 +221,20 @@ The shell milestone establishes the complete product-level layout vocabulary but
 3. Revision history sorts deterministically and distinguishes current, approved, delivered, historically approved, and superseded context without inventing lifecycle state.
 4. Selected revision detail reads only manifest fields; Studio does not scan project directories for notes or files in this milestone.
 5. Valid revision history remains available for healthy projects retained during partial workspace discovery.
-6. New-revision and approval actions remain disabled and Planned until their Automation command mappings and post-write verification rules are separately approved.
+6. New-revision and approval actions remained disabled and Planned until their Automation command mappings and post-write verification rules were separately approved.
+
+## Guided revision-creation milestone
+
+[Issue #19](https://github.com/JLAudio/jl-mixing-studio/issues/19) activates New Revision without introducing arbitrary source selection or GUI-owned lifecycle state:
+
+1. Project Overview and Revisions launch the workflow for an exact validated client/project identity.
+2. The UI collects only an optional description; Automation derives the revision number, stable ID, timestamp, folder, notes template, and default description.
+3. Rust resolves the project directory internally, invokes only the fixed `new-revision` executable, and accepts no frontend path or arbitrary arguments.
+4. Preview uses `[--description TEXT] --dry-run`; confirmed creation uses `[--description TEXT] --no-cd`.
+5. The Automation `--source` option is intentionally not exposed in this milestone.
+6. Confirmed success requires one new contiguous manifest record, a unique revision ID, unchanged prior records, and unchanged approved and delivered pointers.
+7. The verified new revision becomes the selected authoritative record; uncertain outcomes are never retried automatically.
+8. Revision approval remains disabled and Planned.
 
 ## Accessibility and responsive requirements
 
