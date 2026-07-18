@@ -320,7 +320,7 @@ pub struct DeliveryMethod {
     pub method: String,
 }
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct DeliveryFile {
     pub path: String,
     pub deliverable_type: String,
