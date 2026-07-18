@@ -123,6 +123,24 @@ const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
       currentRevision: 2,
       approvedRevision: 1,
       deliveredRevision: null,
+      revisions: [
+        {
+          number: 1,
+          revisionId: "7af79825-2253-4c82-aed2-da00b22bf635",
+          createdAt: "2026-07-16T12:00:00Z",
+          description: "Initial mix",
+          approvedAt: "2026-07-16T18:00:00Z",
+          approvedBy: "Client Reviewer",
+        },
+        {
+          number: 2,
+          revisionId: "838e1b52-e8d3-48c7-8a8d-179c985d4bbc",
+          createdAt: "2026-07-17T12:00:00Z",
+          description: "Balance update",
+          approvedAt: null,
+          approvedBy: null,
+        },
+      ],
     }],
   }],
   issues: [],
@@ -224,8 +242,46 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByRole("heading", { name: "Blue Sky", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("48 kHz / 24-bit / WAV")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Intake" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Revisions Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Revisions" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Open folder — Planned" })).toBeDisabled();
+  });
+
+  it("opens authoritative revision history and selects an older approved revision", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
+
+    expect(screen.getByRole("heading", { name: "Revision history" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New revision Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Approve revision Planned" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "Revision 2" })).toBeInTheDocument();
+    expect(screen.getByText("Balance update")).toBeInTheDocument();
+    expect(screen.getAllByText("Current").length).toBeGreaterThan(0);
+
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Revision history" })).getByRole("button", { name: /Revision 1/ }));
+
+    expect(screen.getByRole("heading", { name: "Revision 1" })).toBeInTheDocument();
+    expect(screen.getByText("Initial mix")).toBeInTheDocument();
+    expect(screen.getByText("Approved by Client Reviewer")).toBeInTheDocument();
+    expect(screen.getAllByText("Approved").length).toBeGreaterThan(0);
+  });
+
+  it("keeps revision history readable in a partial workspace", async () => {
+    const partial = healthyWorkspace();
+    partial.status = "partial";
+    partial.counts.issues = 1;
+    partial.issues = [{ scope: "project", code: "invalidJson", displayName: "Other Project", relativePath: "other.json", message: "Invalid JSON", recovery: "Repair it." }];
+    respondWith(partial);
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
+
+    expect(screen.getByRole("heading", { name: "Revision history" })).toBeInTheDocument();
+    expect(screen.getByText("Balance update")).toBeInTheDocument();
   });
 
   it("opens the functional Intake route and reads the authoritative report", async () => {

@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -6,8 +7,8 @@ use serde_json::Value;
 
 use crate::models::{
     ClientDocument, ClientSummary, DiscoveryCode, DiscoveryIssue, DiscoveryScope, ProjectManifest,
-    ProjectSummary, StudioDocument, StudioSummary, WorkspaceCounts, WorkspaceSnapshot,
-    WorkspaceStatus,
+    ProjectSummary, RevisionSummary, StudioDocument, StudioSummary, WorkspaceCounts,
+    WorkspaceSnapshot, WorkspaceStatus,
 };
 
 const STUDIO_SCHEMA: &str = include_str!("../../schemas/jl-mixing-v1.2.0/studio.schema.json");
@@ -153,11 +154,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
             }
 
             let manifest_path = project_path.join("00_Admin").join("project-manifest.json");
-            let manifest = match read_document::<ProjectManifest>(
-                &manifest_path,
-                PROJECT_SCHEMA,
-                "mixing-project",
-            ) {
+            let manifest = match read_project_document(&manifest_path) {
                 Ok(manifest) => manifest,
                 Err(failure) => {
                     issues.push(failure.into_issue(
@@ -170,6 +167,19 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                 }
             };
 
+            let mut revisions: Vec<_> = manifest
+                .revisions
+                .into_iter()
+                .map(|revision| RevisionSummary {
+                    number: revision.number,
+                    revision_id: revision.revision_id,
+                    created_at: revision.created_at,
+                    description: revision.description,
+                    approved_at: revision.approval.approved_at,
+                    approved_by: revision.approval.approved_by,
+                })
+                .collect();
+            revisions.sort_by_key(|revision| revision.number);
             let summary = ProjectSummary {
                 project_id: manifest.project_id,
                 project_name: manifest.project_name,
@@ -182,6 +192,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                 current_revision: manifest.state.current_revision,
                 approved_revision: manifest.state.approved_revision,
                 delivered_revision: manifest.state.delivered_revision,
+                revisions,
             };
             projects_with_paths.push((summary, relative_path(root, &project_path)));
         }
@@ -280,11 +291,7 @@ pub fn find_validated_project_path(
         .into_iter()
         .filter(|path| path.is_dir() && !is_symlink(path))
         .filter(|path| {
-            read_document::<ProjectManifest>(
-                &path.join("00_Admin").join("project-manifest.json"),
-                PROJECT_SCHEMA,
-                "mixing-project",
-            )
+            read_project_document(&path.join("00_Admin").join("project-manifest.json"))
             .is_ok_and(|project| project.project_id == project_id)
         });
     let matched = matches.next()?;
@@ -335,6 +342,60 @@ fn read_document<T: DeserializeOwned>(
     }
 
     serde_json::from_value(value).map_err(|_| DocumentFailure::InvalidSchema)
+}
+
+fn read_project_document(path: &Path) -> Result<ProjectManifest, DocumentFailure> {
+    let manifest = read_document::<ProjectManifest>(path, PROJECT_SCHEMA, "mixing-project")?;
+    validate_revision_history(&manifest)?;
+    Ok(manifest)
+}
+
+fn validate_revision_history(manifest: &ProjectManifest) -> Result<(), DocumentFailure> {
+    let current = manifest.state.current_revision;
+    if current == 0 {
+        return if manifest.revisions.is_empty()
+            && manifest.state.approved_revision.is_none()
+            && manifest.state.delivered_revision.is_none()
+        {
+            Ok(())
+        } else {
+            Err(DocumentFailure::InvalidSchema)
+        };
+    }
+
+    if manifest.revisions.len() != current as usize {
+        return Err(DocumentFailure::InvalidSchema);
+    }
+    let mut numbers = BTreeSet::new();
+    let mut ids = BTreeSet::new();
+    for revision in &manifest.revisions {
+        if !numbers.insert(revision.number) || !ids.insert(revision.revision_id.as_str()) {
+            return Err(DocumentFailure::InvalidSchema);
+        }
+    }
+    if !(1..=current).all(|number| numbers.contains(&number)) {
+        return Err(DocumentFailure::InvalidSchema);
+    }
+
+    for pointer in [
+        manifest.state.approved_revision,
+        manifest.state.delivered_revision,
+    ]
+    .into_iter()
+    .flatten()
+    {
+        let Some(revision) = manifest
+            .revisions
+            .iter()
+            .find(|revision| revision.number == pointer)
+        else {
+            return Err(DocumentFailure::InvalidSchema);
+        };
+        if revision.approval.approved_at.is_none() || revision.approval.approved_by.is_none() {
+            return Err(DocumentFailure::InvalidSchema);
+        }
+    }
+    Ok(())
 }
 
 fn directory_entries(path: &Path) -> Result<Vec<PathBuf>, DocumentFailure> {
@@ -493,6 +554,119 @@ mod tests {
             "alpha Project"
         );
         assert_eq!(snapshot.clients[1].projects[1].project_name, "Zulu Project");
+        let revision = &snapshot.clients[1].projects[0].revisions[0];
+        assert_eq!(revision.number, 1);
+        assert_eq!(revision.description, "Initial mix");
+        assert_eq!(revision.approved_at, None);
+    }
+
+    #[test]
+    fn rejects_inconsistent_revision_history() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "client", "Client", "Artist");
+        write_project(&root, "client", "project", "Project", "project");
+        let path = root.join("Clients/client/Projects/project/00_Admin/project-manifest.json");
+        let mut manifest: Value = serde_json::from_str(
+            &fs::read_to_string(&path).expect("project manifest"),
+        )
+        .expect("valid project JSON");
+        manifest["state"]["current_revision"] = Value::from(2);
+        fs::write(
+            &path,
+            serde_json::to_string_pretty(&manifest).expect("serialize manifest"),
+        )
+        .expect("inconsistent manifest");
+
+        let snapshot = discover_workspace_at(&root);
+
+        assert_eq!(snapshot.status, WorkspaceStatus::Partial);
+        assert_eq!(snapshot.counts.projects, 0);
+        assert_eq!(snapshot.issues[0].code, DiscoveryCode::InvalidSchema);
+    }
+
+    #[test]
+    fn rejects_state_pointers_to_unapproved_revisions() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "client", "Client", "Artist");
+        write_project(&root, "client", "project", "Project", "project");
+        let path = root.join("Clients/client/Projects/project/00_Admin/project-manifest.json");
+        let mut manifest: Value = serde_json::from_str(
+            &fs::read_to_string(&path).expect("project manifest"),
+        )
+        .expect("valid project JSON");
+        manifest["state"]["approved_revision"] = Value::from(1);
+        fs::write(
+            &path,
+            serde_json::to_string_pretty(&manifest).expect("serialize manifest"),
+        )
+        .expect("inconsistent manifest");
+
+        let snapshot = discover_workspace_at(&root);
+
+        assert_eq!(snapshot.status, WorkspaceStatus::Partial);
+        assert_eq!(snapshot.counts.projects, 0);
+        assert_eq!(snapshot.issues[0].code, DiscoveryCode::InvalidSchema);
+    }
+
+    #[test]
+    fn rejects_duplicate_revision_numbers_and_ids() {
+        let mut value: Value = serde_json::from_str(PROJECT).expect("valid project JSON");
+        value["state"]["current_revision"] = Value::from(2);
+        let mut second = value["revisions"][0].clone();
+        second["number"] = Value::from(2);
+        value["revisions"]
+            .as_array_mut()
+            .expect("revision array")
+            .push(second);
+        let manifest: ProjectManifest =
+            serde_json::from_value(value).expect("project manifest shape");
+
+        assert!(matches!(
+            validate_revision_history(&manifest),
+            Err(DocumentFailure::InvalidSchema)
+        ));
+
+        let mut value: Value = serde_json::from_str(PROJECT).expect("valid project JSON");
+        value["state"]["current_revision"] = Value::from(2);
+        let mut duplicate = value["revisions"][0].clone();
+        duplicate["revision_id"] = Value::from("a6ab015f-9c75-4de6-b3ba-e457f308ded1");
+        value["revisions"]
+            .as_array_mut()
+            .expect("revision array")
+            .push(duplicate);
+        let manifest: ProjectManifest =
+            serde_json::from_value(value).expect("project manifest shape");
+
+        assert!(matches!(
+            validate_revision_history(&manifest),
+            Err(DocumentFailure::InvalidSchema)
+        ));
+    }
+
+    #[test]
+    fn rejects_gapped_revision_numbers() {
+        let mut value: Value = serde_json::from_str(PROJECT).expect("valid project JSON");
+        value["state"]["current_revision"] = Value::from(3);
+        let mut third = value["revisions"][0].clone();
+        third["number"] = Value::from(3);
+        third["revision_id"] = Value::from("a6ab015f-9c75-4de6-b3ba-e457f308ded1");
+        let mut fourth = value["revisions"][0].clone();
+        fourth["number"] = Value::from(4);
+        fourth["revision_id"] = Value::from("cc318b30-1b52-43fa-9f42-bc5216789f9b");
+        let revisions = value["revisions"].as_array_mut().expect("revision array");
+        revisions.push(third);
+        revisions.push(fourth);
+        let manifest: ProjectManifest =
+            serde_json::from_value(value).expect("project manifest shape");
+
+        assert!(matches!(
+            validate_revision_history(&manifest),
+            Err(DocumentFailure::InvalidSchema)
+        ));
     }
 
     #[test]
