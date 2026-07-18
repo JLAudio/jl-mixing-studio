@@ -174,6 +174,7 @@ pub struct ProjectManifest {
     pub artist: String,
     pub audio: Audio,
     pub state: ProjectState,
+    pub revisions: Vec<RevisionDocument>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -198,6 +199,32 @@ pub struct ProjectState {
     pub delivered_revision: Option<u32>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RevisionDocument {
+    pub number: u32,
+    pub revision_id: String,
+    pub created_at: String,
+    pub description: String,
+    pub approval: RevisionApproval,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RevisionApproval {
+    pub approved_at: Option<String>,
+    pub approved_by: Option<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionSummary {
+    pub number: u32,
+    pub revision_id: String,
+    pub created_at: String,
+    pub description: String,
+    pub approved_at: Option<String>,
+    pub approved_by: Option<String>,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSummary {
@@ -212,6 +239,7 @@ pub struct ProjectSummary {
     pub current_revision: u32,
     pub approved_revision: Option<u32>,
     pub delivered_revision: Option<u32>,
+    pub revisions: Vec<RevisionSummary>,
 }
 
 #[derive(Debug, Deserialize)]

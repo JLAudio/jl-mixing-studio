@@ -174,6 +174,16 @@ export interface ProjectSummary {
   currentRevision: number;
   approvedRevision: number | null;
   deliveredRevision: number | null;
+  revisions: RevisionSummary[];
+}
+
+export interface RevisionSummary {
+  number: number;
+  revisionId: string;
+  createdAt: string;
+  description: string;
+  approvedAt: string | null;
+  approvedBy: string | null;
 }
 
 export interface DiscoveryIssue {

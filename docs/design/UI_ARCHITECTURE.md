@@ -2,9 +2,9 @@
 
 **Status:** Approved design direction  
 **Approved:** July 17, 2026  
-**Implemented milestones:** [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8), [Issue #11](https://github.com/JLAudio/jl-mixing-studio/issues/11), [Issue #13](https://github.com/JLAudio/jl-mixing-studio/issues/13)
+**Implemented milestones:** [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8), [Issue #11](https://github.com/JLAudio/jl-mixing-studio/issues/11), [Issue #13](https://github.com/JLAudio/jl-mixing-studio/issues/13), [Issue #15](https://github.com/JLAudio/jl-mixing-studio/issues/15)
 
-**Current milestone:** [Issue #15](https://github.com/JLAudio/jl-mixing-studio/issues/15)
+**Current milestone:** [Issue #17](https://github.com/JLAudio/jl-mixing-studio/issues/17)
 
 **Functional baseline:** JL Mixing Automation v1.2.0
 
@@ -56,8 +56,8 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Client Details | Present validated client defaults and the client's projects; enter a selected project | Implemented; guided project creation available; client editing unsupported |
 | Projects | Search, filter, and inspect projects using derived lifecycle state | Implemented directory and selection; search and filters remain Planned |
 | Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview and Intake entry; remaining lifecycle actions Planned |
-| Intake | Run and present non-destructive source validation with an authoritative managed-report update | Current milestone |
-| Revisions | Present revision history and approved revision actions | Future milestone |
+| Intake | Run and present non-destructive source validation with an authoritative managed-report update | Implemented |
+| Revisions | Present authoritative revision history and approved future revision actions | Current milestone; read-only history |
 | Delivery | Present delivery readiness and approved delivery actions | Future milestone |
 | Tasks | Derive actionable work from authoritative project state | Approved derivation rules; future milestone |
 | Reports | Present generated reports without duplicating their state | Future milestone |
@@ -211,6 +211,17 @@ The shell milestone establishes the complete product-level layout vocabulary but
 6. Confirmation states that only the managed section of `00_Admin/Intake_Report.md` changes and intake source files remain untouched.
 7. A confirmed result is successful only after the authoritative report is re-read and verified from disk.
 8. Uncertain outcomes are never retried automatically.
+
+## Authoritative revision-history milestone
+
+[Issue #17](https://github.com/JLAudio/jl-mixing-studio/issues/17) activates the project Revisions route as an authoritative read-only view:
+
+1. Rust preserves revision identity, creation time, description, and approval metadata from validated project manifests.
+2. Semantic checks reject duplicate or gapped revision numbers, duplicate revision IDs, inconsistent current state, and invalid approved or delivered pointers.
+3. Revision history sorts deterministically and distinguishes current, approved, delivered, historically approved, and superseded context without inventing lifecycle state.
+4. Selected revision detail reads only manifest fields; Studio does not scan project directories for notes or files in this milestone.
+5. Valid revision history remains available for healthy projects retained during partial workspace discovery.
+6. New-revision and approval actions remain disabled and Planned until their Automation command mappings and post-write verification rules are separately approved.
 
 ## Accessibility and responsive requirements
 

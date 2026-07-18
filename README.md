@@ -41,15 +41,16 @@ The architecture spike passed its automated macOS and Windows gates and manual I
 
 ## Development status
 
-The architecture spike, application shell, and read-only client/project browsing are complete. The application:
+The architecture spike, application shell, guided creation and intake workflows, and authoritative project browsing are complete. The application:
 
 1. Discovers the fixed default workspace at `~/Music/Mixes`.
 2. Validates released studio, client, and project metadata schemas.
 3. Provides Clients, Client Details, Projects, and Project Overview routes backed by validated workspace data.
 4. Keeps valid projects visible when another workspace item is malformed.
 5. Reports actionable setup and recovery guidance without modifying project data.
+6. Presents validated revision history and approval metadata directly from project manifests.
 
-Guided client creation, project creation, and intake validation are the approved controlled workflows. Each previews a fixed JL Mixing Automation v1.2.0 command without a shell and requires explicit confirmation before a workspace file is changed. Intake validation uses Automation defaults, never modifies intake source files, and verifies the result by re-reading the authoritative managed report. Revision, approval, and delivery workflows remain out of scope.
+Guided client creation, project creation, and intake validation are the approved controlled workflows. Each previews a fixed JL Mixing Automation v1.2.0 command without a shell and requires explicit confirmation before a workspace file is changed. Intake validation uses Automation defaults, never modifies intake source files, and verifies the result by re-reading the authoritative managed report. Revision history is read-only; revision creation, approval, and delivery workflows remain out of scope.
 
 ## Contributing
 

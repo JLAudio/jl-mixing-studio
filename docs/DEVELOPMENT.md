@@ -117,6 +117,8 @@ Intake reads `00_Admin/Intake_Report.md` only after Rust resolves an exact valid
 
 Workspace discovery validates `studio.json`, `client.json`, and project manifests against copies of the released JL Mixing Automation v1.2.0 schemas in `schemas/jl-mixing-v1.2.0/`. Those document schemas remain version `1.1.0`.
 
+Revision history is part of workspace discovery rather than a separate command or cache. Rust preserves each manifest revision's stable ID, timestamp, description, and paired approval metadata, sorts records deterministically for the frontend, and rejects duplicate or gapped revision numbers, duplicate revision IDs, inconsistent current-revision counts, and approved or delivered pointers that do not identify an approved revision. The Revisions route remains read-only and works for valid projects retained in a partial workspace.
+
 ## Automated checks
 
 ```shell
@@ -179,6 +181,7 @@ Record the results on the guided-project-creation pull request. Keep or manually
 - Client creation exposes only client ID, display name, and optional default artist; other values inherit studio defaults.
 - Project creation exposes only a validated client, project display name, and optional artist; Automation derives all other values and creates Revision 1.
 - Intake validation uses only Automation defaults; custom source, expected-format, and duplicate-check options are not exposed.
+- Revision history is read-only; revision creation and approval controls remain Planned until their fixed Automation commands and verification rules are approved.
 - Client editing and deletion are not implemented.
 - JL Mixing Automation v1.2.0 does not run natively on Windows.
 - Browser rendering does not validate native Tauri integration.

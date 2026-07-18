@@ -76,7 +76,7 @@ interface ProjectFormValues {
   artist: string;
 }
 
-type ProjectView = "overview" | "intake";
+type ProjectView = "overview" | "intake" | "revisions";
 
 type IntakeWorkflowState =
   | { status: "closed" }
@@ -723,16 +723,19 @@ function ProjectWorkflowTabs({
   active,
   onOverview,
   onIntake,
+  onRevisions,
 }: {
   active: ProjectView;
   onOverview: () => void;
   onIntake: () => void;
+  onRevisions: () => void;
 }) {
-  const planned = ["Revisions", "Delivery", "Reports", "Files", "Metadata"];
+  const planned = ["Delivery", "Reports", "Files", "Metadata"];
   return (
     <div className="workflow-tabs" aria-label="Project workflow">
       {active === "overview" ? <span aria-current="page">Overview</span> : <button type="button" onClick={onOverview}>Overview</button>}
       {active === "intake" ? <span aria-current="page">Intake</span> : <button type="button" onClick={onIntake}>Intake</button>}
+      {active === "revisions" ? <span aria-current="page">Revisions</span> : <button type="button" onClick={onRevisions}>Revisions</button>}
       {planned.map((tab) => <button key={tab} type="button" disabled>{tab}<small>Planned</small></button>)}
     </div>
   );
@@ -746,6 +749,7 @@ function ProjectOverview({
   onClient,
   onRefresh,
   onIntake,
+  onRevisions,
   loading,
 }: {
   client: ClientSummary;
@@ -755,6 +759,7 @@ function ProjectOverview({
   onClient: () => void;
   onRefresh: () => void;
   onIntake: () => void;
+  onRevisions: () => void;
   loading: boolean;
 }) {
   return (
@@ -764,7 +769,7 @@ function ProjectOverview({
         {fromClient && <><button type="button" onClick={onClient}>{client.clientName}</button><span aria-hidden="true">/</span></>}
         <span aria-current="page">{project.projectName}</span>
       </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="overview" onOverview={() => undefined} onIntake={onIntake} />
+      <ProjectWorkflowTabs active="overview" onOverview={() => undefined} onIntake={onIntake} onRevisions={onRevisions} />
       <section className="detail-summary project-revisions" aria-label="Project revision state">
         <article><span>Current</span><strong>{revisionLabel(project.currentRevision)}</strong></article>
         <article><span>Approved</span><strong>{revisionLabel(project.approvedRevision)}</strong></article>
@@ -779,8 +784,8 @@ function ProjectOverview({
         </section>
         <section className="panel" aria-labelledby="project-actions-heading">
           <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Workflow controls</h2></div></div>
-          <div className="action-stack"><button type="button" disabled>Open folder — Planned</button><button type="button" disabled>Open DAW — Planned</button><button type="button" onClick={onIntake}>Validate intake</button></div>
-          <p className="action-help">Preview the authoritative intake report before updating its managed section.</p>
+          <div className="action-stack"><button type="button" disabled>Open folder — Planned</button><button type="button" disabled>Open DAW — Planned</button><button type="button" onClick={onIntake}>Validate intake</button><button type="button" onClick={onRevisions}>View revisions</button></div>
+          <p className="action-help">Review authoritative intake and revision state before taking the next lifecycle action.</p>
         </section>
       </div>
     </>
@@ -837,6 +842,7 @@ function IntakeView({
   validationHelp,
   loading,
   onOverview,
+  onRevisions,
   onPreview,
   onRefresh,
 }: {
@@ -848,6 +854,7 @@ function IntakeView({
   validationHelp: string;
   loading: boolean;
   onOverview: () => void;
+  onRevisions: () => void;
   onPreview: () => void;
   onRefresh: () => void;
 }) {
@@ -855,7 +862,7 @@ function IntakeView({
   return (
     <>
       <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Intake</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="intake" onOverview={onOverview} onIntake={() => undefined} />
+      <ProjectWorkflowTabs active="intake" onOverview={onOverview} onIntake={() => undefined} onRevisions={onRevisions} />
       <section className="directory-toolbar intake-toolbar" aria-labelledby="intake-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="intake-heading">Intake validation</h2></div>
         <button type="button" onClick={onPreview} disabled={!validationAvailable || loading}>Preview validation</button>
@@ -867,6 +874,77 @@ function IntakeView({
       {result && !result.ok && <section className="notice error" role="alert"><strong>Report unavailable</strong><span>{result.message}</span></section>}
       {result?.ok && !result.report && <section className="empty-state"><h2>Intake validation has not been run</h2><p>Preview the default Automation validation before updating the managed report section.</p></section>}
       {result?.ok && result.report && <IntakeReportContent report={result.report} />}
+    </>
+  );
+}
+
+const formatRevisionTimestamp = (value: string) =>
+  new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
+
+function RevisionBadges({ project, number, historicallyApproved }: { project: ProjectSummary; number: number; historicallyApproved: boolean }) {
+  const badges: Array<[string, string]> = [];
+  if (number === project.currentRevision) badges.push(["Current", "current"]);
+  if (number === project.approvedRevision) badges.push(["Approved", "approved"]);
+  if (number === project.deliveredRevision) badges.push(["Delivered", "delivered"]);
+  if (historicallyApproved && number !== project.approvedRevision) badges.push(["Previously approved", "historical"]);
+  if (badges.length === 0 && number < project.currentRevision) badges.push(["Superseded", "superseded"]);
+  return <span className="revision-badges">{badges.map(([label, className]) => <span key={label} className={`revision-badge ${className}`}>{label}</span>)}</span>;
+}
+
+function RevisionsView({
+  client,
+  project,
+  loading,
+  onOverview,
+  onIntake,
+  onRefresh,
+}: {
+  client: ClientSummary;
+  project: ProjectSummary;
+  loading: boolean;
+  onOverview: () => void;
+  onIntake: () => void;
+  onRefresh: () => void;
+}) {
+  const revisions = [...project.revisions].sort((left, right) => right.number - left.number);
+  const [selectedNumber, setSelectedNumber] = useState(project.currentRevision);
+  const selected = revisions.find((revision) => revision.number === selectedNumber) ?? revisions[0] ?? null;
+
+  return (
+    <>
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Revisions</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+      <ProjectWorkflowTabs active="revisions" onOverview={onOverview} onIntake={onIntake} onRevisions={() => undefined} />
+      <section className="directory-toolbar revision-toolbar" aria-labelledby="revisions-heading">
+        <div><p className="kicker">{client.clientName}</p><h2 id="revisions-heading">Revision history</h2></div>
+        <div className="directory-actions"><button type="button" className="planned-action" disabled>New revision <span>Planned</span></button><button type="button" className="planned-action" disabled>Approve revision <span>Planned</span></button></div>
+      </section>
+      <p className="action-help directory-help">Read-only history from the validated project manifest. Revision creation and approval are not enabled yet.</p>
+      {revisions.length === 0 ? (
+        <section className="empty-state"><h2>No revisions recorded</h2><p>The project manifest does not contain a revision yet.</p></section>
+      ) : (
+        <div className="revision-history-layout">
+          <nav className="revision-list panel" aria-label="Revision history">
+            {revisions.map((revision) => (
+              <button key={revision.revisionId} type="button" className="revision-list-item" aria-pressed={revision.number === selected?.number} onClick={() => setSelectedNumber(revision.number)}>
+                <span><strong>Revision {revision.number}</strong><small>{formatRevisionTimestamp(revision.createdAt)}</small></span>
+                <RevisionBadges project={project} number={revision.number} historicallyApproved={revision.approvedAt !== null} />
+              </button>
+            ))}
+          </nav>
+          {selected && (
+            <section className="panel revision-detail" aria-labelledby="revision-detail-heading">
+              <div className="panel-heading"><div><p className="kicker">Selected revision</p><h2 id="revision-detail-heading">Revision {selected.number}</h2></div><RevisionBadges project={project} number={selected.number} historicallyApproved={selected.approvedAt !== null} /></div>
+              <dl className="metadata-list">
+                <div><dt>Created</dt><dd><time dateTime={selected.createdAt}>{formatRevisionTimestamp(selected.createdAt)}</time></dd></div>
+                <div><dt>Revision ID</dt><dd><code>{selected.revisionId}</code></dd></div>
+                <div><dt>Manifest description</dt><dd>{selected.description}</dd></div>
+                <div><dt>Approval</dt><dd>{selected.approvedAt && selected.approvedBy ? <><span>Approved by {selected.approvedBy}</span><small><time dateTime={selected.approvedAt}>{formatRevisionTimestamp(selected.approvedAt)}</time></small></> : "Not approved"}</dd></div>
+              </dl>
+              <aside className="route-note"><strong>Authoritative record</strong><span>Details come from <code>00_Admin/project-manifest.json</code>. No project files were scanned or changed.</span></aside>
+            </section>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -1632,6 +1710,13 @@ export default function App() {
     loadIntakeReport(request);
   };
 
+  const openRevisions = () => {
+    if (!resolvedProjectClient || !resolvedProject) return;
+    setProjectView("revisions");
+    setIntakeWorkflow({ status: "closed" });
+    setIntakeActionError(null);
+  };
+
   const preflightIntake = () => {
     if (!resolvedProjectClient || !resolvedProject || !intakeValidationAvailable) return;
     const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
@@ -1705,9 +1790,9 @@ export default function App() {
     ? {
         id: "projects",
         label: "Projects",
-        eyebrow: projectView === "intake" ? "Project intake" : "Project overview",
+        eyebrow: projectView === "intake" ? "Project intake" : projectView === "revisions" ? "Project revisions" : "Project overview",
         title: resolvedProject.projectName,
-        description: projectView === "intake" ? `${resolvedProject.artist} · Automation-managed intake validation.` : `${resolvedProject.artist} · Authoritative project state.`,
+        description: projectView === "intake" ? `${resolvedProject.artist} · Automation-managed intake validation.` : projectView === "revisions" ? `${resolvedProject.artist} · Authoritative revision history.` : `${resolvedProject.artist} · Authoritative project state.`,
       }
     : resolvedClient
       ? {
@@ -1779,7 +1864,16 @@ export default function App() {
             clientCreationHelp={clientCreationHelp}
           />
         ))}
-        {activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "intake" ? (
+        {activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "revisions" ? (
+          <RevisionsView
+            client={resolvedProjectClient}
+            project={resolvedProject}
+            loading={loading}
+            onOverview={() => setProjectView("overview")}
+            onIntake={openIntake}
+            onRefresh={refresh}
+          />
+        ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "intake" ? (
           <IntakeView
             client={resolvedProjectClient}
             project={resolvedProject}
@@ -1789,6 +1883,7 @@ export default function App() {
             validationHelp={intakeValidationHelp}
             loading={loading || intakeWorkflow.status === "preflighting"}
             onOverview={() => { setProjectView("overview"); setIntakeWorkflow({ status: "closed" }); setIntakeActionError(null); }}
+            onRevisions={openRevisions}
             onPreview={preflightIntake}
             onRefresh={() => {
               refresh();
@@ -1810,6 +1905,7 @@ export default function App() {
             }}
             onRefresh={refresh}
             onIntake={openIntake}
+            onRevisions={openRevisions}
             loading={loading}
           />
         ) : activeRoute === "projects" ? (
