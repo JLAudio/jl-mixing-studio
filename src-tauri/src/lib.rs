@@ -98,8 +98,7 @@ fn get_intake_report(app: tauri::AppHandle, request: IntakeRequest) -> IntakeOpe
         &snapshot,
         &request.client_id,
         &request.project_id,
-    )
-    else {
+    ) else {
         return cli::blocked_intake_operation(
             IntakeOperationCode::ProjectUnavailable,
             "The selected project directory could not be resolved safely",
@@ -126,12 +125,7 @@ fn preflight_revision_creation(
     app: tauri::AppHandle,
     request: RevisionCreationRequest,
 ) -> RevisionOperationResult {
-    run_revision_operation(
-        &app,
-        request,
-        cli::preflight_revision_creation,
-        false,
-    )
+    run_revision_operation(&app, request, cli::preflight_revision_creation, false)
 }
 
 #[tauri::command]
@@ -273,8 +267,7 @@ fn run_intake_operation(
         &snapshot,
         &request.client_id,
         &request.project_id,
-    )
-    else {
+    ) else {
         return cli::blocked_intake_operation(
             IntakeOperationCode::ProjectUnavailable,
             "The selected project directory could not be resolved safely",
@@ -356,10 +349,7 @@ fn run_revision_operation(
             };
         }
     }
-    if !verify_after_creation
-        || !result.ok
-        || result.code != RevisionOperationCode::Created
-    {
+    if !verify_after_creation || !result.ok || result.code != RevisionOperationCode::Created {
         return result;
     }
     let Some(expected) = result.revision.as_ref() else {
@@ -612,7 +602,9 @@ mod tests {
     #[test]
     fn only_healthy_workspaces_allow_revision_creation() {
         assert!(workspace_allows_revision_creation(WorkspaceStatus::Healthy));
-        assert!(!workspace_allows_revision_creation(WorkspaceStatus::Partial));
+        assert!(!workspace_allows_revision_creation(
+            WorkspaceStatus::Partial
+        ));
         assert!(!workspace_allows_revision_creation(WorkspaceStatus::Empty));
         assert!(!workspace_allows_revision_creation(
             WorkspaceStatus::Invalid

@@ -1186,7 +1186,11 @@ mod tests {
     }
 
     fn revision_output(preflight: bool, description: &str) -> String {
-        let revision_label = if preflight { "New revision" } else { "Revision" };
+        let revision_label = if preflight {
+            "New revision"
+        } else {
+            "Revision"
+        };
         format!(
             "Project: Blue Sky\n{revision_label}: 3\nDescription: {description}\nRevision folder: /fixed/project/04_Revisions/Revision_03\n"
         )
