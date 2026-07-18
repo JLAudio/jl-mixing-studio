@@ -58,7 +58,7 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview, Intake entry, and guided New Revision; remaining lifecycle actions Planned |
 | Intake | Run and present non-destructive source validation with an authoritative managed-report update | Implemented |
 | Revisions | Present authoritative revision history and approved revision actions | Implemented history, guided New Revision, and guided approval |
-| Delivery | Present delivery readiness and approved delivery actions | Future milestone |
+| Delivery | Present delivery readiness and approved delivery actions | Implemented authoritative readiness and package inspection; creation remains Planned |
 | Tasks | Derive actionable work from authoritative project state | Approved derivation rules; future milestone |
 | Reports | Present generated reports without duplicating their state | Future milestone |
 | Activity Log | Present the supported activity that can be reconstructed from authoritative timestamps | Approved derived source; future milestone |
@@ -248,6 +248,17 @@ The shell milestone establishes the complete product-level layout vocabulary but
 6. Confirmed success requires the approved pointer and selected approval metadata to match Automation while every unrelated project field and revision record remains unchanged.
 7. The selected revision stays visible after refresh; uncertain outcomes are never retried automatically.
 8. Delivery remains disabled and Planned.
+
+## Authoritative delivery-inspection milestone
+
+[Issue #23](https://github.com/JLAudio/jl-mixing-studio/issues/23) activates the Delivery route as a read-only authoritative view:
+
+1. Delivery state comes only from validated project and delivery manifests.
+2. Delivery identity must match the containing client, project, delivered revision, and persisted approval metadata.
+3. The route distinguishes approval required, first-delivery readiness, a current package, and replacement review required.
+4. Package contents show manifest-recorded safe relative paths, classifications, sizes, and SHA-256 values without rescanning or re-hashing files.
+5. Invalid delivery metadata removes only that project from discovery and preserves valid siblings.
+6. Create delivery remains disabled and Planned until default packaging and replacement modes receive separate command and reconciliation approval.
 
 ## Accessibility and responsive requirements
 

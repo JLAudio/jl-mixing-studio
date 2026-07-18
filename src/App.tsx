@@ -83,7 +83,7 @@ interface ProjectFormValues {
   artist: string;
 }
 
-type ProjectView = "overview" | "intake" | "revisions";
+type ProjectView = "overview" | "intake" | "revisions" | "delivery";
 
 type IntakeWorkflowState =
   | { status: "closed" }
@@ -776,18 +776,21 @@ function ProjectWorkflowTabs({
   onOverview,
   onIntake,
   onRevisions,
+  onDelivery,
 }: {
   active: ProjectView;
   onOverview: () => void;
   onIntake: () => void;
   onRevisions: () => void;
+  onDelivery: () => void;
 }) {
-  const planned = ["Delivery", "Reports", "Files", "Metadata"];
+  const planned = ["Reports", "Files", "Metadata"];
   return (
     <div className="workflow-tabs" aria-label="Project workflow">
       {active === "overview" ? <span aria-current="page">Overview</span> : <button type="button" onClick={onOverview}>Overview</button>}
       {active === "intake" ? <span aria-current="page">Intake</span> : <button type="button" onClick={onIntake}>Intake</button>}
       {active === "revisions" ? <span aria-current="page">Revisions</span> : <button type="button" onClick={onRevisions}>Revisions</button>}
+      {active === "delivery" ? <span aria-current="page">Delivery</span> : <button type="button" onClick={onDelivery}>Delivery</button>}
       {planned.map((tab) => <button key={tab} type="button" disabled>{tab}<small>Planned</small></button>)}
     </div>
   );
@@ -802,6 +805,7 @@ function ProjectOverview({
   onRefresh,
   onIntake,
   onRevisions,
+  onDelivery,
   onNewRevision,
   revisionCreationAvailable,
   revisionCreationHelp,
@@ -815,6 +819,7 @@ function ProjectOverview({
   onRefresh: () => void;
   onIntake: () => void;
   onRevisions: () => void;
+  onDelivery: () => void;
   onNewRevision: () => void;
   revisionCreationAvailable: boolean;
   revisionCreationHelp: string;
@@ -827,7 +832,7 @@ function ProjectOverview({
         {fromClient && <><button type="button" onClick={onClient}>{client.clientName}</button><span aria-hidden="true">/</span></>}
         <span aria-current="page">{project.projectName}</span>
       </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="overview" onOverview={() => undefined} onIntake={onIntake} onRevisions={onRevisions} />
+      <ProjectWorkflowTabs active="overview" onOverview={() => undefined} onIntake={onIntake} onRevisions={onRevisions} onDelivery={onDelivery} />
       <section className="detail-summary project-revisions" aria-label="Project revision state">
         <article><span>Current</span><strong>{revisionLabel(project.currentRevision)}</strong></article>
         <article><span>Approved</span><strong>{revisionLabel(project.approvedRevision)}</strong></article>
@@ -901,6 +906,7 @@ function IntakeView({
   loading,
   onOverview,
   onRevisions,
+  onDelivery,
   onPreview,
   onRefresh,
 }: {
@@ -913,6 +919,7 @@ function IntakeView({
   loading: boolean;
   onOverview: () => void;
   onRevisions: () => void;
+  onDelivery: () => void;
   onPreview: () => void;
   onRefresh: () => void;
 }) {
@@ -920,7 +927,7 @@ function IntakeView({
   return (
     <>
       <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Intake</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="intake" onOverview={onOverview} onIntake={() => undefined} onRevisions={onRevisions} />
+      <ProjectWorkflowTabs active="intake" onOverview={onOverview} onIntake={() => undefined} onRevisions={onRevisions} onDelivery={onDelivery} />
       <section className="directory-toolbar intake-toolbar" aria-labelledby="intake-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="intake-heading">Intake validation</h2></div>
         <button type="button" onClick={onPreview} disabled={!validationAvailable || loading}>Preview validation</button>
@@ -960,6 +967,7 @@ function RevisionsView({
   approvalHelp,
   onOverview,
   onIntake,
+  onDelivery,
   onRefresh,
   onNewRevision,
   onApprove,
@@ -974,6 +982,7 @@ function RevisionsView({
   approvalHelp: string;
   onOverview: () => void;
   onIntake: () => void;
+  onDelivery: () => void;
   onRefresh: () => void;
   onNewRevision: () => void;
   onApprove: (revision: RevisionSummary) => void;
@@ -986,7 +995,7 @@ function RevisionsView({
   return (
     <>
       <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Revisions</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="revisions" onOverview={onOverview} onIntake={onIntake} onRevisions={() => undefined} />
+      <ProjectWorkflowTabs active="revisions" onOverview={onOverview} onIntake={onIntake} onRevisions={() => undefined} onDelivery={onDelivery} />
       <section className="directory-toolbar revision-toolbar" aria-labelledby="revisions-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="revisions-heading">Revision history</h2></div>
         <div className="directory-actions"><button type="button" onClick={onNewRevision} disabled={!creationAvailable || loading}>New revision</button><button type="button" onClick={() => { if (selected) onApprove(selected); }} disabled={!selected || !approvalAvailable || selected.number === project.approvedRevision || loading}>Approve revision</button></div>
@@ -1022,6 +1031,38 @@ function RevisionsView({
       )}
     </>
   );
+}
+
+function DeliveryView({ project, loading, onOverview, onIntake, onRevisions, onRefresh }: {
+  project: ProjectSummary;
+  loading: boolean;
+  onOverview: () => void;
+  onIntake: () => void;
+  onRevisions: () => void;
+  onRefresh: () => void;
+}) {
+  const delivery = project.delivery;
+  const totalBytes = delivery?.files.reduce((total, file) => total + file.sizeBytes, 0) ?? 0;
+  const readiness = project.approvedRevision === null
+    ? { title: "Approval required", detail: "Approve a revision before creating a delivery package." }
+    : delivery === null
+      ? { title: "Ready for first delivery", detail: `Approved Revision ${project.approvedRevision} can be packaged in a future guided workflow.` }
+      : project.approvedRevision === project.deliveredRevision
+        ? { title: "Delivery is current", detail: `The recorded package represents approved Revision ${project.deliveredRevision}.` }
+        : { title: "Replacement review required", detail: `The existing package represents Revision ${project.deliveredRevision}; approved Revision ${project.approvedRevision} requires an explicit replacement workflow.` };
+  return <>
+    <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Delivery</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+    <ProjectWorkflowTabs active="delivery" onOverview={onOverview} onIntake={onIntake} onRevisions={onRevisions} onDelivery={() => undefined} />
+    <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" className="planned-action" disabled>Create delivery <span>Planned</span></button></section>
+    <section className="notice" role="status"><strong>{readiness.title}</strong><span>{readiness.detail}</span></section>
+    {!delivery ? <section className="empty-state"><h2>No delivery package recorded</h2><p>Studio found no validated delivery manifest for this project.</p></section> : <>
+      <section className="panel"><div className="panel-heading"><div><p className="kicker">Delivery manifest</p><h2>Revision {delivery.revision}</h2></div></div><dl className="metadata-list">
+        <div><dt>Created</dt><dd><time dateTime={delivery.createdAt}>{formatRevisionTimestamp(delivery.createdAt)}</time></dd></div><div><dt>Method</dt><dd>{delivery.method}</dd></div><div><dt>Approved by</dt><dd>{delivery.approvedBy}</dd></div><div><dt>Files</dt><dd>{delivery.files.length}</dd></div><div><dt>Total bytes</dt><dd>{totalBytes.toLocaleString()}</dd></div><div><dt>Document ID</dt><dd><code>{delivery.documentId}</code></dd></div>
+      </dl></section>
+      <section className="panel"><div className="panel-heading"><div><p className="kicker">Recorded checksums</p><h2>{delivery.files.length} delivered {delivery.files.length === 1 ? "file" : "files"}</h2></div></div><div className="table-scroll"><table><thead><tr><th>Path</th><th>Type</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>{delivery.files.map((file) => <tr key={file.path}><td><code>{file.path}</code></td><td>{file.deliverableType.replace(/_/g, " ")}</td><td>{file.sizeBytes.toLocaleString()}</td><td><code>{file.sha256}</code></td></tr>)}</tbody></table></div></section>
+      <aside className="route-note"><strong>Manifest record</strong><span>Checksums are the values recorded and verified by JL Mixing Automation when this package was created. Studio did not re-hash delivery files.</span></aside>
+    </>}
+  </>;
 }
 
 function RevisionDialog({
@@ -1983,6 +2024,14 @@ export default function App() {
     setIntakeActionError(null);
   };
 
+  const openDelivery = () => {
+    if (!resolvedProject) return;
+    setProjectView("delivery");
+    setIntakeWorkflow({ status: "closed" });
+    setRevisionWorkflow({ status: "closed" });
+    setApprovalWorkflow({ status: "closed" });
+  };
+
   const openRevisionWorkflow = () => {
     if (!resolvedProjectClient || !resolvedProject || !revisionCreationAvailable) return;
     setRevisionNotice(null);
@@ -2245,9 +2294,9 @@ export default function App() {
     ? {
         id: "projects",
         label: "Projects",
-        eyebrow: projectView === "intake" ? "Project intake" : projectView === "revisions" ? "Project revisions" : "Project overview",
+        eyebrow: projectView === "intake" ? "Project intake" : projectView === "revisions" ? "Project revisions" : projectView === "delivery" ? "Project delivery" : "Project overview",
         title: resolvedProject.projectName,
-        description: projectView === "intake" ? `${resolvedProject.artist} · Automation-managed intake validation.` : projectView === "revisions" ? `${resolvedProject.artist} · Authoritative revision history.` : `${resolvedProject.artist} · Authoritative project state.`,
+        description: projectView === "intake" ? `${resolvedProject.artist} · Automation-managed intake validation.` : projectView === "revisions" ? `${resolvedProject.artist} · Authoritative revision history.` : projectView === "delivery" ? `${resolvedProject.artist} · Authoritative delivery state.` : `${resolvedProject.artist} · Authoritative project state.`,
       }
     : resolvedClient
       ? {
@@ -2325,7 +2374,9 @@ export default function App() {
             clientCreationHelp={clientCreationHelp}
           />
         ))}
-        {activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "revisions" ? (
+        {activeRoute === "projects" && resolvedProject && selectedProject && projectView === "delivery" ? (
+          <DeliveryView project={resolvedProject} loading={loading} onOverview={() => setProjectView("overview")} onIntake={openIntake} onRevisions={openRevisions} onRefresh={refresh} />
+        ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "revisions" ? (
           <RevisionsView
             client={resolvedProjectClient}
             project={resolvedProject}
@@ -2337,6 +2388,7 @@ export default function App() {
             approvalHelp={revisionApprovalHelp}
             onOverview={() => setProjectView("overview")}
             onIntake={openIntake}
+            onDelivery={openDelivery}
             onRefresh={refresh}
             onNewRevision={openRevisionWorkflow}
             onApprove={openApprovalWorkflow}
@@ -2352,6 +2404,7 @@ export default function App() {
             loading={loading || intakeWorkflow.status === "preflighting"}
             onOverview={() => { setProjectView("overview"); setIntakeWorkflow({ status: "closed" }); setIntakeActionError(null); }}
             onRevisions={openRevisions}
+            onDelivery={openDelivery}
             onPreview={preflightIntake}
             onRefresh={() => {
               refresh();
@@ -2374,6 +2427,7 @@ export default function App() {
             onRefresh={refresh}
             onIntake={openIntake}
             onRevisions={openRevisions}
+            onDelivery={openDelivery}
             onNewRevision={openRevisionWorkflow}
             revisionCreationAvailable={revisionCreationAvailable}
             revisionCreationHelp={revisionCreationHelp}

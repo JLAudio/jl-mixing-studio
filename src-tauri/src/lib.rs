@@ -708,6 +708,7 @@ mod tests {
             current_revision: 2,
             approved_revision: Some(1),
             delivered_revision: None,
+            delivery: None,
             revisions: vec![
                 RevisionSummary {
                     number: 1,

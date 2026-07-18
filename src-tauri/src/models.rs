@@ -272,7 +272,75 @@ pub struct Metadata {
     #[serde(rename = "schema")]
     pub _schema: String,
     pub schema_version: String,
+    pub document_id: String,
     pub created_with: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeliveryManifest {
+    pub metadata: DeliveryMetadata,
+    pub project: DeliveryProject,
+    pub client: DeliveryClient,
+    pub revision: DeliveryRevision,
+    pub delivery: DeliveryMethod,
+    pub files: Vec<DeliveryFile>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeliveryMetadata {
+    pub document_id: String,
+    pub created_with: String,
+    pub created_at: String,
+}
+#[derive(Debug, Deserialize)]
+pub struct DeliveryProject {
+    pub project_document_id: String,
+    pub project_id: String,
+    pub project_name: String,
+}
+#[derive(Debug, Deserialize)]
+pub struct DeliveryClient {
+    pub client_document_id: String,
+    pub client_id: String,
+}
+#[derive(Debug, Deserialize)]
+pub struct DeliveryRevision {
+    pub number: u32,
+    pub revision_id: String,
+    pub description: String,
+    pub approval: DeliveredApproval,
+}
+#[derive(Debug, Deserialize)]
+pub struct DeliveredApproval {
+    pub approved_at: String,
+    pub approved_by: String,
+}
+#[derive(Debug, Deserialize)]
+pub struct DeliveryMethod {
+    pub method: String,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+pub struct DeliveryFile {
+    pub path: String,
+    pub deliverable_type: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliverySummary {
+    pub document_id: String,
+    pub created_with: String,
+    pub created_at: String,
+    pub method: String,
+    pub revision: u32,
+    pub revision_id: String,
+    pub description: String,
+    pub approved_at: String,
+    pub approved_by: String,
+    pub files: Vec<DeliveryFile>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -329,6 +397,7 @@ pub struct ProjectSummary {
     pub current_revision: u32,
     pub approved_revision: Option<u32>,
     pub delivered_revision: Option<u32>,
+    pub delivery: Option<DeliverySummary>,
     pub revisions: Vec<RevisionSummary>,
 }
 

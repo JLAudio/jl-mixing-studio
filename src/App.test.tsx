@@ -168,6 +168,7 @@ const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
       currentRevision: 2,
       approvedRevision: 1,
       deliveredRevision: null,
+      delivery: null,
       revisions: [
         {
           number: 1,
@@ -331,6 +332,71 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByRole("button", { name: "New revision" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Approve revision" })).toBeDisabled();
     expect(screen.getAllByText(/history remains readable/i)).toHaveLength(2);
+  });
+
+  it("shows authoritative first-delivery readiness without enabling mutation", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+
+    expect(screen.getByRole("heading", { name: "Delivery", level: 2 })).toBeInTheDocument();
+    expect(screen.getByText("Ready for first delivery")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create delivery Planned" })).toBeDisabled();
+    expect(screen.getByText("No delivery package recorded")).toBeInTheDocument();
+  });
+
+  it("displays a validated current delivery manifest and recorded checksums", async () => {
+    const workspace = healthyWorkspace();
+    const project = workspace.clients[0].projects[0];
+    project.deliveredRevision = 1;
+    project.delivery = {
+      documentId: "f5a3d96c-5d1a-4d0f-9712-cfc4f070d065",
+      createdWith: "jl-mixing 1.2.0",
+      createdAt: "2026-07-18T13:00:00Z",
+      method: "Download",
+      revision: 1,
+      revisionId: project.revisions[0].revisionId,
+      description: project.revisions[0].description,
+      approvedAt: project.revisions[0].approvedAt!,
+      approvedBy: project.revisions[0].approvedBy!,
+      files: [{ path: "Blue Sky Main Mix.wav", deliverableType: "main_mix", sizeBytes: 1200, sha256: "0".repeat(64) }],
+    };
+    respondWith(workspace);
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+
+    expect(screen.getByText("Delivery is current")).toBeInTheDocument();
+    expect(screen.getByText("Blue Sky Main Mix.wav")).toBeInTheDocument();
+    expect(screen.getByText("main mix")).toBeInTheDocument();
+    expect(screen.getAllByText("1,200")).toHaveLength(2);
+    expect(screen.getByText(/did not re-hash delivery files/i)).toBeInTheDocument();
+  });
+
+  it("identifies an existing package that requires replacement review", async () => {
+    const workspace = healthyWorkspace();
+    const project = workspace.clients[0].projects[0];
+    project.deliveredRevision = 1;
+    project.approvedRevision = 2;
+    project.revisions[1].approvedAt = "2026-07-18T12:00:00Z";
+    project.revisions[1].approvedBy = "Client";
+    project.delivery = {
+      documentId: "f5a3d96c-5d1a-4d0f-9712-cfc4f070d065", createdWith: "jl-mixing 1.2.0", createdAt: "2026-07-18T13:00:00Z", method: "Download", revision: 1,
+      revisionId: project.revisions[0].revisionId, description: project.revisions[0].description, approvedAt: project.revisions[0].approvedAt!, approvedBy: project.revisions[0].approvedBy!,
+      files: [{ path: "Blue Sky Main Mix.wav", deliverableType: "main_mix", sizeBytes: 1200, sha256: "0".repeat(64) }],
+    };
+    respondWith(workspace);
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+    expect(screen.getByText("Replacement review required")).toBeInTheDocument();
+    expect(screen.getByText(/existing package represents Revision 1.*approved Revision 2/i)).toBeInTheDocument();
   });
 
   it("preflights a trimmed revision description and cancels without creating", async () => {
@@ -891,6 +957,7 @@ describe("JL Mixing Studio", () => {
             currentRevision: 1,
             approvedRevision: null,
             deliveredRevision: null,
+            delivery: null,
           });
           snapshot.counts.projects = 2;
         }

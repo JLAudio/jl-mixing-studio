@@ -246,7 +246,28 @@ export interface ProjectSummary {
   currentRevision: number;
   approvedRevision: number | null;
   deliveredRevision: number | null;
+  delivery: DeliverySummary | null;
   revisions: RevisionSummary[];
+}
+
+export interface DeliveryFile {
+  path: string;
+  deliverableType: string;
+  sizeBytes: number;
+  sha256: string;
+}
+
+export interface DeliverySummary {
+  documentId: string;
+  createdWith: string;
+  createdAt: string;
+  method: string;
+  revision: number;
+  revisionId: string;
+  description: string;
+  approvedAt: string;
+  approvedBy: string;
+  files: DeliveryFile[];
 }
 
 export interface RevisionSummary {

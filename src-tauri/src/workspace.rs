@@ -6,15 +6,17 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::models::{
-    ClientDocument, ClientSummary, DiscoveryCode, DiscoveryIssue, DiscoveryScope, ProjectManifest,
-    ProjectSummary, RevisionSummary, StudioDocument, StudioSummary, WorkspaceCounts,
-    WorkspaceSnapshot, WorkspaceStatus,
+    ClientDocument, ClientSummary, DeliveryManifest, DeliverySummary, DiscoveryCode,
+    DiscoveryIssue, DiscoveryScope, ProjectManifest, ProjectSummary, RevisionSummary,
+    StudioDocument, StudioSummary, WorkspaceCounts, WorkspaceSnapshot, WorkspaceStatus,
 };
 
 const STUDIO_SCHEMA: &str = include_str!("../../schemas/jl-mixing-v1.2.0/studio.schema.json");
 const CLIENT_SCHEMA: &str = include_str!("../../schemas/jl-mixing-v1.2.0/client.schema.json");
 const PROJECT_SCHEMA: &str =
     include_str!("../../schemas/jl-mixing-v1.2.0/project-manifest.schema.json");
+const DELIVERY_SCHEMA: &str =
+    include_str!("../../schemas/jl-mixing-v1.2.0/delivery-manifest.schema.json");
 const SUPPORTED_SCHEMA_VERSION: &str = "1.1.0";
 
 pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
@@ -166,6 +168,21 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                     continue;
                 }
             };
+            let delivery_path = project_path
+                .join("05_Final_Delivery")
+                .join("delivery-manifest.json");
+            let delivery = match read_delivery_summary(&delivery_path, &manifest, &client) {
+                Ok(delivery) => delivery,
+                Err(failure) => {
+                    issues.push(failure.into_issue(
+                        root,
+                        &delivery_path,
+                        DiscoveryScope::Project,
+                        Some(manifest.project_name.clone()),
+                    ));
+                    continue;
+                }
+            };
 
             let mut revisions: Vec<_> = manifest
                 .revisions
@@ -192,6 +209,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                 current_revision: manifest.state.current_revision,
                 approved_revision: manifest.state.approved_revision,
                 delivered_revision: manifest.state.delivered_revision,
+                delivery,
                 revisions,
             };
             projects_with_paths.push((summary, relative_path(root, &project_path)));
@@ -348,6 +366,61 @@ fn read_project_document(path: &Path) -> Result<ProjectManifest, DocumentFailure
     let manifest = read_document::<ProjectManifest>(path, PROJECT_SCHEMA, "mixing-project")?;
     validate_revision_history(&manifest)?;
     Ok(manifest)
+}
+
+fn read_delivery_summary(
+    path: &Path,
+    project: &ProjectManifest,
+    client: &ClientDocument,
+) -> Result<Option<DeliverySummary>, DocumentFailure> {
+    if is_symlink(path) || path.parent().is_some_and(is_symlink) {
+        return Err(DocumentFailure::Unreadable);
+    }
+    let exists = path.is_file();
+    if !exists && project.state.delivered_revision.is_none() {
+        return Ok(None);
+    }
+    if !exists || project.state.delivered_revision.is_none() {
+        return Err(DocumentFailure::InvalidSchema);
+    }
+    let delivery = read_document::<DeliveryManifest>(path, DELIVERY_SCHEMA, "mixing-delivery")?;
+    let delivered = project.state.delivered_revision.unwrap();
+    let revision = project
+        .revisions
+        .iter()
+        .find(|revision| revision.number == delivered)
+        .ok_or(DocumentFailure::InvalidSchema)?;
+    if delivery.project.project_document_id != project.metadata.document_id
+        || delivery.project.project_id != project.project_id
+        || delivery.project.project_name != project.project_name
+        || delivery.client.client_document_id != client._metadata.document_id
+        || delivery.client.client_id != client.client_id
+        || delivery.revision.number != delivered
+        || delivery.revision.revision_id != revision.revision_id
+        || delivery.revision.description != revision.description
+    {
+        return Err(DocumentFailure::InvalidSchema);
+    }
+    let mut paths = BTreeSet::new();
+    if !delivery
+        .files
+        .iter()
+        .all(|file| paths.insert(file.path.as_str()))
+    {
+        return Err(DocumentFailure::InvalidSchema);
+    }
+    Ok(Some(DeliverySummary {
+        document_id: delivery.metadata.document_id,
+        created_with: delivery.metadata.created_with,
+        created_at: delivery.metadata.created_at,
+        method: delivery.delivery.method,
+        revision: delivery.revision.number,
+        revision_id: delivery.revision.revision_id,
+        description: delivery.revision.description,
+        approved_at: delivery.revision.approval.approved_at,
+        approved_by: delivery.revision.approval.approved_by,
+        files: delivery.files,
+    }))
 }
 
 fn validate_revision_history(manifest: &ProjectManifest) -> Result<(), DocumentFailure> {
@@ -558,6 +631,83 @@ mod tests {
         assert_eq!(revision.number, 1);
         assert_eq!(revision.description, "Initial mix");
         assert_eq!(revision.approved_at, None);
+    }
+
+    #[test]
+    fn discovers_and_correlates_an_authoritative_delivery_manifest() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "client", "Client", "Artist");
+        write_project(&root, "client", "project", "Project", "project");
+        write_delivery(&root, "client", "project", false);
+        let delivery_path =
+            root.join("Clients/client/Projects/project/05_Final_Delivery/delivery-manifest.json");
+        let historical = fs::read_to_string(&delivery_path)
+            .unwrap()
+            .replace("jl-mixing 1.2.0", "jl-mixing 1.1.1");
+        fs::write(&delivery_path, historical).unwrap();
+
+        let snapshot = discover_workspace_at(&root);
+        let delivery = snapshot.clients[0].projects[0].delivery.as_ref().unwrap();
+        assert_eq!(snapshot.status, WorkspaceStatus::Healthy);
+        assert_eq!(delivery.created_with, "jl-mixing 1.1.1");
+        assert_eq!(delivery.revision, 1);
+        assert_eq!(delivery.method, "Download");
+        assert_eq!(delivery.files[0].path, "Project Main Mix.wav");
+        assert_eq!(delivery.files[0].size_bytes, 12);
+    }
+
+    #[test]
+    fn preserves_an_immutable_delivery_approval_snapshot_after_reapproval() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "client", "Client", "Artist");
+        write_project(&root, "client", "project", "Project", "project");
+        write_delivery(&root, "client", "project", false);
+
+        let manifest_path =
+            root.join("Clients/client/Projects/project/00_Admin/project-manifest.json");
+        let mut manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        manifest["revisions"][0]["approval"]["approved_at"] = Value::from("2026-07-18T14:00:00Z");
+        manifest["revisions"][0]["approval"]["approved_by"] = Value::from("JL");
+        fs::write(
+            &manifest_path,
+            serde_json::to_string_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let snapshot = discover_workspace_at(&root);
+        let delivery = snapshot.clients[0].projects[0].delivery.as_ref().unwrap();
+        assert_eq!(snapshot.status, WorkspaceStatus::Healthy);
+        assert_eq!(delivery.approved_at, "2026-07-18T12:00:00Z");
+        assert_eq!(delivery.approved_by, "Client");
+    }
+
+    #[test]
+    fn rejects_missing_or_mismatched_delivery_manifests_without_hiding_siblings() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "client", "Client", "Artist");
+        write_project(&root, "client", "good", "Good", "good");
+        write_project(&root, "client", "bad", "Bad", "bad");
+        write_delivery(&root, "client", "bad", true);
+
+        let snapshot = discover_workspace_at(&root);
+        assert_eq!(snapshot.status, WorkspaceStatus::Partial);
+        assert_eq!(snapshot.counts.projects, 1);
+        assert_eq!(snapshot.clients[0].projects[0].project_id, "good");
+        assert_eq!(snapshot.issues[0].code, DiscoveryCode::InvalidSchema);
+
+        let delivery =
+            root.join("Clients/client/Projects/bad/05_Final_Delivery/delivery-manifest.json");
+        fs::remove_file(delivery).unwrap();
+        let missing = discover_workspace_at(&root);
+        assert_eq!(missing.status, WorkspaceStatus::Partial);
+        assert_eq!(missing.counts.projects, 1);
     }
 
     #[test]
@@ -865,6 +1015,50 @@ mod tests {
             .replace("Architecture Spike", name)
             .replace("architecture-spike", id);
         fs::write(path.join("project-manifest.json"), project).expect("project manifest");
+    }
+
+    fn write_delivery(root: &Path, client: &str, project: &str, mismatch: bool) {
+        let project_root = root
+            .join("Clients")
+            .join(client)
+            .join("Projects")
+            .join(project);
+        let manifest_path = project_root.join("00_Admin/project-manifest.json");
+        let mut manifest: Value =
+            serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
+        manifest["state"]["approved_revision"] = Value::from(1);
+        manifest["state"]["delivered_revision"] = Value::from(1);
+        manifest["revisions"][0]["approval"]["approved_at"] = Value::from("2026-07-18T12:00:00Z");
+        manifest["revisions"][0]["approval"]["approved_by"] = Value::from("Client");
+        fs::write(
+            &manifest_path,
+            serde_json::to_string_pretty(&manifest).unwrap(),
+        )
+        .unwrap();
+        let delivery_root = project_root.join("05_Final_Delivery");
+        fs::create_dir_all(&delivery_root).unwrap();
+        let project_id = manifest["project_id"].as_str().unwrap();
+        let project_name = manifest["project_name"].as_str().unwrap();
+        let project_document_id = manifest["metadata"]["document_id"].as_str().unwrap();
+        let revision_id = manifest["revisions"][0]["revision_id"].as_str().unwrap();
+        let recorded_project = if mismatch {
+            "wrong-project"
+        } else {
+            project_id
+        };
+        let delivery = serde_json::json!({
+            "metadata":{"schema":"mixing-delivery","schema_version":"1.1.0","document_id":"f5a3d96c-5d1a-4d0f-9712-cfc4f070d065","created_with":"jl-mixing 1.2.0","created_at":"2026-07-18T13:00:00Z"},
+            "project":{"project_document_id":project_document_id,"project_id":recorded_project,"project_name":project_name},
+            "client":{"client_document_id":"5049c004-f18e-4cd0-ae59-35d354ce9b35","client_id":client},
+            "revision":{"number":1,"revision_id":revision_id,"description":"Initial mix","approval":{"approved_at":"2026-07-18T12:00:00Z","approved_by":"Client"}},
+            "delivery":{"method":"Download"},
+            "files":[{"path":"Project Main Mix.wav","deliverable_type":"main_mix","size_bytes":12,"sha256":"0000000000000000000000000000000000000000000000000000000000000000"}]
+        });
+        fs::write(
+            delivery_root.join("delivery-manifest.json"),
+            serde_json::to_string_pretty(&delivery).unwrap(),
+        )
+        .unwrap();
     }
 
     fn file_snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {
