@@ -184,6 +184,7 @@ const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
   clients: [{
     clientId: "acme",
     clientName: "Acme Records",
+    createdAt: "2026-07-15T12:00:00Z",
     defaultArtist: "The Artist",
     projects: [{
       projectId: "blue-sky",
@@ -191,6 +192,8 @@ const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
       artist: "The Artist",
       schemaVersion: "1.1.0",
       createdWith: "jl-mixing 1.1.1",
+      createdAt: "2026-07-16T10:00:00Z",
+      deadline: null,
       sampleRate: 48000,
       bitDepth: 24,
       fileFormat: "WAV",
@@ -220,6 +223,8 @@ const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
     }],
   }],
   issues: [],
+  tasks: [],
+  activity: [],
 });
 
 const respondWith = (
@@ -267,6 +272,42 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText("Ready to deliver").nextElementSibling).toHaveTextContent("1");
     expect(screen.getByRole("button", { name: "New project Planned" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Validate intake Planned" })).toBeDisabled();
+  });
+
+  it("shows derived priorities and persisted activity on Dashboard", async () => {
+    const snapshot = healthyWorkspace();
+    snapshot.tasks = [{ id: "task", priority: "delivery", title: "Create or update delivery", reason: "Approved differs from delivered.", recommendedAction: "Open Delivery.", clientId: "acme", clientName: "Acme Records", projectId: "blue-sky", projectName: "Blue Sky", deadline: null }];
+    snapshot.activity = [{ id: "event", eventType: "revisionApproved", timestamp: "2026-07-16T18:00:00Z", clientId: "acme", clientName: "Acme Records", projectId: "blue-sky", projectName: "Blue Sky", revision: 1, persistedSource: "revision approval.approved_at" }];
+    respondWith(snapshot); render(<App />); await screen.findByText("JL Mix Studio");
+    expect(screen.getByText("Create or update delivery")).toBeInTheDocument();
+    expect(screen.getByText("Revision approved · Revision 1")).toBeInTheDocument();
+  });
+
+  it("opens a project-scoped task from the active Tasks route", async () => {
+    const snapshot = healthyWorkspace();
+    snapshot.tasks = [{ id: "task", priority: "review", title: "Review current revision", reason: "Current differs from approved.", recommendedAction: "Open Revisions.", clientId: "acme", clientName: "Acme Records", projectId: "blue-sky", projectName: "Blue Sky", deadline: null }];
+    respondWith(snapshot); render(<App />); await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(screen.getByRole("heading", { name: "1 derived task" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    expect(screen.getByRole("heading", { name: "Blue Sky", level: 1 })).toBeInTheDocument();
+  });
+
+  it("activates Activity Log as an incomplete derived event feed", async () => {
+    const snapshot = healthyWorkspace();
+    snapshot.activity = [{ id: "event", eventType: "clientCreated", timestamp: "2026-07-15T12:00:00Z", clientId: "acme", clientName: "Acme Records", projectId: null, projectName: null, revision: null, persistedSource: "client metadata.created_at" }];
+    respondWith(snapshot); render(<App />); await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Activity Log" }));
+    expect(screen.getByRole("heading", { name: "1 derived event" })).toBeInTheDocument();
+    expect(screen.getByText(/not a complete audit log/i)).toBeInTheDocument();
+  });
+
+  it("shows honest empty derived-route states", async () => {
+    render(<App />); await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
+    expect(screen.getByRole("heading", { name: "No derived tasks" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Activity Log" }));
+    expect(screen.getByRole("heading", { name: "No supported activity events" })).toBeInTheDocument();
   });
 
   it("navigates to the functional project directory with a programmatic active state", async () => {
@@ -884,6 +925,7 @@ describe("JL Mixing Studio", () => {
     snapshot.clients.push({
       clientId: "second-client",
       clientName: "Second Client",
+      createdAt: "2026-07-15T13:00:00Z",
       defaultArtist: "Second Artist",
       projects: [{
         ...snapshot.clients[0].projects[0],
@@ -1162,6 +1204,8 @@ describe("JL Mixing Studio", () => {
         message: "The default JL Mixing workspace was not found",
         recovery: "Install JL Mixing Automation and run new-studio.",
       }],
+      tasks: [],
+      activity: [],
     });
 
     render(<App />);
@@ -1336,6 +1380,7 @@ describe("JL Mixing Studio", () => {
           snapshot.clients.push({
             clientId: "new-client",
             clientName: "New Client",
+            createdAt: "2026-07-18T12:00:00Z",
             defaultArtist: "New Artist",
             projects: [],
           });

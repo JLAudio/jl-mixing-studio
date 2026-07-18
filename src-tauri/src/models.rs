@@ -328,6 +328,7 @@ pub struct ProjectManifest {
     pub artist: String,
     pub audio: Audio,
     pub delivery: DeliveryMethod,
+    pub schedule: ProjectSchedule,
     pub state: ProjectState,
     pub revisions: Vec<RevisionDocument>,
 }
@@ -339,6 +340,7 @@ pub struct Metadata {
     pub schema_version: String,
     pub document_id: String,
     pub created_with: String,
+    pub created_at: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -383,6 +385,11 @@ pub struct DeliveredApproval {
 #[derive(Debug, Deserialize)]
 pub struct DeliveryMethod {
     pub method: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ProjectSchedule {
+    pub deadline: Option<String>,
 }
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
@@ -456,6 +463,8 @@ pub struct ProjectSummary {
     pub artist: String,
     pub schema_version: String,
     pub created_with: String,
+    pub created_at: String,
+    pub deadline: Option<String>,
     pub sample_rate: u32,
     pub bit_depth: u16,
     pub file_format: String,
@@ -497,6 +506,8 @@ pub struct WorkspaceSnapshot {
     pub counts: WorkspaceCounts,
     pub clients: Vec<ClientSummary>,
     pub issues: Vec<DiscoveryIssue>,
+    pub tasks: Vec<DerivedTask>,
+    pub activity: Vec<ActivityEvent>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -508,13 +519,63 @@ pub struct StudioSummary {
     pub created_with: String,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ClientSummary {
     pub client_id: String,
     pub client_name: String,
+    pub created_at: String,
     pub default_artist: String,
     pub projects: Vec<ProjectSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DerivedTask {
+    pub id: String,
+    pub priority: TaskPriority,
+    pub title: String,
+    pub reason: String,
+    pub recommended_action: String,
+    pub client_id: Option<String>,
+    pub client_name: Option<String>,
+    pub project_id: Option<String>,
+    pub project_name: Option<String>,
+    pub deadline: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum TaskPriority {
+    Recovery,
+    Overdue,
+    Delivery,
+    Upcoming,
+    Review,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityEvent {
+    pub id: String,
+    pub event_type: ActivityEventType,
+    pub timestamp: String,
+    pub client_id: String,
+    pub client_name: String,
+    pub project_id: Option<String>,
+    pub project_name: Option<String>,
+    pub revision: Option<u32>,
+    pub persisted_source: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ActivityEventType {
+    ClientCreated,
+    ProjectCreated,
+    RevisionCreated,
+    RevisionApproved,
+    DeliveryCreated,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq, Default)]
@@ -525,7 +586,7 @@ pub struct WorkspaceCounts {
     pub issues: usize,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveryIssue {
     pub scope: DiscoveryScope,
@@ -546,7 +607,7 @@ pub enum WorkspaceStatus {
     Invalid,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum DiscoveryScope {
     Workspace,
@@ -555,7 +616,7 @@ pub enum DiscoveryScope {
     Project,
 }
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum DiscoveryCode {
     NotFound,

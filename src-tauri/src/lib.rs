@@ -1,4 +1,5 @@
 mod cli;
+mod derived;
 mod intake;
 mod models;
 mod workspace;
@@ -432,6 +433,8 @@ fn verify_revision_creation(
         || after.artist != before.artist
         || after.schema_version != before.schema_version
         || after.created_with != before.created_with
+        || after.created_at != before.created_at
+        || after.deadline != before.deadline
         || after.sample_rate != before.sample_rate
         || after.bit_depth != before.bit_depth
         || after.file_format != before.file_format
@@ -601,6 +604,8 @@ fn verify_revision_approval(
         || after.artist != before.artist
         || after.schema_version != before.schema_version
         || after.created_with != before.created_with
+        || after.created_at != before.created_at
+        || after.deadline != before.deadline
         || after.sample_rate != before.sample_rate
         || after.bit_depth != before.bit_depth
         || after.file_format != before.file_format
@@ -772,6 +777,8 @@ fn verify_delivery_creation(
         || after.artist != before.artist
         || after.schema_version != before.schema_version
         || after.created_with != before.created_with
+        || after.created_at != before.created_at
+        || after.deadline != before.deadline
         || after.sample_rate != before.sample_rate
         || after.bit_depth != before.bit_depth
         || after.file_format != before.file_format
@@ -881,6 +888,8 @@ mod tests {
             artist: "The Artist".into(),
             schema_version: "1.1.0".into(),
             created_with: "jl-mixing 1.2.0".into(),
+            created_at: "2026-07-16T10:00:00Z".into(),
+            deadline: Some("2026-07-31".into()),
             sample_rate: 48_000,
             bit_depth: 24,
             file_format: "WAV".into(),

@@ -2,9 +2,11 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use chrono::Local;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+use crate::derived::{derive_activity, derive_tasks};
 use crate::models::{
     ClientDocument, ClientSummary, DeliveryManifest, DeliverySummary, DiscoveryCode,
     DiscoveryIssue, DiscoveryScope, ProjectManifest, ProjectSummary, RevisionSummary,
@@ -22,16 +24,12 @@ const SUPPORTED_SCHEMA_VERSION: &str = "1.1.0";
 pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
     let workspace_path = root.to_string_lossy().into_owned();
     if !root.is_dir() {
-        return WorkspaceSnapshot {
+        return build_snapshot(
             workspace_path,
-            status: WorkspaceStatus::Unavailable,
-            studio: None,
-            counts: WorkspaceCounts {
-                issues: 1,
-                ..WorkspaceCounts::default()
-            },
-            clients: Vec::new(),
-            issues: vec![issue(
+            WorkspaceStatus::Unavailable,
+            None,
+            Vec::new(),
+            vec![issue(
                 DiscoveryScope::Workspace,
                 DiscoveryCode::NotFound,
                 None,
@@ -39,7 +37,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                 "The default JL Mixing workspace was not found",
                 "Install JL Mixing Automation and run new-studio to create ~/Music/Mixes.",
             )],
-        };
+        );
     }
 
     let studio_path = root.join("Studio").join("studio.json");
@@ -48,17 +46,10 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
             Ok(document) => document,
             Err(failure) => {
                 let problem = failure.into_issue(root, &studio_path, DiscoveryScope::Studio, None);
-                return WorkspaceSnapshot {
+                return build_snapshot(
                     workspace_path,
-                    status: WorkspaceStatus::Invalid,
-                    studio: None,
-                    counts: WorkspaceCounts {
-                        issues: 1,
-                        ..WorkspaceCounts::default()
-                    },
-                    clients: Vec::new(),
-                    issues: vec![problem],
-                };
+                    WorkspaceStatus::Invalid, None, Vec::new(), vec![problem],
+                );
             }
         };
 
@@ -74,17 +65,10 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
         Ok(entries) => entries,
         Err(failure) => {
             let problem = failure.into_issue(root, &clients_path, DiscoveryScope::Workspace, None);
-            return WorkspaceSnapshot {
+            return build_snapshot(
                 workspace_path,
-                status: WorkspaceStatus::Invalid,
-                studio: Some(studio),
-                counts: WorkspaceCounts {
-                    issues: 1,
-                    ..WorkspaceCounts::default()
-                },
-                clients: Vec::new(),
-                issues: vec![problem],
-            };
+                WorkspaceStatus::Invalid, Some(studio), Vec::new(), vec![problem],
+            );
         }
     };
 
@@ -203,6 +187,8 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                 artist: manifest.artist,
                 schema_version: manifest.metadata.schema_version,
                 created_with: manifest.metadata.created_with,
+                created_at: manifest.metadata.created_at,
+                deadline: manifest.schedule.deadline,
                 sample_rate: manifest.audio.sample_rate,
                 bit_depth: manifest.audio.bit_depth,
                 file_format: manifest.audio.file_format,
@@ -227,6 +213,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
             ClientSummary {
                 client_id: client.client_id,
                 client_name: client.client_name,
+                created_at: client._metadata.created_at,
                 default_artist: client.defaults.artist,
                 projects: projects_with_paths
                     .into_iter()
@@ -249,7 +236,6 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
         .into_iter()
         .map(|(client, _)| client)
         .collect();
-    let project_count = clients.iter().map(|client| client.projects.len()).sum();
     let status = if !issues.is_empty() {
         WorkspaceStatus::Partial
     } else if clients.is_empty() {
@@ -258,10 +244,29 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
         WorkspaceStatus::Healthy
     };
 
+    build_snapshot(
+        workspace_path,
+        status,
+        Some(studio),
+        clients,
+        issues,
+    )
+}
+
+fn build_snapshot(
+    workspace_path: String,
+    status: WorkspaceStatus,
+    studio: Option<StudioSummary>,
+    clients: Vec<ClientSummary>,
+    issues: Vec<DiscoveryIssue>,
+) -> WorkspaceSnapshot {
+    let project_count = clients.iter().map(|client| client.projects.len()).sum();
+    let tasks = derive_tasks(&clients, &issues, Local::now().date_naive());
+    let activity = derive_activity(&clients);
     WorkspaceSnapshot {
         workspace_path,
         status,
-        studio: Some(studio),
+        studio,
         counts: WorkspaceCounts {
             clients: clients.len(),
             projects: project_count,
@@ -269,6 +274,8 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
         },
         clients,
         issues,
+        tasks,
+        activity,
     }
 }
 
@@ -629,6 +636,9 @@ mod tests {
             "alpha Project"
         );
         assert_eq!(snapshot.clients[1].projects[1].project_name, "Zulu Project");
+        assert_eq!(snapshot.clients[0].created_at, "2026-07-17T12:00:00Z");
+        assert!(!snapshot.activity.is_empty());
+        assert!(!snapshot.tasks.is_empty());
         let revision = &snapshot.clients[1].projects[0].revisions[0];
         assert_eq!(revision.number, 1);
         assert_eq!(revision.description, "Initial mix");
