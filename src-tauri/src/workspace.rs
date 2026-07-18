@@ -606,7 +606,7 @@ mod tests {
                   "client_id":"{}","client_name":"{}",
                   "defaults":{{"artist":"{}","audio":{{"sample_rate":48000,"bit_depth":24,"file_format":"WAV"}},"delivery":{{"method":"Download","requested_deliverables":["main_mix"]}}}}
                 }}"#,
-                directory.replace(' ', "-"),
+                directory.replace(' ', "-").to_ascii_lowercase(),
                 name,
                 artist
             ),
