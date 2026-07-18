@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
 import type {
+  ApprovalOperationResult,
   ClientOperationResult,
   IntakeOperationResult,
   IntakeReport,
@@ -24,6 +25,7 @@ const version: VersionCheck = {
   projectCreationSupported: true,
   intakeValidationSupported: true,
   revisionCreationSupported: true,
+  revisionApprovalSupported: true,
   version: "1.2.0",
   message: "JL Mixing Automation 1.2.0 detected",
 };
@@ -79,6 +81,29 @@ const revisionCreateResult: RevisionOperationResult = {
   ...revisionPreviewResult,
   code: "created",
   message: "Revision created successfully.",
+};
+
+const approvalPreviewResult: ApprovalOperationResult = {
+  ok: true,
+  code: "ready",
+  message: "Approval preview completed. No changes were made.",
+  approval: {
+    clientId: "acme",
+    projectId: "blue-sky",
+    revision: 2,
+    approvedBy: "Client",
+    approvedAt: null,
+  },
+};
+
+const approvalResult: ApprovalOperationResult = {
+  ...approvalPreviewResult,
+  code: "approved",
+  message: "Revision approved successfully.",
+  approval: {
+    ...approvalPreviewResult.approval!,
+    approvedAt: "2026-07-18T13:00:00Z",
+  },
 };
 
 const intakeReport: IntakeReport = {
@@ -275,7 +300,7 @@ describe("JL Mixing Studio", () => {
 
     expect(screen.getByRole("heading", { name: "Revision history" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New revision" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Approve revision Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Approve revision" })).toBeEnabled();
     expect(screen.getByRole("heading", { name: "Revision 2" })).toBeInTheDocument();
     expect(screen.getByText("Balance update")).toBeInTheDocument();
     expect(screen.getAllByText("Current").length).toBeGreaterThan(0);
@@ -286,6 +311,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText("Initial mix")).toBeInTheDocument();
     expect(screen.getByText("Approved by Client Reviewer")).toBeInTheDocument();
     expect(screen.getAllByText("Approved").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Approve revision" })).toBeDisabled();
   });
 
   it("keeps revision history readable in a partial workspace", async () => {
@@ -303,7 +329,8 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByRole("heading", { name: "Revision history" })).toBeInTheDocument();
     expect(screen.getByText("Balance update")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New revision" })).toBeDisabled();
-    expect(screen.getByText(/history remains readable/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve revision" })).toBeDisabled();
+    expect(screen.getAllByText(/history remains readable/i)).toHaveLength(2);
   });
 
   it("preflights a trimmed revision description and cancels without creating", async () => {
@@ -403,6 +430,125 @@ describe("JL Mixing Studio", () => {
     expect(await screen.findByRole("heading", { name: "Creation needs verification" })).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent(/do not retry automatically/i);
     expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_revision")).toHaveLength(1);
+  });
+
+  it("preflights approval for the selected revision and cancels without approving", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_revision_approval") return Promise.resolve(approvalPreviewResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve revision" }));
+
+    expect(screen.getByRole("heading", { name: "Approve Revision 2" })).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByRole("textbox", { name: /approved by/i })).toHaveValue("Client");
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Review approval" }));
+
+    expect(await screen.findByRole("heading", { name: "Confirm revision approval" })).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("preflight_revision_approval", {
+      request: { clientId: "acme", projectId: "blue-sky", revision: 2, approvedBy: "Client" },
+    });
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith("approve_revision", expect.anything());
+  });
+
+  it("approves, refreshes, and verifies the authoritative selected revision", async () => {
+    let workspaceCalls = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") {
+        workspaceCalls += 1;
+        const snapshot = healthyWorkspace();
+        if (workspaceCalls > 1) {
+          const project = snapshot.clients[0].projects[0];
+          project.approvedRevision = 2;
+          project.revisions[1].approvedBy = "Client";
+          project.revisions[1].approvedAt = "2026-07-18T13:00:00Z";
+        }
+        return Promise.resolve(snapshot);
+      }
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_revision_approval") return Promise.resolve(approvalPreviewResult);
+      if (command === "approve_revision") return Promise.resolve(approvalResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve revision" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Review approval" }));
+    await screen.findByRole("heading", { name: "Confirm revision approval" });
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve revision" }));
+
+    expect(await screen.findByText("Revision 2 was approved by Client and verified.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve revision" })).toBeDisabled();
+    expect(screen.getByText("Approved by Client")).toBeInTheDocument();
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "approve_revision")).toHaveLength(1);
+  });
+
+  it("warns before replacing historical approval on an older revision", async () => {
+    const workspace = healthyWorkspace();
+    const project = workspace.clients[0].projects[0];
+    project.approvedRevision = 2;
+    project.revisions[1].approvedAt = "2026-07-17T18:00:00Z";
+    project.revisions[1].approvedBy = "Current Reviewer";
+    const historicalPreview: ApprovalOperationResult = {
+      ...approvalPreviewResult,
+      approval: { ...approvalPreviewResult.approval!, revision: 1 },
+    };
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(workspace);
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_revision_approval") return Promise.resolve(historicalPreview);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Revision history" })).getByRole("button", { name: /Revision 1/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve revision" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Review approval" }));
+
+    const warning = await screen.findByText("Review lifecycle impact");
+    expect(warning.parentElement).toHaveTextContent(/historical approval metadata.*older than current Revision 2/i);
+  });
+
+  it("does not retry an uncertain revision-approval result", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_revision_approval") return Promise.resolve(approvalPreviewResult);
+      if (command === "approve_revision") return Promise.resolve({
+        ok: false,
+        code: "uncertain",
+        message: "The operation may have completed; do not retry automatically.",
+        approval: null,
+      } satisfies ApprovalOperationResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve revision" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Review approval" }));
+    await screen.findByRole("heading", { name: "Confirm revision approval" });
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve revision" }));
+
+    expect(await screen.findByRole("heading", { name: "Approval needs verification" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/do not retry automatically/i);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "approve_revision")).toHaveLength(1);
   });
 
   it("opens the functional Intake route and reads the authoritative report", async () => {
@@ -899,7 +1045,8 @@ describe("JL Mixing Studio", () => {
       clientCreationSupported: false,
         projectCreationSupported: false,
         intakeValidationSupported: false,
-        revisionCreationSupported: false,
+      revisionCreationSupported: false,
+      revisionApprovalSupported: false,
       version: null,
       message: "JL Mixing Automation was not found in its default install location or on PATH",
     });
@@ -1157,7 +1304,8 @@ describe("JL Mixing Studio", () => {
       clientCreationSupported: false,
         projectCreationSupported: false,
         intakeValidationSupported: false,
-        revisionCreationSupported: false,
+      revisionCreationSupported: false,
+      revisionApprovalSupported: false,
       version: "1.3.0",
       message: "JL Mixing Automation 1.3.0 detected; guided creation requires 1.2.0",
     });

@@ -16,6 +16,7 @@ pub struct VersionCheck {
     pub project_creation_supported: bool,
     pub intake_validation_supported: bool,
     pub revision_creation_supported: bool,
+    pub revision_approval_supported: bool,
     pub version: Option<String>,
     pub message: String,
 }
@@ -57,6 +58,52 @@ pub enum RevisionOperationCode {
     UnsupportedPlatform,
     WorkspaceBlocked,
     ProjectUnavailable,
+    Rejected,
+    Uncertain,
+    Failed,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionApprovalRequest {
+    pub client_id: String,
+    pub project_id: String,
+    pub revision: u32,
+    pub approved_by: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RevisionApprovalSummary {
+    pub client_id: String,
+    pub project_id: String,
+    pub revision: u32,
+    pub approved_by: String,
+    pub approved_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApprovalOperationResult {
+    pub ok: bool,
+    pub code: ApprovalOperationCode,
+    pub message: String,
+    pub approval: Option<RevisionApprovalSummary>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ApprovalOperationCode {
+    Ready,
+    Approved,
+    InvalidInput,
+    AutomationUnavailable,
+    UnsupportedVersion,
+    UnsupportedPlatform,
+    WorkspaceBlocked,
+    ProjectUnavailable,
+    RevisionUnavailable,
+    AlreadyApproved,
     Rejected,
     Uncertain,
     Failed,

@@ -52,9 +52,10 @@ new-client --help
 new-mix --help
 validate-intake --help
 new-revision --help
+approve-mix --help
 ```
 
-For the current functional baseline, the installed `VERSION` file must report `1.2.0`, and `new-client --help`, `new-mix --help`, `validate-intake --help`, and `new-revision --help` must succeed. JL Mixing Automation v1.2.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.2.0 is not supported, the application reports guided automation as unavailable without preventing supported report reading and workspace browsing.
+For the current functional baseline, the installed `VERSION` file must report `1.2.0`, and `new-client --help`, `new-mix --help`, `validate-intake --help`, `new-revision --help`, and `approve-mix --help` must succeed. JL Mixing Automation v1.2.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.2.0 is not supported, the application reports guided automation as unavailable without preventing supported report reading and workspace browsing.
 
 On macOS, also confirm the Apple developer tools path:
 
@@ -95,7 +96,7 @@ The browser view cannot call Tauri commands. Use it only for layout work with su
 npm run tauri dev
 ```
 
-The application exposes twelve typed Rust commands:
+The application exposes fourteen typed Rust commands:
 
 - `get_system_info`
 - `get_jl_mixing_version`
@@ -109,6 +110,8 @@ The application exposes twelve typed Rust commands:
 - `run_intake_validation`
 - `preflight_revision_creation`
 - `create_revision`
+- `preflight_revision_approval`
+- `approve_revision`
 
 The dashboard uses the version and discovery commands independently. Rust resolves the fixed `new-client` launcher from the release installer's default `~/.local/bin` command location before falling back to the inherited process `PATH`. It derives that launcher's installation prefix, reads the fixed `share/jl-mixing/VERSION` file, and runs `new-client --help` as a health check. The frontend cannot select an executable, executable path, version path, working directory, process arguments, workspace, or manifest path. Rust resolves the fixed default workspace at `~/Music/Mixes`.
 
@@ -123,6 +126,8 @@ Workspace discovery validates `studio.json`, `client.json`, and project manifest
 Revision history is part of workspace discovery rather than a separate read command or cache. Rust preserves each manifest revision's stable ID, timestamp, description, and paired approval metadata, sorts records deterministically for the frontend, and rejects duplicate or gapped revision numbers, duplicate revision IDs, inconsistent current-revision counts, and approved or delivered pointers that do not identify an approved revision. The history remains readable for valid projects retained in a partial workspace.
 
 Revision creation resolves an exact validated client/project identity and invokes only `new-revision [--description TEXT] --dry-run` for preview or `new-revision [--description TEXT] --no-cd` after confirmation. The frontend cannot provide a source path. After success, Rust re-discovers the project and requires one new contiguous revision, unchanged prior revision records, unchanged approved and delivered pointers, and a new unique revision ID before reporting a confirmed result.
+
+Revision approval resolves the same exact project identity and invokes only `approve-mix --revision NUMBER --approved-by NAME --dry-run` for preview or `approve-mix --revision NUMBER --approved-by NAME` after confirmation. Studio does not expose `--project`, `--date`, notes, or delivery arguments. Automation supplies the execution timestamp. After success, Rust requires the selected revision to contain the returned approval identity and timestamp, the approved pointer to identify it, and all unrelated project and revision state—including the delivered pointer—to remain unchanged.
 
 ## Automated checks
 
@@ -180,19 +185,26 @@ On the Intel MacBook running macOS Monterey 12.7.6, while signed into the dispos
 31. Repeat the preview, confirm creation, and verify exactly one new revision directory and one new manifest record were added.
 32. Verify the new revision becomes current while the prior revision records and approved and delivered pointers remain unchanged.
 33. Simulate an unverifiable revision result only in the disposable environment and verify Studio warns not to retry automatically.
+34. Select an unapproved revision, choose **Approve revision**, keep or edit the approver identity, and review the dry-run preview.
+35. Cancel once and verify the manifest checksum is unchanged.
+36. Repeat the preview, confirm approval, and verify only the selected revision approval metadata, the approved pointer, and manifest modification timestamp changed.
+37. Select an older historically approved revision and verify the confirmation warns that prior approval metadata will be replaced and that the revision is older than current.
+38. If a delivery exists for another revision, verify the confirmation states that delivery remains unchanged.
+39. Simulate an unverifiable approval result only in the disposable environment and verify Studio warns not to retry automatically.
 
-Record the results on the guided-revision-creation pull request. Keep or manually archive the disposable test account after validation; JL Mixing Studio must not add unapproved deletion behavior for test cleanup.
+Record the results on the guided-revision-approval pull request. Keep or manually archive the disposable test account after validation; JL Mixing Studio must not add unapproved deletion behavior for test cleanup.
 
 ## Known limitations
 
 - Automation detection reads only the fixed `VERSION` metadata associated with the resolved `new-client` launcher and executes only its fixed `--help` health check.
 - Only the fixed default workspace can be discovered; arbitrary workspace selection is not implemented.
-- Discovery remains read-only; only approved guided client creation, project creation, intake-report updates, and revision creation mutate the workspace.
+- Discovery remains read-only; only approved guided client creation, project creation, intake-report updates, revision creation, and revision approval mutate the workspace.
 - Client creation exposes only client ID, display name, and optional default artist; other values inherit studio defaults.
 - Project creation exposes only a validated client, project display name, and optional artist; Automation derives all other values and creates Revision 1.
 - Intake validation uses only Automation defaults; custom source, expected-format, and duplicate-check options are not exposed.
 - Revision creation accepts only an optional description; Automation's `--source` option is not exposed.
-- Revision approval remains Planned until its fixed Automation command and verification rules are approved.
+- Revision approval accepts only a selected validated revision and approver identity; approval timestamp override is not exposed.
+- Delivery creation remains Planned.
 - Client editing and deletion are not implemented.
 - JL Mixing Automation v1.2.0 does not run natively on Windows.
 - Browser rendering does not validate native Tauri integration.

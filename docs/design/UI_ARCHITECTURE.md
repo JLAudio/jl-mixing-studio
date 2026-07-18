@@ -57,7 +57,7 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Projects | Search, filter, and inspect projects using derived lifecycle state | Implemented directory and selection; search and filters remain Planned |
 | Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview, Intake entry, and guided New Revision; remaining lifecycle actions Planned |
 | Intake | Run and present non-destructive source validation with an authoritative managed-report update | Implemented |
-| Revisions | Present authoritative revision history and approved revision actions | Implemented history and guided New Revision; approval remains Planned |
+| Revisions | Present authoritative revision history and approved revision actions | Implemented history, guided New Revision, and guided approval |
 | Delivery | Present delivery readiness and approved delivery actions | Future milestone |
 | Tasks | Derive actionable work from authoritative project state | Approved derivation rules; future milestone |
 | Reports | Present generated reports without duplicating their state | Future milestone |
@@ -234,7 +234,20 @@ The shell milestone establishes the complete product-level layout vocabulary but
 5. The Automation `--source` option is intentionally not exposed in this milestone.
 6. Confirmed success requires one new contiguous manifest record, a unique revision ID, unchanged prior records, and unchanged approved and delivered pointers.
 7. The verified new revision becomes the selected authoritative record; uncertain outcomes are never retried automatically.
-8. Revision approval remains disabled and Planned.
+8. Revision approval remains separately controlled until Issue #21.
+
+## Guided revision-approval milestone
+
+[Issue #21](https://github.com/JLAudio/jl-mixing-studio/issues/21) activates approval of the selected revision without introducing arbitrary timestamps, paths, or GUI-owned lifecycle state:
+
+1. The Revisions route supplies an exact validated revision; the UI collects only an approver identity and defaults it to `Client`.
+2. Rust resolves the project directory internally, invokes only the fixed `approve-mix` executable, and accepts no frontend path or arbitrary arguments.
+3. Preview uses `--revision NUMBER --approved-by NAME --dry-run`; confirmation repeats the same values without `--dry-run` and lets Automation supply the timestamp.
+4. Confirmation explicitly warns when the selected revision is older than current, has historical approval metadata that will be replaced, or differs from an existing delivered revision.
+5. Approval is unavailable when the selected revision is already the approved pointer.
+6. Confirmed success requires the approved pointer and selected approval metadata to match Automation while every unrelated project field and revision record remains unchanged.
+7. The selected revision stays visible after refresh; uncertain outcomes are never retried automatically.
+8. Delivery remains disabled and Planned.
 
 ## Accessibility and responsive requirements
 

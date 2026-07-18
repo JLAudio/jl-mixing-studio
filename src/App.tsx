@@ -8,6 +8,7 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ApprovalOperationResult,
   ClientCreationRequest,
   ClientCreationSummary,
   ClientOperationResult,
@@ -20,9 +21,12 @@ import type {
   ProjectCreationSummary,
   ProjectOperationResult,
   ProjectSummary,
+  RevisionApprovalRequest,
+  RevisionApprovalSummary,
   RevisionCreationRequest,
   RevisionCreationSummary,
   RevisionOperationResult,
+  RevisionSummary,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -108,6 +112,28 @@ type RevisionWorkflowState =
 
 interface RevisionFormValues {
   description: string;
+}
+
+type ApprovalWorkflowState =
+  | { status: "closed" }
+  | { status: "editing"; revision: RevisionSummary; error?: string }
+  | { status: "preflighting"; revision: RevisionSummary }
+  | {
+      status: "confirming";
+      revision: RevisionSummary;
+      request: RevisionApprovalRequest;
+      preview: RevisionApprovalSummary;
+    }
+  | {
+      status: "approving";
+      revision: RevisionSummary;
+      request: RevisionApprovalRequest;
+      preview: RevisionApprovalSummary;
+    }
+  | { status: "uncertain"; revision: RevisionSummary; message: string };
+
+interface ApprovalFormValues {
+  approvedBy: string;
 }
 
 type PrimaryRoute =
@@ -258,6 +284,7 @@ const emptyProjectForm: ProjectFormValues = {
 };
 
 const emptyRevisionForm: RevisionFormValues = { description: "" };
+const emptyApprovalForm: ApprovalFormValues = { approvedBy: "Client" };
 
 const clientIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -929,10 +956,13 @@ function RevisionsView({
   actionError,
   creationAvailable,
   creationHelp,
+  approvalAvailable,
+  approvalHelp,
   onOverview,
   onIntake,
   onRefresh,
   onNewRevision,
+  onApprove,
 }: {
   client: ClientSummary;
   project: ProjectSummary;
@@ -940,10 +970,13 @@ function RevisionsView({
   actionError: string | null;
   creationAvailable: boolean;
   creationHelp: string;
+  approvalAvailable: boolean;
+  approvalHelp: string;
   onOverview: () => void;
   onIntake: () => void;
   onRefresh: () => void;
   onNewRevision: () => void;
+  onApprove: (revision: RevisionSummary) => void;
 }) {
   const revisions = [...project.revisions].sort((left, right) => right.number - left.number);
   const [selectedNumber, setSelectedNumber] = useState(project.currentRevision);
@@ -956,9 +989,10 @@ function RevisionsView({
       <ProjectWorkflowTabs active="revisions" onOverview={onOverview} onIntake={onIntake} onRevisions={() => undefined} />
       <section className="directory-toolbar revision-toolbar" aria-labelledby="revisions-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="revisions-heading">Revision history</h2></div>
-        <div className="directory-actions"><button type="button" onClick={onNewRevision} disabled={!creationAvailable || loading}>New revision</button><button type="button" className="planned-action" disabled>Approve revision <span>Planned</span></button></div>
+        <div className="directory-actions"><button type="button" onClick={onNewRevision} disabled={!creationAvailable || loading}>New revision</button><button type="button" onClick={() => { if (selected) onApprove(selected); }} disabled={!selected || !approvalAvailable || selected.number === project.approvedRevision || loading}>Approve revision</button></div>
       </section>
       <p className="action-help directory-help">{creationHelp}</p>
+      <p className="action-help directory-help">{selected?.number === project.approvedRevision ? "The selected revision is already approved." : approvalHelp}</p>
       {actionError && <div className="notice error" role="alert">{actionError}</div>}
       {revisions.length === 0 ? (
         <section className="empty-state"><h2>No revisions recorded</h2><p>The project manifest does not contain a revision yet.</p></section>
@@ -1054,6 +1088,85 @@ function RevisionDialog({
         )}
         {state.status === "uncertain" && (
           <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not submit the request again automatically. Close this message and refresh the authoritative revision history.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ApprovalDialog({
+  state,
+  values,
+  project,
+  onChange,
+  onPreflight,
+  onConfirm,
+  onBack,
+  onClose,
+}: {
+  state: Exclude<ApprovalWorkflowState, { status: "closed" }>;
+  values: ApprovalFormValues;
+  project: ProjectSummary;
+  onChange: (values: ApprovalFormValues) => void;
+  onPreflight: (event: FormEvent<HTMLFormElement>) => void;
+  onConfirm: () => void;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const approverInput = useRef<HTMLInputElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const pending = state.status === "preflighting" || state.status === "approving";
+  const replacingHistoricalApproval = state.revision.approvedAt !== null;
+  const olderThanCurrent = state.revision.number !== project.currentRevision;
+  const deliveryWillDiffer = project.deliveredRevision !== null && project.deliveredRevision !== state.revision.number;
+  useEffect(() => {
+    if (state.status === "editing") approverInput.current?.focus();
+    if (state.status === "confirming") confirmButton.current?.focus();
+  }, [state.status]);
+
+  return (
+    <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
+      <section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-dialog-title">
+        <p className="kicker">Guided approval</p>
+        <h2 id="approval-dialog-title">
+          {state.status === "confirming" || state.status === "approving"
+            ? "Confirm revision approval"
+            : state.status === "uncertain"
+              ? "Approval needs verification"
+              : `Approve Revision ${state.revision.number}`}
+        </h2>
+        {(state.status === "editing" || state.status === "preflighting") && (
+          <form onSubmit={onPreflight} noValidate>
+            <p className="dialog-intro">Record approval for <strong>Revision {state.revision.number}</strong> of <strong>{project.projectName}</strong>. Automation will use the current time when approval is confirmed.</p>
+            {state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}
+            <label>
+              Approved by
+              <input ref={approverInput} name="approvedBy" value={values.approvedBy} onChange={(event) => onChange({ approvedBy: event.target.value })} autoComplete="name" disabled={pending} />
+              <small>This identity is written to the authoritative project manifest.</small>
+            </label>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending}>{pending ? "Checking…" : "Review approval"}</button></div>
+          </form>
+        )}
+        {(state.status === "confirming" || state.status === "approving") && (
+          <div>
+            <p className="dialog-intro">Preflight passed without changing the project. Confirm to move the approved pointer and record new approval metadata for the selected revision.</p>
+            <dl className="confirmation-list">
+              <div><dt>Project</dt><dd>{project.projectName}</dd></div>
+              <div><dt>Selected revision</dt><dd>Revision {state.preview.revision}</dd></div>
+              <div><dt>Current approved revision</dt><dd>{project.approvedRevision === null ? "None" : `Revision ${project.approvedRevision}`}</dd></div>
+              <div><dt>Approved by</dt><dd>{state.preview.approvedBy}</dd></div>
+              <div><dt>Approval time</dt><dd>Current time at execution</dd></div>
+            </dl>
+            {(replacingHistoricalApproval || olderThanCurrent || deliveryWillDiffer) && <div className="notice warning" role="status"><strong>Review lifecycle impact</strong><span>{[
+              replacingHistoricalApproval ? `Revision ${state.revision.number} has historical approval metadata that will be replaced.` : null,
+              olderThanCurrent ? `Revision ${state.revision.number} is older than current Revision ${project.currentRevision}.` : null,
+              deliveryWillDiffer ? `The existing delivery remains on Revision ${project.deliveredRevision}.` : null,
+            ].filter(Boolean).join(" ")}</span></div>}
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Approving…" : "Approve revision"}</button></div>
+          </div>
+        )}
+        {state.status === "uncertain" && (
+          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not submit the approval again automatically. Close this message and refresh the authoritative revision history.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
         )}
       </section>
     </div>
@@ -1467,10 +1580,14 @@ export default function App() {
   const [revisionWorkflow, setRevisionWorkflow] = useState<RevisionWorkflowState>({ status: "closed" });
   const [revisionForm, setRevisionForm] = useState<RevisionFormValues>(emptyRevisionForm);
   const [revisionActionError, setRevisionActionError] = useState<string | null>(null);
+  const [approvalWorkflow, setApprovalWorkflow] = useState<ApprovalWorkflowState>({ status: "closed" });
+  const [approvalForm, setApprovalForm] = useState<ApprovalFormValues>(emptyApprovalForm);
+  const [approvalActionError, setApprovalActionError] = useState<string | null>(null);
   const [creationNotice, setCreationNotice] = useState<string | null>(null);
   const [projectCreationNotice, setProjectCreationNotice] = useState<string | null>(null);
   const [intakeNotice, setIntakeNotice] = useState<string | null>(null);
   const [revisionNotice, setRevisionNotice] = useState<string | null>(null);
+  const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
   const requestId = useRef(0);
 
   const refresh = useCallback(() => {
@@ -1555,6 +1672,11 @@ export default function App() {
     workspace.value.status === "healthy" &&
     version.status === "ready" &&
     version.value.revisionCreationSupported;
+  const revisionApprovalAvailable =
+    workspace.status === "ready" &&
+    workspace.value.status === "healthy" &&
+    version.status === "ready" &&
+    version.value.revisionApprovalSupported;
 
   const clientCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
@@ -1603,7 +1725,18 @@ export default function App() {
       return "Revision history remains readable, but workspace issues must be resolved before creating a revision.";
     }
     if (!version.value.revisionCreationSupported) return version.value.message;
-    return "Preview and confirm the next revision using JL Mixing Automation v1.2.0. Approval remains a separate Planned workflow.";
+    return "Preview and confirm the next revision using JL Mixing Automation v1.2.0.";
+  })();
+
+  const revisionApprovalHelp = (() => {
+    if (workspace.status !== "ready" || version.status !== "ready") {
+      return "Workspace and automation checks must finish first.";
+    }
+    if (workspace.value.status !== "healthy") {
+      return "Revision history remains readable, but workspace issues must be resolved before recording approval.";
+    }
+    if (!version.value.revisionApprovalSupported) return version.value.message;
+    return "Select a revision, review the lifecycle impact, and confirm its approval through JL Mixing Automation v1.2.0.";
   })();
 
   const openClientWorkflow = () => {
@@ -1839,6 +1972,7 @@ export default function App() {
     setIntakeActionError(null);
     setIntakeNotice(null);
     setRevisionWorkflow({ status: "closed" });
+    setApprovalWorkflow({ status: "closed" });
     loadIntakeReport(request);
   };
 
@@ -1856,6 +1990,7 @@ export default function App() {
     setIntakeWorkflow({ status: "closed" });
     setRevisionForm(emptyRevisionForm);
     setRevisionWorkflow({ status: "editing" });
+    setApprovalWorkflow({ status: "closed" });
   };
 
   const closeRevisionWorkflow = () => {
@@ -1934,6 +2069,105 @@ export default function App() {
       });
   };
 
+  const openApprovalWorkflow = (revision: RevisionSummary) => {
+    if (!resolvedProject || !revisionApprovalAvailable || revision.number === resolvedProject.approvedRevision) return;
+    setApprovalNotice(null);
+    setApprovalActionError(null);
+    setRevisionWorkflow({ status: "closed" });
+    setApprovalForm(emptyApprovalForm);
+    setApprovalWorkflow({ status: "editing", revision });
+  };
+
+  const closeApprovalWorkflow = () => {
+    if (approvalWorkflow.status === "preflighting" || approvalWorkflow.status === "approving") return;
+    setApprovalWorkflow({ status: "closed" });
+  };
+
+  const preflightApproval = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (approvalWorkflow.status !== "editing" || !resolvedProjectClient || !resolvedProject) return;
+    const revision = approvalWorkflow.revision;
+    const request: RevisionApprovalRequest = {
+      clientId: resolvedProjectClient.clientId,
+      projectId: resolvedProject.projectId,
+      revision: revision.number,
+      approvedBy: approvalForm.approvedBy.trim(),
+    };
+    if (!request.approvedBy) {
+      setApprovalWorkflow({ status: "editing", revision, error: "Enter the approver identity." });
+      return;
+    }
+    setApprovalWorkflow({ status: "preflighting", revision });
+    invoke<ApprovalOperationResult>("preflight_revision_approval", { request })
+      .then((result) => {
+        if (
+          result.ok &&
+          result.code === "ready" &&
+          result.approval &&
+          result.approval.clientId === request.clientId &&
+          result.approval.projectId === request.projectId &&
+          result.approval.revision === request.revision &&
+          result.approval.approvedBy === request.approvedBy &&
+          result.approval.approvedAt === null
+        ) {
+          setApprovalWorkflow({ status: "confirming", revision, request, preview: result.approval });
+        } else {
+          setApprovalWorkflow({ status: "editing", revision, error: result.ok ? "The approval preview did not match the authoritative revision state." : result.message });
+        }
+      })
+      .catch((error: unknown) => {
+        setApprovalWorkflow({ status: "editing", revision, error: safeError(error, "The approval preview could not be completed.") });
+      });
+  };
+
+  const confirmApproval = () => {
+    if (approvalWorkflow.status !== "confirming") return;
+    const { revision, request, preview } = approvalWorkflow;
+    setApprovalWorkflow({ status: "approving", revision, request, preview });
+    invoke<ApprovalOperationResult>("approve_revision", { request })
+      .then(async (result) => {
+        if (!result.ok || result.code !== "approved" || !result.approval) {
+          if (result.code === "uncertain") setApprovalWorkflow({ status: "uncertain", revision, message: result.message });
+          else setApprovalWorkflow({ status: "editing", revision, error: result.message });
+          return;
+        }
+        if (
+          result.approval.clientId !== preview.clientId ||
+          result.approval.projectId !== preview.projectId ||
+          result.approval.revision !== preview.revision ||
+          result.approval.approvedBy !== preview.approvedBy ||
+          !result.approval.approvedAt
+        ) {
+          setApprovalWorkflow({ status: "uncertain", revision, message: "JL Mixing Automation reported success, but the approval did not match the preview. The operation may have completed; do not retry automatically." });
+          return;
+        }
+        try {
+          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
+          setWorkspace({ status: "ready", value: refreshed });
+          const client = refreshed.clients.find((item) => item.clientId === request.clientId);
+          const project = client?.projects.find((item) => item.projectId === request.projectId);
+          const approved = project?.revisions.find((item) => item.number === request.revision);
+          if (
+            !project ||
+            project.approvedRevision !== request.revision ||
+            !approved ||
+            approved.approvedBy !== result.approval.approvedBy ||
+            approved.approvedAt !== result.approval.approvedAt
+          ) {
+            setApprovalWorkflow({ status: "uncertain", revision, message: "The approval command succeeded, but the refreshed authoritative state did not match its result. The operation may have completed; do not retry automatically." });
+            return;
+          }
+          setApprovalNotice(`Revision ${approved.number} was approved by ${approved.approvedBy} and verified.`);
+          setApprovalWorkflow({ status: "closed" });
+        } catch (error: unknown) {
+          setApprovalWorkflow({ status: "uncertain", revision, message: safeError(error, "The approval command succeeded, but the workspace could not be refreshed. The operation may have completed; do not retry automatically.") });
+        }
+      })
+      .catch((error: unknown) => {
+        setApprovalWorkflow({ status: "uncertain", revision, message: safeError(error, "The revision-approval result could not be confirmed. The operation may have completed; do not retry automatically.") });
+      });
+  };
+
   const preflightIntake = () => {
     if (!resolvedProjectClient || !resolvedProject || !intakeValidationAvailable) return;
     const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
@@ -1992,6 +2226,8 @@ export default function App() {
     setIntakeReport({ status: "idle" });
     setRevisionWorkflow({ status: "closed" });
     setRevisionActionError(null);
+    setApprovalWorkflow({ status: "closed" });
+    setApprovalActionError(null);
     setRouteNotice(null);
   };
 
@@ -2047,6 +2283,9 @@ export default function App() {
         {revisionNotice && (
           <section className="notice success" role="status"><strong>Revision created</strong><span>{revisionNotice}</span></section>
         )}
+        {approvalNotice && (
+          <section className="notice success" role="status"><strong>Revision approved</strong><span>{approvalNotice}</span></section>
+        )}
         {activeRoute === "dashboard" && (
           <Dashboard
             workspace={workspace}
@@ -2091,13 +2330,16 @@ export default function App() {
             client={resolvedProjectClient}
             project={resolvedProject}
             loading={loading}
-            actionError={revisionActionError}
+            actionError={revisionActionError ?? approvalActionError}
             creationAvailable={revisionCreationAvailable}
             creationHelp={revisionCreationHelp}
+            approvalAvailable={revisionApprovalAvailable}
+            approvalHelp={revisionApprovalHelp}
             onOverview={() => setProjectView("overview")}
             onIntake={openIntake}
             onRefresh={refresh}
             onNewRevision={openRevisionWorkflow}
+            onApprove={openApprovalWorkflow}
           />
         ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "intake" ? (
           <IntakeView
@@ -2214,6 +2456,21 @@ export default function App() {
             setRevisionWorkflow({ status: "editing" });
           }}
           onClose={closeRevisionWorkflow}
+        />
+      )}
+      {approvalWorkflow.status !== "closed" && resolvedProject && (
+        <ApprovalDialog
+          state={approvalWorkflow}
+          values={approvalForm}
+          project={resolvedProject}
+          onChange={setApprovalForm}
+          onPreflight={preflightApproval}
+          onConfirm={confirmApproval}
+          onBack={() => {
+            if (approvalWorkflow.status !== "confirming") return;
+            setApprovalWorkflow({ status: "editing", revision: approvalWorkflow.revision });
+          }}
+          onClose={closeApprovalWorkflow}
         />
       )}
     </div>

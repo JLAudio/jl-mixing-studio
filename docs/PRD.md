@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Approved baseline; guided revision creation current
+**Status:** Approved baseline; guided revision approval current
 
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
@@ -306,7 +306,7 @@ This milestone activated the project Revisions route without introducing a new c
 
 Revision notes-file browsing, revision creation, approval, delivery, folder or DAW launch, and arbitrary manifest editing remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #17](https://github.com/JLAudio/jl-mixing-studio/issues/17).
 
-## 19. Current milestone: safe guided revision creation
+## 19. Completed milestone: safe guided revision creation
 
 This milestone activates controlled creation of the next project revision while preserving JL Mixing Automation v1.2.0 and the project manifest as authoritative. The application shall:
 
@@ -324,7 +324,25 @@ This milestone activates controlled creation of the next project revision while 
 
 Revision source import, notes-file browsing, approval, delivery, deletion, editing, folder or DAW launch, and arbitrary manifest changes remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #19](https://github.com/JLAudio/jl-mixing-studio/issues/19).
 
-## 20. Future decisions requiring approval
+## 20. Current milestone: safe guided revision approval
+
+This milestone activates controlled approval of a selected project revision while preserving JL Mixing Automation v1.2.0 and the project manifest as authoritative. The application shall:
+
+1. Launch one guided **Approve revision** workflow for the revision selected in the Revisions route.
+2. Resolve the selected project's working directory internally from validated client and project IDs without accepting a frontend path.
+3. Collect only an approver identity, defaulting to `Client`; the selected manifest revision supplies the revision number.
+4. Preview only `approve-mix --revision NUMBER --approved-by NAME --dry-run` and require explicit confirmation before invoking `approve-mix --revision NUMBER --approved-by NAME`.
+5. Use Automation's execution timestamp and expose no project path, `--date`, notes, delivery option, executable, shell string, or arbitrary argument.
+6. Warn before approving an older revision, replacing its historical approval metadata, or leaving an existing delivery on a different revision.
+7. Disable approval when the selected revision is already the approved revision.
+8. Re-read authoritative workspace state after success and require the approved pointer and selected approval metadata to match Automation while project identity, audio settings, revision identity and content, non-selected records, current revision, and delivered revision remain unchanged.
+9. Treat transport failures or unverifiable confirmed outcomes as uncertain and never retry automatically.
+10. Disable approval for partial, invalid, empty, or unavailable workspaces, missing or unsupported Automation, and Windows while keeping validated history readable.
+11. Test fixed command construction, input normalization, cancellation, rejection, success, exact reconciliation, already-approved state, historical reapproval, older-revision warnings, and uncertain outcomes.
+
+Delivery creation, approval timestamp override, revision notes or file editing, source import, deletion, arbitrary paths, and manifest editing remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #21](https://github.com/JLAudio/jl-mixing-studio/issues/21).
+
+## 21. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.

@@ -6,10 +6,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::models::{
-    ClientCreationRequest, ClientCreationSummary, ClientOperationCode, ClientOperationResult,
-    IntakeOperationCode, IntakeOperationResult, IntakeRequest, ProjectCreationRequest,
-    ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult, RevisionCreationRequest,
-    RevisionCreationSummary, RevisionOperationCode, RevisionOperationResult, VersionCheck,
+    ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientCreationSummary,
+    ClientOperationCode, ClientOperationResult, IntakeOperationCode, IntakeOperationResult,
+    IntakeRequest, ProjectCreationRequest, ProjectCreationSummary, ProjectOperationCode,
+    ProjectOperationResult, RevisionApprovalRequest, RevisionApprovalSummary,
+    RevisionCreationRequest, RevisionCreationSummary, RevisionOperationCode,
+    RevisionOperationResult, VersionCheck,
 };
 use crate::{intake, intake::IntakeReportError};
 
@@ -17,6 +19,7 @@ const CLIENT_EXECUTABLE: &str = "new-client";
 const PROJECT_EXECUTABLE: &str = "new-mix";
 const INTAKE_EXECUTABLE: &str = "validate-intake";
 const REVISION_EXECUTABLE: &str = "new-revision";
+const APPROVAL_EXECUTABLE: &str = "approve-mix";
 const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.2.0";
 const MAX_VERSION_FILE_BYTES: usize = 64;
@@ -148,6 +151,34 @@ pub fn create_revision(
     )
 }
 
+pub fn preflight_revision_approval(
+    home: &Path,
+    project_directory: &Path,
+    request: RevisionApprovalRequest,
+) -> ApprovalOperationResult {
+    run_approval_operation(
+        home,
+        project_directory,
+        request,
+        ApprovalOperation::Preflight,
+        &SystemProcessRunner,
+    )
+}
+
+pub fn approve_revision(
+    home: &Path,
+    project_directory: &Path,
+    request: RevisionApprovalRequest,
+) -> ApprovalOperationResult {
+    run_approval_operation(
+        home,
+        project_directory,
+        request,
+        ApprovalOperation::Approve,
+        &SystemProcessRunner,
+    )
+}
+
 pub fn blocked_client_operation(code: ClientOperationCode, message: &str) -> ClientOperationResult {
     ClientOperationResult {
         ok: false,
@@ -187,6 +218,18 @@ pub fn blocked_revision_operation(
         code,
         message: message.to_owned(),
         revision: None,
+    }
+}
+
+pub fn blocked_approval_operation(
+    code: ApprovalOperationCode,
+    message: &str,
+) -> ApprovalOperationResult {
+    ApprovalOperationResult {
+        ok: false,
+        code,
+        message: message.to_owned(),
+        approval: None,
     }
 }
 
@@ -253,6 +296,12 @@ enum IntakeOperation {
 enum RevisionOperation {
     Preflight,
     Create,
+}
+
+#[derive(Clone, Copy)]
+enum ApprovalOperation {
+    Preflight,
+    Approve,
 }
 
 fn run_client_operation<R: ProcessRunner>(
@@ -609,6 +658,109 @@ fn run_revision_operation<R: ProcessRunner>(
     }
 }
 
+fn run_approval_operation<R: ProcessRunner>(
+    home: &Path,
+    project_directory: &Path,
+    request: RevisionApprovalRequest,
+    operation: ApprovalOperation,
+    runner: &R,
+) -> ApprovalOperationResult {
+    let request = match normalize_approval_request(request) {
+        Ok(request) => request,
+        Err(message) => {
+            return blocked_approval_operation(ApprovalOperationCode::InvalidInput, &message)
+        }
+    };
+
+    let version = check_version_with_runner(home, runner);
+    if !version.available {
+        return blocked_approval_operation(
+            ApprovalOperationCode::AutomationUnavailable,
+            &version.message,
+        );
+    }
+    if !version.supported {
+        return blocked_approval_operation(
+            ApprovalOperationCode::UnsupportedVersion,
+            &version.message,
+        );
+    }
+
+    let Some(executable) = resolve_command(home, APPROVAL_EXECUTABLE) else {
+        return blocked_approval_operation(
+            ApprovalOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation approve-mix command was not found",
+        );
+    };
+    let arguments = approval_arguments(&request, operation);
+    match runner.run(&executable, &arguments, Some(project_directory)) {
+        Ok(output) if output.success => {
+            let Some(approval) = parse_approval_output(&output.stdout, &request, operation) else {
+                return blocked_approval_operation(
+                    match operation {
+                        ApprovalOperation::Preflight => ApprovalOperationCode::Failed,
+                        ApprovalOperation::Approve => ApprovalOperationCode::Uncertain,
+                    },
+                    match operation {
+                        ApprovalOperation::Preflight => {
+                            "The JL Mixing Automation approval preview could not be verified"
+                        }
+                        ApprovalOperation::Approve => {
+                            "JL Mixing Automation reported success, but the approval identity could not be verified. The operation may have completed; do not retry automatically."
+                        }
+                    },
+                );
+            };
+            ApprovalOperationResult {
+                ok: true,
+                code: match operation {
+                    ApprovalOperation::Preflight => ApprovalOperationCode::Ready,
+                    ApprovalOperation::Approve => ApprovalOperationCode::Approved,
+                },
+                message: match operation {
+                    ApprovalOperation::Preflight => {
+                        "Approval preview completed. No changes were made."
+                    }
+                    ApprovalOperation::Approve => "Revision approved successfully.",
+                }
+                .to_owned(),
+                approval: Some(approval),
+            }
+        }
+        Ok(output) => blocked_approval_operation(
+            ApprovalOperationCode::Rejected,
+            &bounded_process_message(
+                &output.stderr,
+                &output.stdout,
+                &format!(
+                    "JL Mixing Automation rejected revision approval with exit code {}",
+                    output
+                        .exit_code
+                        .map_or_else(|| "unknown".into(), |code| code.to_string())
+                ),
+            ),
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_approval_operation(
+            ApprovalOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation approve-mix command was not found",
+        ),
+        Err(_) => blocked_approval_operation(
+            match operation {
+                ApprovalOperation::Preflight => ApprovalOperationCode::Failed,
+                ApprovalOperation::Approve => ApprovalOperationCode::Uncertain,
+            },
+            match operation {
+                ApprovalOperation::Preflight => {
+                    "The JL Mixing Automation approve-mix command could not be started"
+                }
+                ApprovalOperation::Approve => {
+                    "The revision-approval result could not be confirmed. The operation may have completed; do not retry automatically."
+                }
+            },
+        ),
+    }
+}
+
 fn report_result(
     report: Result<Option<crate::models::IntakeReport>, IntakeReportError>,
     preview: bool,
@@ -759,6 +911,32 @@ fn normalize_revision_request(
     })
 }
 
+fn normalize_approval_request(
+    request: RevisionApprovalRequest,
+) -> Result<RevisionApprovalRequest, String> {
+    let client_id = request.client_id.trim().to_owned();
+    let project_id = request.project_id.trim().to_owned();
+    let approved_by = request.approved_by.trim().to_owned();
+    if !is_valid_client_id(&client_id) || !is_valid_client_id(&project_id) {
+        return Err("Select a valid project before approving a revision".into());
+    }
+    if request.revision == 0 {
+        return Err("Select a valid revision to approve".into());
+    }
+    if approved_by.is_empty() {
+        return Err("Enter the approver identity".into());
+    }
+    if approved_by.chars().any(char::is_control) {
+        return Err("Approver identity cannot contain control characters".into());
+    }
+    Ok(RevisionApprovalRequest {
+        client_id,
+        project_id,
+        revision: request.revision,
+        approved_by,
+    })
+}
+
 fn is_valid_client_id(value: &str) -> bool {
     value.split('-').all(|part| {
         !part.is_empty()
@@ -810,6 +988,22 @@ fn revision_arguments(
     match operation {
         RevisionOperation::Preflight => arguments.push("--dry-run".into()),
         RevisionOperation::Create => arguments.push("--no-cd".into()),
+    }
+    arguments
+}
+
+fn approval_arguments(
+    request: &RevisionApprovalRequest,
+    operation: ApprovalOperation,
+) -> Vec<String> {
+    let mut arguments = vec![
+        "--revision".into(),
+        request.revision.to_string(),
+        "--approved-by".into(),
+        request.approved_by.clone(),
+    ];
+    if matches!(operation, ApprovalOperation::Preflight) {
+        arguments.push("--dry-run".into());
     }
     arguments
 }
@@ -869,6 +1063,46 @@ fn parse_revision_output(
         project_id: request.project_id.clone(),
         number,
         description,
+    })
+}
+
+fn parse_approval_output(
+    stdout: &str,
+    request: &RevisionApprovalRequest,
+    operation: ApprovalOperation,
+) -> Option<RevisionApprovalSummary> {
+    let field = |label: &str| {
+        stdout.lines().find_map(|line| {
+            let (candidate, value) = line.split_once(':')?;
+            (candidate.trim() == label).then(|| value.trim().to_owned())
+        })
+    };
+    let revision = field(match operation {
+        ApprovalOperation::Preflight => "Selected revision",
+        ApprovalOperation::Approve => "Approved revision",
+    })?
+    .parse::<u32>()
+    .ok()?;
+    let approved_by = field(match operation {
+        ApprovalOperation::Preflight => "Approver",
+        ApprovalOperation::Approve => "Approved by",
+    })?;
+    let approved_at = match operation {
+        ApprovalOperation::Preflight => None,
+        ApprovalOperation::Approve => Some(field("Approved at")?),
+    };
+    if revision != request.revision
+        || approved_by != request.approved_by
+        || approved_at.as_ref().is_some_and(|value| value.is_empty())
+    {
+        return None;
+    }
+    Some(RevisionApprovalSummary {
+        client_id: request.client_id.clone(),
+        project_id: request.project_id.clone(),
+        revision,
+        approved_by,
+        approved_at,
     })
 }
 
@@ -1016,6 +1250,7 @@ fn evaluate_version(version: &str) -> VersionCheck {
         project_creation_supported: supported && !cfg!(target_os = "windows"),
         intake_validation_supported: supported && !cfg!(target_os = "windows"),
         revision_creation_supported: supported && !cfg!(target_os = "windows"),
+        revision_approval_supported: supported && !cfg!(target_os = "windows"),
         message: if supported {
             format!("JL Mixing Automation {version} detected")
         } else {
@@ -1035,6 +1270,7 @@ fn unavailable_version(message: &str) -> VersionCheck {
         project_creation_supported: false,
         intake_validation_supported: false,
         revision_creation_supported: false,
+        revision_approval_supported: false,
         version: None,
         message: message.to_owned(),
     }
@@ -1196,6 +1432,27 @@ mod tests {
         )
     }
 
+    fn approval_request(revision: u32, approved_by: &str) -> RevisionApprovalRequest {
+        RevisionApprovalRequest {
+            client_id: "acme-records".into(),
+            project_id: "blue-sky".into(),
+            revision,
+            approved_by: approved_by.into(),
+        }
+    }
+
+    fn approval_output(preflight: bool, revision: u32, approved_by: &str) -> String {
+        if preflight {
+            format!(
+                "Dry run — no changes made.\n\nProject: Blue Sky\nCurrent revision: 3\nSelected revision: {revision}\nCurrent approved revision: 1\nApprover: {approved_by}\nApproval timestamp: current time at execution\n"
+            )
+        } else {
+            format!(
+                "Revision approved successfully.\n\nProject: Blue Sky\nApproved revision: {revision}\nApproved by: {approved_by}\nApproved at: 2026-07-18T13:00:00Z\nProject state: approved\n"
+            )
+        }
+    }
+
     fn intake_report(blocking: bool) -> String {
         let error_count = usize::from(blocking);
         let errors = if blocking {
@@ -1257,6 +1514,7 @@ mod tests {
         std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(REVISION_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(bin.join(APPROVAL_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(application.join(VERSION_FILE), format!("{version}\n")).unwrap();
         home
     }
@@ -1268,6 +1526,7 @@ mod tests {
         assert!(supported.supported);
         assert!(supported.intake_validation_supported);
         assert!(supported.revision_creation_supported);
+        assert!(supported.revision_approval_supported);
 
         let future = evaluate_version("1.3.0");
         assert!(future.available);
@@ -1699,6 +1958,125 @@ mod tests {
 
         assert_eq!(result.code, RevisionOperationCode::Rejected);
         assert!(result.message.contains("already exists"));
+    }
+
+    #[test]
+    fn approval_preflight_uses_only_selected_revision_approver_and_dry_run() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(&approval_output(true, 2, "Client Reviewer")),
+        ]);
+        let project_directory = Path::new("/fixed/project");
+        let result = run_approval_operation(
+            home.path(),
+            project_directory,
+            approval_request(2, " Client Reviewer "),
+            ApprovalOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, ApprovalOperationCode::Ready);
+        let approval = result.approval.unwrap();
+        assert_eq!(approval.revision, 2);
+        assert_eq!(approval.approved_by, "Client Reviewer");
+        assert_eq!(approval.approved_at, None);
+        let invocations = runner.invocations.borrow();
+        assert_eq!(
+            invocations[1].executable,
+            home.path().join(".local/bin/approve-mix")
+        );
+        assert_eq!(
+            invocations[1].arguments,
+            vec![
+                "--revision",
+                "2",
+                "--approved-by",
+                "Client Reviewer",
+                "--dry-run"
+            ]
+        );
+        assert_eq!(
+            invocations[1].current_directory,
+            Some(project_directory.to_owned())
+        );
+    }
+
+    #[test]
+    fn confirmed_approval_parses_automation_timestamp_without_date_override() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(&approval_output(false, 2, "Client")),
+        ]);
+        let result = run_approval_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            approval_request(2, "Client"),
+            ApprovalOperation::Approve,
+            &runner,
+        );
+
+        assert_eq!(result.code, ApprovalOperationCode::Approved);
+        assert_eq!(
+            runner.invocations.borrow()[1].arguments,
+            vec!["--revision", "2", "--approved-by", "Client"]
+        );
+        assert_eq!(
+            result.approval.unwrap().approved_at.as_deref(),
+            Some("2026-07-18T13:00:00Z")
+        );
+    }
+
+    #[test]
+    fn invalid_approval_input_never_starts_a_process() {
+        let runner = FakeRunner::new(Vec::new());
+        let result = run_approval_operation(
+            Path::new("/home/tester"),
+            Path::new("/fixed/project"),
+            approval_request(0, "Client"),
+            ApprovalOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, ApprovalOperationCode::InvalidInput);
+        assert!(runner.invocations.borrow().is_empty());
+    }
+
+    #[test]
+    fn successful_approval_without_identity_is_uncertain() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("Revision approved")]);
+        let result = run_approval_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            approval_request(2, "Client"),
+            ApprovalOperation::Approve,
+            &runner,
+        );
+
+        assert_eq!(result.code, ApprovalOperationCode::Uncertain);
+        assert!(result.message.contains("do not retry automatically"));
+    }
+
+    #[test]
+    fn approval_rejection_preserves_the_bounded_automation_message() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            failure(5, "Revision 2 is already the approved revision"),
+        ]);
+        let result = run_approval_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            approval_request(2, "Client"),
+            ApprovalOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, ApprovalOperationCode::Rejected);
+        assert!(result.message.contains("already the approved revision"));
     }
 
     #[test]
