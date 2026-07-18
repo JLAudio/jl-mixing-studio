@@ -86,19 +86,63 @@ describe("workspace dashboard", () => {
     respondWith(healthyWorkspace());
   });
 
-  it("shows a healthy workspace and project lifecycle state", async () => {
+  it("shows a healthy workspace without duplicating client and project details", async () => {
     render(<App />);
     expect(screen.getByText(/reading the default workspace/i)).toBeInTheDocument();
-    expect(await screen.findByText("Blue Sky")).toBeInTheDocument();
-    expect(screen.getByText("JL Mix Studio")).toBeInTheDocument();
-    expect(screen.getByText("Revision 2")).toBeInTheDocument();
-    expect(screen.getByText("Revision 1")).toBeInTheDocument();
+    expect(await screen.findByText("JL Mix Studio")).toBeInTheDocument();
+    expect(screen.getByText("~/Music/Mixes")).toBeInTheDocument();
+    expect(screen.queryByText("Blue Sky")).not.toBeInTheDocument();
+    expect(screen.queryByText("Revision 2")).not.toBeInTheDocument();
+    expect(screen.queryByText("Revision 1")).not.toBeInTheDocument();
     expect(screen.getByText("JL Mixing Automation 1.2.0 detected")).toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("discover_default_workspace");
     expect(mockedInvoke).toHaveBeenCalledWith("get_jl_mixing_version");
   });
 
-  it("keeps valid projects visible beside partial-discovery guidance", async () => {
+  it("renders the persistent shell, planned global search, and authoritative summaries", async () => {
+    render(<App />);
+
+    await screen.findByText("JL Mix Studio");
+    expect(screen.getByLabelText("JL Mixing Studio")).toBeInTheDocument();
+    expect(screen.getByText("JL Mix Studio")).toBeInTheDocument();
+    expect(screen.getByText("~/Music/Mixes")).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByLabelText("Global search")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("Awaiting review").nextElementSibling).toHaveTextContent("1");
+    expect(screen.getByText("Ready to deliver").nextElementSibling).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "New project Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Validate intake Planned" })).toBeDisabled();
+  });
+
+  it("navigates with a programmatic active state and honest planned route content", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+
+    expect(screen.getByRole("button", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { name: "Projects", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Project directory is planned" })).toBeInTheDocument();
+    expect(screen.getByText(/Projects remains the active primary route/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Projects search")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByLabelText("Global search")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("keeps guided client creation available from the planned Clients route", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clients" }));
+    expect(screen.getByRole("button", { name: "Clients" })).toHaveAttribute("aria-current", "page");
+    fireEvent.click(screen.getByRole("button", { name: "New client" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "New client" })).toBeInTheDocument();
+  });
+
+  it("shows partial-discovery guidance without duplicating project details", async () => {
     const partial = healthyWorkspace();
     partial.status = "partial";
     partial.counts.issues = 1;
@@ -114,9 +158,9 @@ describe("workspace dashboard", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Blue Sky")).toBeInTheDocument();
+    expect(await screen.findByText("Broken Project")).toBeInTheDocument();
+    expect(screen.queryByText("Blue Sky")).not.toBeInTheDocument();
     expect(screen.getByText(/1 workspace item needs attention/i)).toBeInTheDocument();
-    expect(screen.getByText("Broken Project")).toBeInTheDocument();
     expect(screen.getByText(/correct or recreate/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
@@ -191,9 +235,9 @@ describe("workspace dashboard", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("Blue Sky")).toBeInTheDocument();
+    expect(await screen.findByText("JL Mix Studio")).toBeInTheDocument();
     expect(screen.getAllByText(/not found in its default install location or on PATH/i)).toHaveLength(2);
-    expect(screen.getByRole("heading", { name: "Needs attention" })).toBeInTheDocument();
+    expect(screen.getByText("Needs attention")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
 
@@ -202,17 +246,17 @@ describe("workspace dashboard", () => {
     mockedInvoke.mockImplementation((command) => {
       if (command === "discover_default_workspace") {
         workspaceCalls += 1;
-        return Promise.resolve(
-          healthyWorkspace(workspaceCalls === 1 ? "Blue Sky" : "After Refresh"),
-        );
+        const snapshot = healthyWorkspace();
+        if (workspaceCalls > 1 && snapshot.studio) snapshot.studio.studioName = "After Refresh";
+        return Promise.resolve(snapshot);
       }
       if (command === "get_jl_mixing_version") return Promise.resolve(version);
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
-    expect(await screen.findByText("Blue Sky")).toBeInTheDocument();
+    expect(await screen.findByText("JL Mix Studio")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh workspace" }));
 
     expect(await screen.findByText("After Refresh")).toBeInTheDocument();
     expect(workspaceCalls).toBe(2);
@@ -235,7 +279,7 @@ describe("workspace dashboard", () => {
 
   it("validates the client form before invoking preflight", async () => {
     render(<App />);
-    await screen.findByText("Blue Sky");
+    await screen.findByText("JL Mix Studio");
 
     fireEvent.click(screen.getByRole("button", { name: "New client" }));
     const idInput = screen.getByLabelText(/client id/i);
@@ -264,7 +308,7 @@ describe("workspace dashboard", () => {
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
-    await screen.findByText("Blue Sky");
+    await screen.findByText("JL Mix Studio");
 
     fireEvent.click(screen.getByRole("button", { name: "New client" }));
     fireEvent.change(screen.getByLabelText(/client id/i), {
@@ -318,7 +362,7 @@ describe("workspace dashboard", () => {
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
-    await screen.findByText("Blue Sky");
+    await screen.findByText("JL Mix Studio");
 
     fireEvent.click(screen.getByRole("button", { name: "New client" }));
     fireEvent.change(screen.getByLabelText(/client id/i), {
@@ -332,7 +376,7 @@ describe("workspace dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create client" }));
 
     expect(await screen.findByText(/was created and added to the workspace/i)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "New Client" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "New Client" })).not.toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("create_client", {
       request: {
         clientId: "new-client",
@@ -359,7 +403,7 @@ describe("workspace dashboard", () => {
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
-    await screen.findByText("Blue Sky");
+    await screen.findByText("JL Mix Studio");
 
     fireEvent.click(screen.getByRole("button", { name: "New client" }));
     fireEvent.change(screen.getByLabelText(/client id/i), {
@@ -386,7 +430,7 @@ describe("workspace dashboard", () => {
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
-    await screen.findByText("Blue Sky");
+    await screen.findByText("JL Mix Studio");
 
     fireEvent.click(screen.getByRole("button", { name: "New client" }));
     fireEvent.change(screen.getByLabelText(/client id/i), {
@@ -416,7 +460,7 @@ describe("workspace dashboard", () => {
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
-    await screen.findByText("Blue Sky");
+    await screen.findByText("JL Mix Studio");
 
     fireEvent.click(screen.getByRole("button", { name: "New client" }));
     fireEvent.change(screen.getByLabelText(/client id/i), {
@@ -445,7 +489,7 @@ describe("workspace dashboard", () => {
     });
     render(<App />);
 
-    expect(await screen.findByText("Blue Sky")).toBeInTheDocument();
+    expect(await screen.findByText("JL Mix Studio")).toBeInTheDocument();
     expect(screen.getAllByText(/client creation requires 1.2.0/i)).toHaveLength(2);
     expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
