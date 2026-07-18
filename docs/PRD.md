@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Approved baseline; guided client creation complete; application shell next  
+**Status:** Approved baseline; application shell complete; read-only client and project browsing current
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
 **Functional baseline:** JL Mixing Automation v1.2.0
@@ -216,21 +216,21 @@ This completed milestone introduced the first controlled write workflow while pr
 
 Studio creation, project creation, client editing or deletion, arbitrary workspace or executable selection, automation installation, and all project lifecycle mutations remain outside this milestone. The completed scope and acceptance criteria are tracked in [Issue #6](https://github.com/JLAudio/jl-mixing-studio/issues/6).
 
-## 14. Next milestone: application shell and navigation
+## 14. Completed milestone: application shell and navigation
 
-The next milestone establishes the approved product information architecture without adding unsupported workflow behavior. The application shall:
+This completed milestone established the approved product information architecture without adding unsupported workflow behavior. It:
 
-1. Add a persistent JL Mixing Studio shell with a white left navigation pane for Dashboard, Studio, Clients, Projects, Tasks, Reports, Activity Log, and Settings.
-2. Establish the approved route semantics: Clients represents the client directory and client details, while selected-project screens are project routes with Projects active.
-3. Reserve a consistent global-search location on every application screen and present it as disabled and **Planned** until functional search is implemented.
-4. Move the existing workspace dashboard into the Dashboard route without changing its source-of-truth behavior.
-5. Organize the Dashboard around the question **“What do I need to work on today?”**, retaining workflow summary cards, Today’s Work, Studio Health, Quick Actions, and Recent Activity; populate only supported data and label deferred content Planned.
-6. Preserve guided client creation, including preflight, explicit confirmation, allowlisted execution, and post-create verification.
-7. Establish reusable layout, navigation, card, table, status, and action patterns based on the approved wireframe.
-8. Preserve the original wireframe’s useful screen content and information density wherever it does not contradict approved source-of-truth or capability constraints.
-9. Present honest unavailable states for routes whose data or workflows have not yet been implemented.
-10. Preserve keyboard access, readable focus treatment, minimum-window usability, and responsive resizing.
-11. Keep JL Mixing Automation v1.2.0 and workspace files authoritative; do not introduce hidden lifecycle, task, activity, search, completion, or settings state.
+1. Added a persistent JL Mixing Studio shell with a white left navigation pane for Dashboard, Studio, Clients, Projects, Tasks, Reports, Activity Log, and Settings.
+2. Established the approved route semantics: Clients represents the client directory and client details, while selected-project screens are project routes with Projects active.
+3. Reserved a consistent global-search location on every application screen and presented it as disabled and **Planned** until functional search is implemented.
+4. Moved the existing workspace dashboard into the Dashboard route without changing its source-of-truth behavior.
+5. Organized the Dashboard around the question **“What do I need to work on today?”**, retaining workflow summary cards, Today’s Work, Studio Health, Quick Actions, and Recent Activity; it populates only supported data and labels deferred content Planned.
+6. Preserved guided client creation, including preflight, explicit confirmation, allowlisted execution, and post-create verification.
+7. Established reusable layout, navigation, card, table, status, and action patterns based on the approved wireframe.
+8. Preserved the original wireframe’s useful screen content and information density wherever it does not contradict approved source-of-truth or capability constraints.
+9. Presented honest unavailable states for routes whose data or workflows have not yet been implemented.
+10. Preserved keyboard access, readable focus treatment, minimum-window usability, and responsive resizing.
+11. Kept JL Mixing Automation v1.2.0 and workspace files authoritative without introducing hidden lifecycle, task, activity, search, completion, or settings state.
 
 The product-level flow is Clients → Client Details → project selection → Project Overview. The Projects directory reaches the same Project Overview route. Client editing remains deferred because JL Mixing Automation v1.2.0 has no client-edit command.
 
@@ -240,7 +240,23 @@ Activity, recommended priorities, and tasks are future functional milestones, bu
 
 Arbitrary workspace switching, user accounts, a standalone activity database, system storage diagnostics, settings mutation, project creation, and project lifecycle actions remain outside this milestone. The approved design constraints and derivation rules are recorded in [UI architecture](design/UI_ARCHITECTURE.md), and implementation acceptance criteria are tracked in [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8).
 
-## 15. Future decisions requiring approval
+## 15. Current milestone: read-only client and project browsing
+
+This milestone makes the approved Clients and Projects routes useful while preserving workspace files as the sole source of truth. The application shall:
+
+1. List discovered clients with their IDs, default artists, and project counts.
+2. Open Client Details with the selected client's authoritative summary and projects.
+3. List projects across clients using the client ID and project ID together as the stable identity.
+4. Open one shared Project Overview route from either Client Details or the Projects directory, with Projects active in primary navigation.
+5. Display authoritative project identity, artist, audio format, metadata version, creation version, and revision state without mutating project files.
+6. Continue to expose guided client creation while clearly labeling client editing, project creation, search, and project workflow actions as Planned.
+7. Preserve partial-discovery findings and healthy records together so one invalid manifest does not hide valid clients or projects.
+8. Revalidate the selected client or project after refresh and return safely to its directory if the item no longer exists.
+9. Include frontend tests for both navigation paths, cross-client project identity, partial data, and refresh invalidation.
+
+Client editing, project creation, folder and DAW launch, intake validation, revision creation, approval, delivery, reports, files, and metadata editing remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #11](https://github.com/JLAudio/jl-mixing-studio/issues/11).
+
+## 16. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.

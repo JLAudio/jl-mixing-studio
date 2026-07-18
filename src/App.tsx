@@ -11,7 +11,9 @@ import type {
   ClientCreationRequest,
   ClientCreationSummary,
   ClientOperationResult,
+  ClientSummary,
   DiscoveryIssue,
+  ProjectSummary,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -121,7 +123,9 @@ const routes: RouteDefinition[] = [
   },
 ];
 
-const plannedRouteContent: Record<Exclude<PrimaryRoute, "dashboard">, {
+type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "clients" | "projects">;
+
+const plannedRouteContent: Record<PlannedRouteId, {
   status: string;
   sections: { title: string; detail: string }[];
   tableColumns?: string[];
@@ -135,26 +139,6 @@ const plannedRouteContent: Record<Exclude<PrimaryRoute, "dashboard">, {
       { title: "Audio defaults", detail: "Read-only sample rate, bit depth, and file format" },
       { title: "Storage & statistics", detail: "Requires approved diagnostics before activation" },
     ],
-  },
-  clients: {
-    status: "Client directory is planned",
-    sections: [
-      { title: "Client directory", detail: "Searchable validated client metadata" },
-      { title: "Client Details", detail: "Client defaults and that client’s projects" },
-      { title: "Project selection", detail: "Opens the shared Project Overview route" },
-    ],
-    tableColumns: ["Client", "Default artist", "Projects", "Updated"],
-    routeNote: "Client editing is unavailable because JL Mixing Automation v1.2.0 has no approved client-edit command.",
-  },
-  projects: {
-    status: "Project directory is planned",
-    sections: [
-      { title: "Project Overview", detail: "Identity, lifecycle state, revisions, and recommended next step" },
-      { title: "Workflow", detail: "Overview, Intake, Revisions, Delivery, Reports, Files, and Metadata" },
-      { title: "Restricted actions", detail: "Folder and DAW actions require separately approved capabilities" },
-    ],
-    tableColumns: ["Project", "Client", "Current", "Approved", "Delivered"],
-    routeNote: "Projects remains the active primary route for Project Overview and every project workflow screen.",
   },
   tasks: {
     status: "Derived tasks are planned",
@@ -498,16 +482,236 @@ function Dashboard({
   );
 }
 
-function PlannedRoute({
-  route,
+const revisionLabel = (revision: number | null) =>
+  revision === null ? "Not set" : `Revision ${revision}`;
+
+function ContextSearch({ label }: { label: string }) {
+  return (
+    <div className="context-search" aria-label={`${label} search`} aria-disabled="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <span>Search {label.toLowerCase()}</span><span className="planned-pill">Planned</span>
+    </div>
+  );
+}
+
+function RouteIssues({ snapshot }: { snapshot: WorkspaceSnapshot }) {
+  if (snapshot.issues.length === 0) return null;
+  return (
+    <section className="issues route-issues" aria-labelledby="route-issues-heading">
+      <p className="kicker">Recovery guidance</p>
+      <h2 id="route-issues-heading">Some workspace data is unavailable</h2>
+      <p className="route-supporting-copy">Only validated clients and projects are shown.</p>
+      <ul>
+        {snapshot.issues.map((issue, index) => (
+          <IssueDetail key={[issue.relativePath ?? issue.scope, issue.code, index].join("-")} issue={issue} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ClientsRoute({
+  workspace,
+  onSelectClient,
   onNewClient,
+  onRefresh,
+  loading,
   clientCreationAvailable,
   clientCreationHelp,
 }: {
-  route: Exclude<PrimaryRoute, "dashboard">;
+  workspace: ResourceState<WorkspaceSnapshot>;
+  onSelectClient: (clientId: string) => void;
   onNewClient: () => void;
+  onRefresh: () => void;
+  loading: boolean;
   clientCreationAvailable: boolean;
   clientCreationHelp: string;
+}) {
+  if (workspace.status === "loading") return <section className="notice" aria-live="polite">Reading clients…</section>;
+  if (workspace.status === "error") return <section className="notice error" role="alert"><strong>Clients could not be loaded</strong><span>{workspace.message}</span></section>;
+  const snapshot = workspace.value;
+
+  return (
+    <>
+      <section className="directory-toolbar" aria-labelledby="client-directory-heading">
+        <div><p className="kicker">Validated workspace</p><h2 id="client-directory-heading">{snapshot.counts.clients} {snapshot.counts.clients === 1 ? "client" : "clients"}</h2></div>
+        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" onClick={onNewClient} disabled={!clientCreationAvailable} aria-describedby="clients-new-client-help">New client</button></div>
+      </section>
+      <p id="clients-new-client-help" className="action-help directory-help">{clientCreationHelp}</p>
+      <ContextSearch label="Clients" />
+
+      {(snapshot.status === "unavailable" || snapshot.status === "invalid" || snapshot.status === "empty") && (
+        <WorkspaceContent snapshot={snapshot} />
+      )}
+      {snapshot.clients.length > 0 && (
+        <div className="table-scroll directory-table">
+          <table>
+            <thead><tr><th scope="col">Client</th><th scope="col">Client ID</th><th scope="col">Default artist</th><th scope="col">Projects</th></tr></thead>
+            <tbody>
+              {snapshot.clients.map((client) => (
+                <tr key={client.clientId}>
+                  <td><button type="button" className="table-link" onClick={() => onSelectClient(client.clientId)}>{client.clientName}</button></td>
+                  <td><code>{client.clientId}</code></td>
+                  <td>{client.defaultArtist || "Not set"}</td>
+                  <td>{client.projects.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <RouteIssues snapshot={snapshot} />
+    </>
+  );
+}
+
+function ClientDetails({
+  client,
+  onBack,
+  onSelectProject,
+  onRefresh,
+  loading,
+}: {
+  client: ClientSummary;
+  onBack: () => void;
+  onSelectProject: (projectId: string) => void;
+  onRefresh: () => void;
+  loading: boolean;
+}) {
+  return (
+    <>
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb">
+        <button type="button" onClick={onBack}>Clients</button><span aria-hidden="true">/</span><span aria-current="page">{client.clientName}</span>
+      </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+      <section className="detail-summary" aria-label="Client details">
+        <article><span>Client ID</span><strong><code>{client.clientId}</code></strong></article>
+        <article><span>Default artist</span><strong>{client.defaultArtist || "Not set"}</strong></article>
+        <article><span>Projects</span><strong>{client.projects.length}</strong></article>
+      </section>
+      <aside className="route-note"><strong>Read only</strong><span>Client editing is unavailable because JL Mixing Automation v1.2.0 has no approved client-edit command.</span></aside>
+      <section className="detail-section" aria-labelledby="client-projects-heading">
+        <div className="panel-heading"><div><p className="kicker">Client projects</p><h2 id="client-projects-heading">Projects for {client.clientName}</h2></div><button type="button" disabled className="planned-action">Edit client <span>Planned</span></button></div>
+        {client.projects.length === 0 ? (
+          <div className="planned-message compact"><strong>No projects for this client.</strong><p>Project creation requires a separately approved automation workflow.</p></div>
+        ) : (
+          <div className="table-scroll">
+            <table>
+              <thead><tr><th scope="col">Project</th><th scope="col">Artist</th><th scope="col">Current</th><th scope="col">Approved</th><th scope="col">Delivered</th></tr></thead>
+              <tbody>{client.projects.map((project) => (
+                <tr key={project.projectId}>
+                  <td><button type="button" className="table-link" onClick={() => onSelectProject(project.projectId)}>{project.projectName}</button></td>
+                  <td>{project.artist}</td><td>{revisionLabel(project.currentRevision)}</td><td>{revisionLabel(project.approvedRevision)}</td><td>{revisionLabel(project.deliveredRevision)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+interface ProjectEntry {
+  client: ClientSummary;
+  project: ProjectSummary;
+}
+
+function ProjectsRoute({
+  workspace,
+  onSelectProject,
+  onRefresh,
+  loading,
+}: {
+  workspace: ResourceState<WorkspaceSnapshot>;
+  onSelectProject: (clientId: string, projectId: string) => void;
+  onRefresh: () => void;
+  loading: boolean;
+}) {
+  if (workspace.status === "loading") return <section className="notice" aria-live="polite">Reading projects…</section>;
+  if (workspace.status === "error") return <section className="notice error" role="alert"><strong>Projects could not be loaded</strong><span>{workspace.message}</span></section>;
+  const snapshot = workspace.value;
+  const entries: ProjectEntry[] = snapshot.clients.flatMap((client) => client.projects.map((project) => ({ client, project })));
+
+  return (
+    <>
+      <section className="directory-toolbar" aria-labelledby="project-directory-heading">
+        <div><p className="kicker">Validated workspace</p><h2 id="project-directory-heading">{entries.length} {entries.length === 1 ? "project" : "projects"}</h2></div>
+        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" disabled className="planned-action">New project <span>Planned</span></button></div>
+      </section>
+      <ContextSearch label="Projects" />
+      {(snapshot.status === "unavailable" || snapshot.status === "invalid" || snapshot.status === "empty") && <WorkspaceContent snapshot={snapshot} />}
+      {entries.length > 0 && (
+        <div className="table-scroll directory-table">
+          <table>
+            <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Artist</th><th scope="col">Current</th><th scope="col">Approved</th><th scope="col">Delivered</th></tr></thead>
+            <tbody>{entries.map(({ client, project }) => (
+              <tr key={`${client.clientId}:${project.projectId}`}>
+                <td><button type="button" className="table-link" onClick={() => onSelectProject(client.clientId, project.projectId)}>{project.projectName}</button></td>
+                <td>{client.clientName}</td><td>{project.artist}</td><td>{revisionLabel(project.currentRevision)}</td><td>{revisionLabel(project.approvedRevision)}</td><td>{revisionLabel(project.deliveredRevision)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      )}
+      <RouteIssues snapshot={snapshot} />
+    </>
+  );
+}
+
+function ProjectOverview({
+  client,
+  project,
+  fromClient,
+  onProjects,
+  onClient,
+  onRefresh,
+  loading,
+}: {
+  client: ClientSummary;
+  project: ProjectSummary;
+  fromClient: boolean;
+  onProjects: () => void;
+  onClient: () => void;
+  onRefresh: () => void;
+  loading: boolean;
+}) {
+  const workflowTabs = ["Overview", "Intake", "Revisions", "Delivery", "Reports", "Files", "Metadata"];
+  return (
+    <>
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb">
+        <button type="button" onClick={onProjects}>Projects</button><span aria-hidden="true">/</span>
+        {fromClient && <><button type="button" onClick={onClient}>{client.clientName}</button><span aria-hidden="true">/</span></>}
+        <span aria-current="page">{project.projectName}</span>
+      </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+      <div className="workflow-tabs" aria-label="Project workflow">
+        {workflowTabs.map((tab) => tab === "Overview" ? <span key={tab} aria-current="page">{tab}</span> : <button key={tab} type="button" disabled>{tab}<small>Planned</small></button>)}
+      </div>
+      <section className="detail-summary project-revisions" aria-label="Project revision state">
+        <article><span>Current</span><strong>{revisionLabel(project.currentRevision)}</strong></article>
+        <article><span>Approved</span><strong>{revisionLabel(project.approvedRevision)}</strong></article>
+        <article><span>Delivered</span><strong>{revisionLabel(project.deliveredRevision)}</strong></article>
+      </section>
+      <div className="project-detail-grid">
+        <section className="panel" aria-labelledby="project-information-heading">
+          <div className="panel-heading"><div><p className="kicker">Project information</p><h2 id="project-information-heading">Authoritative metadata</h2></div></div>
+          <dl className="metadata-list">
+            <div><dt>Client</dt><dd>{client.clientName}</dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate / 1000} kHz / {project.bitDepth}-bit / {project.fileFormat}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Created with</dt><dd>{project.createdWith}</dd></div>
+          </dl>
+        </section>
+        <section className="panel" aria-labelledby="project-actions-heading">
+          <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Workflow controls</h2></div><span className="planned-pill">Planned</span></div>
+          <div className="action-stack"><button type="button" disabled>Open folder — Planned</button><button type="button" disabled>Open DAW — Planned</button><button type="button" disabled>Validate intake — Planned</button></div>
+          <p className="action-help">No project operation is available in this read-only milestone.</p>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function PlannedRoute({
+  route,
+}: {
+  route: PlannedRouteId;
 }) {
   const content = plannedRouteContent[route];
   const routeLabel = routes.find((item) => item.id === route)?.label ?? route;
@@ -520,13 +724,7 @@ function PlannedRoute({
           <h2 id="planned-route-heading">{content.status}</h2>
           <p>This composition reserves the approved product structure without implying unsupported data or actions.</p>
         </div>
-        {route === "clients" && (
-          <button type="button" onClick={onNewClient} disabled={!clientCreationAvailable} aria-describedby="clients-new-client-help">
-            New client
-          </button>
-        )}
       </div>
-      {route === "clients" && <p id="clients-new-client-help" className="action-help">{clientCreationHelp}</p>}
 
       {content.tableColumns && (
         <div className="collection-preview">
@@ -714,6 +912,13 @@ function ClientDialog({
 
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<PrimaryRoute>("dashboard");
+  const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<{
+    clientId: string;
+    projectId: string;
+    fromClient: boolean;
+  } | null>(null);
+  const [routeNotice, setRouteNotice] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<ResourceState<WorkspaceSnapshot>>({ status: "loading" });
   const [version, setVersion] = useState<ResourceState<VersionCheck>>({ status: "loading" });
   const [clientWorkflow, setClientWorkflow] = useState<ClientWorkflowState>({ status: "closed" });
@@ -750,6 +955,26 @@ export default function App() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (workspace.status !== "ready") return;
+    if (selectedProject) {
+      const client = workspace.value.clients.find((item) => item.clientId === selectedProject.clientId);
+      const project = client?.projects.find((item) => item.projectId === selectedProject.projectId);
+      if (!client || !project) {
+        setSelectedProject(null);
+        setSelectedClientId(null);
+        setActiveRoute("projects");
+        setRouteNotice("The selected project is no longer available in the refreshed workspace.");
+      }
+      return;
+    }
+    if (selectedClientId && !workspace.value.clients.some((item) => item.clientId === selectedClientId)) {
+      setSelectedClientId(null);
+      setActiveRoute("clients");
+      setRouteNotice("The selected client is no longer available in the refreshed workspace.");
+    }
+  }, [workspace, selectedClientId, selectedProject]);
 
   const loading = workspace.status === "loading" || version.status === "loading";
   const automationReady =
@@ -872,20 +1097,54 @@ export default function App() {
       });
   };
 
-  const activeRouteDefinition = routes.find((route) => route.id === activeRoute) ?? routes[0];
+  const navigate = (route: PrimaryRoute) => {
+    setActiveRoute(route);
+    setSelectedClientId(null);
+    setSelectedProject(null);
+    setRouteNotice(null);
+  };
+
+  const resolvedClient = workspace.status === "ready" && selectedClientId
+    ? workspace.value.clients.find((client) => client.clientId === selectedClientId) ?? null
+    : null;
+  const resolvedProjectClient = workspace.status === "ready" && selectedProject
+    ? workspace.value.clients.find((client) => client.clientId === selectedProject.clientId) ?? null
+    : null;
+  const resolvedProject = resolvedProjectClient && selectedProject
+    ? resolvedProjectClient.projects.find((project) => project.projectId === selectedProject.projectId) ?? null
+    : null;
+  const baseRouteDefinition = routes.find((route) => route.id === activeRoute) ?? routes[0];
+  const activeRouteDefinition: RouteDefinition = resolvedProject
+    ? {
+        id: "projects",
+        label: "Projects",
+        eyebrow: "Project overview",
+        title: resolvedProject.projectName,
+        description: `${resolvedProject.artist} · Read-only authoritative project state.`,
+      }
+    : resolvedClient
+      ? {
+          id: "clients",
+          label: "Clients",
+          eyebrow: "Client details",
+          title: resolvedClient.clientName,
+          description: "Validated client defaults and projects from the current workspace.",
+        }
+      : baseRouteDefinition;
 
   return (
     <div className="app-shell">
-      <Sidebar activeRoute={activeRoute} onNavigate={setActiveRoute} workspace={workspace} />
+      <Sidebar activeRoute={activeRoute} onNavigate={navigate} workspace={workspace} />
       <main className="main-content" id="main-content">
         <RouteHeader route={activeRouteDefinition} />
+        {routeNotice && <section className="notice warning" role="status"><strong>Selection changed</strong><span>{routeNotice}</span></section>}
         {creationNotice && (
           <section className="notice success" role="status">
             <strong>Client created</strong>
             <span>{creationNotice}</span>
           </section>
         )}
-        {activeRoute === "dashboard" ? (
+        {activeRoute === "dashboard" && (
           <Dashboard
             workspace={workspace}
             version={version}
@@ -896,13 +1155,59 @@ export default function App() {
             onRefresh={refresh}
             onNewClient={openClientWorkflow}
           />
+        )}
+        {activeRoute === "clients" && (resolvedClient ? (
+          <ClientDetails
+            client={resolvedClient}
+            onBack={() => { setSelectedClientId(null); setRouteNotice(null); }}
+            onRefresh={refresh}
+            loading={loading}
+            onSelectProject={(projectId) => {
+              setSelectedProject({ clientId: resolvedClient.clientId, projectId, fromClient: true });
+              setActiveRoute("projects");
+              setRouteNotice(null);
+            }}
+          />
         ) : (
-          <PlannedRoute
-            route={activeRoute}
+          <ClientsRoute
+            workspace={workspace}
+            onSelectClient={(clientId) => { setSelectedClientId(clientId); setRouteNotice(null); }}
             onNewClient={openClientWorkflow}
+            onRefresh={refresh}
+            loading={loading}
             clientCreationAvailable={clientCreationAvailable}
             clientCreationHelp={clientCreationHelp}
           />
+        ))}
+        {activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject ? (
+          <ProjectOverview
+            client={resolvedProjectClient}
+            project={resolvedProject}
+            fromClient={selectedProject.fromClient}
+            onProjects={() => { setSelectedProject(null); setSelectedClientId(null); setRouteNotice(null); }}
+            onClient={() => {
+              setSelectedProject(null);
+              setSelectedClientId(resolvedProjectClient.clientId);
+              setActiveRoute("clients");
+              setRouteNotice(null);
+            }}
+            onRefresh={refresh}
+            loading={loading}
+          />
+        ) : activeRoute === "projects" ? (
+          <ProjectsRoute
+            workspace={workspace}
+            onRefresh={refresh}
+            loading={loading}
+            onSelectProject={(clientId, projectId) => {
+              setSelectedClientId(null);
+              setSelectedProject({ clientId, projectId, fromClient: false });
+              setRouteNotice(null);
+            }}
+          />
+        ) : null}
+        {activeRoute !== "dashboard" && activeRoute !== "clients" && activeRoute !== "projects" && (
+          <PlannedRoute route={activeRoute} />
         )}
       </main>
 
