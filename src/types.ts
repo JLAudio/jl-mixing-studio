@@ -6,8 +6,59 @@ export interface VersionCheck {
   intakeValidationSupported: boolean;
   revisionCreationSupported: boolean;
   revisionApprovalSupported: boolean;
+  deliveryCreationSupported: boolean;
   version: string | null;
   message: string;
+}
+
+export interface DeliveryCreationRequest {
+  clientId: string;
+  projectId: string;
+}
+
+export interface PlannedDeliveryFile {
+  sourceName: string;
+  deliverableType: string;
+  path: string;
+}
+
+export interface ExcludedDeliveryFile {
+  name: string;
+  reason: string;
+}
+
+export interface DeliveryCreationPreview {
+  clientId: string;
+  projectId: string;
+  projectName: string;
+  currentRevision: number;
+  approvedRevision: number;
+  deliveredRevision: number | null;
+  deliveryMethod: string;
+  selected: PlannedDeliveryFile[];
+  excluded: ExcludedDeliveryFile[];
+}
+
+export type DeliveryOperationCode =
+  | "ready"
+  | "created"
+  | "invalidInput"
+  | "automationUnavailable"
+  | "unsupportedVersion"
+  | "unsupportedPlatform"
+  | "workspaceBlocked"
+  | "projectUnavailable"
+  | "approvalRequired"
+  | "alreadyDelivered"
+  | "rejected"
+  | "uncertain"
+  | "failed";
+
+export interface DeliveryOperationResult {
+  ok: boolean;
+  code: DeliveryOperationCode;
+  message: string;
+  delivery: DeliveryCreationPreview | null;
 }
 
 export interface RevisionCreationRequest {
@@ -243,6 +294,7 @@ export interface ProjectSummary {
   sampleRate: number;
   bitDepth: number;
   fileFormat: string;
+  deliveryMethod: string;
   currentRevision: number;
   approvedRevision: number | null;
   deliveredRevision: number | null;

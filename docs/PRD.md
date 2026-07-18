@@ -342,7 +342,7 @@ This milestone activates controlled approval of a selected project revision whil
 
 Delivery creation, approval timestamp override, revision notes or file editing, source import, deletion, arbitrary paths, and manifest editing remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #21](https://github.com/JLAudio/jl-mixing-studio/issues/21).
 
-## 21. Current milestone: authoritative delivery readiness and package inspection
+## 21. Completed milestone: authoritative delivery readiness and package inspection
 
 This milestone activates the Delivery route without running `create-delivery` or introducing competing lifecycle state. The application shall:
 
@@ -358,7 +358,24 @@ This milestone activates the Delivery route without running `create-delivery` or
 
 The scope and acceptance criteria are tracked in [Issue #23](https://github.com/JLAudio/jl-mixing-studio/issues/23).
 
-## 22. Future decisions requiring approval
+## 22. Current milestone: safe guided first-delivery creation
+
+This milestone activates controlled creation of a project's first authoritative delivery package while retaining Automation v1.2.0 as the sole package writer. The application shall:
+
+1. Enable creation only for a validated project with an approved revision and no existing delivery manifest or delivered pointer.
+2. Preview only `create-delivery --dry-run` from the internally resolved project directory.
+3. Parse and display the approved revision, delivery method, selected file names, classifications, destinations, exclusions, and lifecycle update.
+4. Require explicit confirmation before invoking `create-delivery` with no arguments from the same validated directory.
+5. Expose no project path, include/exclude patterns, working-prefix override, ZIP, overwrite, clean replacement, source, or destination controls.
+6. Re-discover the workspace after success and require the delivered pointer and validated delivery manifest to identify the previously approved revision.
+7. Require client/project identity, current and approved pointers, revision history, and unrelated project metadata to remain unchanged.
+8. Require the created manifest's recorded paths and classifications to match the confirmed plan.
+9. Treat stale state, existing packages, rejection, and unsupported environments as blocked without mutation.
+10. Treat an unreconciled reported success as uncertain and never retry it automatically.
+
+The scope and acceptance criteria are tracked in [Issue #25](https://github.com/JLAudio/jl-mixing-studio/issues/25).
+
+## 23. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.

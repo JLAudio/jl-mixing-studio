@@ -7,11 +7,12 @@ use std::process::Command;
 
 use crate::models::{
     ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientCreationSummary,
-    ClientOperationCode, ClientOperationResult, IntakeOperationCode, IntakeOperationResult,
-    IntakeRequest, ProjectCreationRequest, ProjectCreationSummary, ProjectOperationCode,
-    ProjectOperationResult, RevisionApprovalRequest, RevisionApprovalSummary,
-    RevisionCreationRequest, RevisionCreationSummary, RevisionOperationCode,
-    RevisionOperationResult, VersionCheck,
+    ClientOperationCode, ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest,
+    DeliveryOperationCode, DeliveryOperationResult, ExcludedDeliveryFile, IntakeOperationCode,
+    IntakeOperationResult, IntakeRequest, PlannedDeliveryFile, ProjectCreationRequest,
+    ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult, RevisionApprovalRequest,
+    RevisionApprovalSummary, RevisionCreationRequest, RevisionCreationSummary,
+    RevisionOperationCode, RevisionOperationResult, VersionCheck,
 };
 use crate::{intake, intake::IntakeReportError};
 
@@ -20,6 +21,7 @@ const PROJECT_EXECUTABLE: &str = "new-mix";
 const INTAKE_EXECUTABLE: &str = "validate-intake";
 const REVISION_EXECUTABLE: &str = "new-revision";
 const APPROVAL_EXECUTABLE: &str = "approve-mix";
+const DELIVERY_EXECUTABLE: &str = "create-delivery";
 const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.2.0";
 const MAX_VERSION_FILE_BYTES: usize = 64;
@@ -179,6 +181,34 @@ pub fn approve_revision(
     )
 }
 
+pub fn preflight_delivery_creation(
+    home: &Path,
+    project_directory: &Path,
+    request: DeliveryCreationRequest,
+) -> DeliveryOperationResult {
+    run_delivery_operation(
+        home,
+        project_directory,
+        request,
+        DeliveryOperation::Preflight,
+        &SystemProcessRunner,
+    )
+}
+
+pub fn create_delivery(
+    home: &Path,
+    project_directory: &Path,
+    request: DeliveryCreationRequest,
+) -> DeliveryOperationResult {
+    run_delivery_operation(
+        home,
+        project_directory,
+        request,
+        DeliveryOperation::Create,
+        &SystemProcessRunner,
+    )
+}
+
 pub fn blocked_client_operation(code: ClientOperationCode, message: &str) -> ClientOperationResult {
     ClientOperationResult {
         ok: false,
@@ -230,6 +260,18 @@ pub fn blocked_approval_operation(
         code,
         message: message.to_owned(),
         approval: None,
+    }
+}
+
+pub fn blocked_delivery_operation(
+    code: DeliveryOperationCode,
+    message: &str,
+) -> DeliveryOperationResult {
+    DeliveryOperationResult {
+        ok: false,
+        code,
+        message: message.to_owned(),
+        delivery: None,
     }
 }
 
@@ -302,6 +344,12 @@ enum RevisionOperation {
 enum ApprovalOperation {
     Preflight,
     Approve,
+}
+
+#[derive(Clone, Copy)]
+enum DeliveryOperation {
+    Preflight,
+    Create,
 }
 
 fn run_client_operation<R: ProcessRunner>(
@@ -761,6 +809,113 @@ fn run_approval_operation<R: ProcessRunner>(
     }
 }
 
+fn run_delivery_operation<R: ProcessRunner>(
+    home: &Path,
+    project_directory: &Path,
+    request: DeliveryCreationRequest,
+    operation: DeliveryOperation,
+    runner: &R,
+) -> DeliveryOperationResult {
+    let request = match normalize_delivery_request(request) {
+        Ok(request) => request,
+        Err(message) => {
+            return blocked_delivery_operation(DeliveryOperationCode::InvalidInput, &message)
+        }
+    };
+
+    let version = check_version_with_runner(home, runner);
+    if !version.available {
+        return blocked_delivery_operation(
+            DeliveryOperationCode::AutomationUnavailable,
+            &version.message,
+        );
+    }
+    if !version.supported {
+        return blocked_delivery_operation(
+            DeliveryOperationCode::UnsupportedVersion,
+            &version.message,
+        );
+    }
+
+    let Some(executable) = resolve_command(home, DELIVERY_EXECUTABLE) else {
+        return blocked_delivery_operation(
+            DeliveryOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation create-delivery command was not found",
+        );
+    };
+    let arguments = if matches!(operation, DeliveryOperation::Preflight) {
+        vec!["--dry-run".to_owned()]
+    } else {
+        Vec::new()
+    };
+    match runner.run(&executable, &arguments, Some(project_directory)) {
+        Ok(output) if output.success => {
+            let Some(delivery) = parse_delivery_output(&output.stdout, &request) else {
+                return blocked_delivery_operation(
+                    match operation {
+                        DeliveryOperation::Preflight => DeliveryOperationCode::Failed,
+                        DeliveryOperation::Create => DeliveryOperationCode::Uncertain,
+                    },
+                    match operation {
+                        DeliveryOperation::Preflight => {
+                            "The JL Mixing Automation delivery preview could not be verified"
+                        }
+                        DeliveryOperation::Create => {
+                            "JL Mixing Automation reported success, but the delivery result could not be verified. The operation may have completed; do not retry automatically."
+                        }
+                    },
+                );
+            };
+            DeliveryOperationResult {
+                ok: true,
+                code: match operation {
+                    DeliveryOperation::Preflight => DeliveryOperationCode::Ready,
+                    DeliveryOperation::Create => DeliveryOperationCode::Created,
+                },
+                message: match operation {
+                    DeliveryOperation::Preflight => {
+                        "Delivery preview completed. No changes were made."
+                    }
+                    DeliveryOperation::Create => "Delivery package created successfully.",
+                }
+                .to_owned(),
+                delivery: Some(delivery),
+            }
+        }
+        Ok(output) => blocked_delivery_operation(
+            DeliveryOperationCode::Rejected,
+            &bounded_process_message(
+                &output.stderr,
+                &output.stdout,
+                &format!(
+                    "JL Mixing Automation rejected delivery creation with exit code {}",
+                    output
+                        .exit_code
+                        .map_or_else(|| "unknown".into(), |code| code.to_string())
+                ),
+            ),
+        ),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_delivery_operation(
+            DeliveryOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation create-delivery command was not found",
+        ),
+        Err(_) => blocked_delivery_operation(
+            match operation {
+                DeliveryOperation::Preflight => DeliveryOperationCode::Failed,
+                DeliveryOperation::Create => DeliveryOperationCode::Uncertain,
+            },
+            match operation {
+                DeliveryOperation::Preflight => {
+                    "The JL Mixing Automation create-delivery command could not be started"
+                }
+                DeliveryOperation::Create => {
+                    "The delivery-creation result could not be confirmed. The operation may have completed; do not retry automatically."
+                }
+            },
+        ),
+    }
+}
+
 fn report_result(
     report: Result<Option<crate::models::IntakeReport>, IntakeReportError>,
     preview: bool,
@@ -937,6 +1092,20 @@ fn normalize_approval_request(
     })
 }
 
+fn normalize_delivery_request(
+    request: DeliveryCreationRequest,
+) -> Result<DeliveryCreationRequest, String> {
+    let client_id = request.client_id.trim().to_owned();
+    let project_id = request.project_id.trim().to_owned();
+    if !is_valid_client_id(&client_id) || !is_valid_client_id(&project_id) {
+        return Err("Select a valid project before creating a delivery".into());
+    }
+    Ok(DeliveryCreationRequest {
+        client_id,
+        project_id,
+    })
+}
+
 fn is_valid_client_id(value: &str) -> bool {
     value.split('-').all(|part| {
         !part.is_empty()
@@ -1106,6 +1275,107 @@ fn parse_approval_output(
     })
 }
 
+fn parse_delivery_output(
+    stdout: &str,
+    request: &DeliveryCreationRequest,
+) -> Option<DeliveryCreationPreview> {
+    let field = |label: &str| {
+        stdout.lines().find_map(|line| {
+            let (candidate, value) = line.split_once(':')?;
+            (candidate.trim() == label).then(|| value.trim().to_owned())
+        })
+    };
+    let project_name = field("Project")?;
+    let current_revision = field("Current revision")?.parse::<u32>().ok()?;
+    let approved_revision = field("Approved revision")?.parse::<u32>().ok()?;
+    let delivered_value = field("Delivered revision")?;
+    let delivered_revision = if delivered_value == "null" {
+        None
+    } else {
+        Some(delivered_value.parse::<u32>().ok()?)
+    };
+    let delivery_method = field("Delivery method")?;
+    if project_name.is_empty()
+        || current_revision == 0
+        || approved_revision == 0
+        || delivery_method.is_empty()
+        || field("Replacement mode")?.as_str() != "default"
+        || field("Create ZIP")?.as_str() != "no"
+    {
+        return None;
+    }
+
+    let lines: Vec<_> = stdout.lines().collect();
+    let selected_start = lines
+        .iter()
+        .position(|line| line.trim() == "Selected files:")?
+        + 1;
+    let mut selected = Vec::new();
+    let mut index = selected_start;
+    while index < lines.len() && !lines[index].trim().is_empty() {
+        let source_line = lines[index];
+        if !source_line.starts_with("  ") || source_line.starts_with("    ") {
+            return None;
+        }
+        let source_name = source_line.trim().to_owned();
+        let deliverable_type = lines
+            .get(index + 1)?
+            .trim()
+            .strip_prefix("Type: ")?
+            .to_owned();
+        let path = lines
+            .get(index + 2)?
+            .trim()
+            .strip_prefix("Destination: ")?
+            .to_owned();
+        if source_name.is_empty() || deliverable_type.is_empty() || path.is_empty() {
+            return None;
+        }
+        selected.push(PlannedDeliveryFile {
+            source_name,
+            deliverable_type,
+            path,
+        });
+        index += 3;
+    }
+    if selected.is_empty() {
+        return None;
+    }
+
+    let mut excluded = Vec::new();
+    if let Some(excluded_start) = lines
+        .iter()
+        .position(|line| line.trim() == "Excluded:")
+        .map(|position| position + 1)
+    {
+        for line in lines.iter().skip(excluded_start) {
+            if line.trim().is_empty() {
+                break;
+            }
+            let (name, reason) = line.trim().rsplit_once("    ")?;
+            if name.is_empty() || reason.is_empty() {
+                return None;
+            }
+            excluded.push(ExcludedDeliveryFile {
+                name: name.to_owned(),
+                reason: reason.to_owned(),
+            });
+        }
+    }
+
+    Some(DeliveryCreationPreview {
+        client_id: request.client_id.clone(),
+        project_id: request.project_id.clone(),
+        project_name,
+        current_revision,
+        approved_revision,
+        delivered_revision,
+        delivery_method,
+        selected,
+        excluded,
+    })
+}
+
 fn rejected_operation(
     output: ProcessResult,
     client: ClientCreationSummary,
@@ -1251,6 +1521,7 @@ fn evaluate_version(version: &str) -> VersionCheck {
         intake_validation_supported: supported && !cfg!(target_os = "windows"),
         revision_creation_supported: supported && !cfg!(target_os = "windows"),
         revision_approval_supported: supported && !cfg!(target_os = "windows"),
+        delivery_creation_supported: supported && !cfg!(target_os = "windows"),
         message: if supported {
             format!("JL Mixing Automation {version} detected")
         } else {
@@ -1271,6 +1542,7 @@ fn unavailable_version(message: &str) -> VersionCheck {
         intake_validation_supported: false,
         revision_creation_supported: false,
         revision_approval_supported: false,
+        delivery_creation_supported: false,
         version: None,
         message: message.to_owned(),
     }
@@ -1453,6 +1725,25 @@ mod tests {
         }
     }
 
+    fn delivery_request() -> DeliveryCreationRequest {
+        DeliveryCreationRequest {
+            client_id: "acme-records".into(),
+            project_id: "blue-sky".into(),
+        }
+    }
+
+    fn delivery_output(preflight: bool) -> String {
+        let heading = if preflight {
+            "Dry run — no changes made."
+        } else {
+            "Final delivery created successfully."
+        };
+        let delivered = if preflight { "null" } else { "1" };
+        format!(
+            "{heading}\n\nProject:             Blue Sky\nCurrent revision:    2\nApproved revision:   1\nDelivered revision:  {delivered}\nDelivery method:     Download\nReplacement mode:    default\nCreate ZIP:          no\n\nSelected files:\n  Blue Sky Main Mix.wav\n    Type: main_mix\n    Destination: Blue Sky Main Mix.wav\n  Blue Sky Stems.wav\n    Type: stems\n    Destination: Stems/Blue Sky Stems.wav\n\nExcluded:\n  Revision_Notes.md    revision notes\n\nWould create:\n  Blue Sky Main Mix.wav\n  Stems/Blue Sky Stems.wav\n  Delivery_Notes.md\n  delivery-manifest.json\n"
+        )
+    }
+
     fn intake_report(blocking: bool) -> String {
         let error_count = usize::from(blocking);
         let errors = if blocking {
@@ -1513,6 +1804,7 @@ mod tests {
         std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(bin.join(DELIVERY_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(REVISION_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(APPROVAL_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(application.join(VERSION_FILE), format!("{version}\n")).unwrap();
@@ -1527,6 +1819,7 @@ mod tests {
         assert!(supported.intake_validation_supported);
         assert!(supported.revision_creation_supported);
         assert!(supported.revision_approval_supported);
+        assert!(supported.delivery_creation_supported);
 
         let future = evaluate_version("1.3.0");
         assert!(future.available);
@@ -2077,6 +2370,105 @@ mod tests {
 
         assert_eq!(result.code, ApprovalOperationCode::Rejected);
         assert!(result.message.contains("already the approved revision"));
+    }
+
+    #[test]
+    fn delivery_preflight_uses_only_dry_run_from_the_validated_project() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success(&delivery_output(true))]);
+        let project_directory = Path::new("/fixed/project");
+        let result = run_delivery_operation(
+            home.path(),
+            project_directory,
+            delivery_request(),
+            DeliveryOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, DeliveryOperationCode::Ready);
+        let delivery = result.delivery.unwrap();
+        assert_eq!(delivery.approved_revision, 1);
+        assert_eq!(delivery.delivered_revision, None);
+        assert_eq!(delivery.selected.len(), 2);
+        assert_eq!(delivery.selected[1].path, "Stems/Blue Sky Stems.wav");
+        assert_eq!(delivery.excluded[0].reason, "revision notes");
+        let invocations = runner.invocations.borrow();
+        assert_eq!(invocations[1].arguments, vec!["--dry-run"]);
+        assert_eq!(
+            invocations[1].current_directory,
+            Some(project_directory.to_owned())
+        );
+    }
+
+    #[test]
+    fn confirmed_delivery_creation_uses_no_arguments() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success(&delivery_output(false))]);
+        let result = run_delivery_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            delivery_request(),
+            DeliveryOperation::Create,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, DeliveryOperationCode::Created);
+        assert_eq!(result.delivery.unwrap().delivered_revision, Some(1));
+        assert!(runner.invocations.borrow()[1].arguments.is_empty());
+    }
+
+    #[test]
+    fn invalid_delivery_identity_never_starts_a_process() {
+        let runner = FakeRunner::new(Vec::new());
+        let mut request = delivery_request();
+        request.project_id = "Not Valid".into();
+        let result = run_delivery_operation(
+            Path::new("/home/tester"),
+            Path::new("/fixed/project"),
+            request,
+            DeliveryOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, DeliveryOperationCode::InvalidInput);
+        assert!(runner.invocations.borrow().is_empty());
+    }
+
+    #[test]
+    fn unverifiable_confirmed_delivery_is_uncertain() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("created")]);
+        let result = run_delivery_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            delivery_request(),
+            DeliveryOperation::Create,
+            &runner,
+        );
+
+        assert_eq!(result.code, DeliveryOperationCode::Uncertain);
+        assert!(result.message.contains("do not retry automatically"));
+    }
+
+    #[test]
+    fn delivery_rejection_preserves_the_bounded_automation_message() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            failure(5, "No deliverable files were found after applying filters"),
+        ]);
+        let result = run_delivery_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            delivery_request(),
+            DeliveryOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, DeliveryOperationCode::Rejected);
+        assert!(result.message.contains("No deliverable files"));
     }
 
     #[test]

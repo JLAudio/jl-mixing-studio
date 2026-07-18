@@ -258,7 +258,18 @@ The shell milestone establishes the complete product-level layout vocabulary but
 3. The route distinguishes approval required, first-delivery readiness, a current package, and replacement review required.
 4. Package contents show manifest-recorded safe relative paths, classifications, sizes, and SHA-256 values without rescanning or re-hashing files.
 5. Invalid delivery metadata removes only that project from discovery and preserves valid siblings.
-6. Create delivery remains disabled and Planned until default packaging and replacement modes receive separate command and reconciliation approval.
+6. Existing packages remain read-only; replacement modes require separate command and reconciliation approval.
+
+## Guided first-delivery milestone
+
+[Issue #25](https://github.com/JLAudio/jl-mixing-studio/issues/25) activates the first safe write workflow on Delivery:
+
+1. Create delivery is available only for a healthy, validated, approved, undelivered project with supported Automation on macOS or Linux.
+2. The action preflights immediately because the frontend supplies only stable client/project identity and no packaging options.
+3. Confirmation lists selected sources, classifications, destination paths, exclusions, approved revision, delivery method, no replacement mode, and no ZIP.
+4. Pending confirmation cannot be submitted twice or dismissed during execution.
+5. Confirmed success refreshes the authoritative Delivery view; an unreconciled result becomes uncertain and is never retried automatically.
+6. Existing packages disable creation and explain that overwrite and destructive clean replacement require a separate reviewed workflow.
 
 ## Accessibility and responsive requirements
 

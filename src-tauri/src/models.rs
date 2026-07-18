@@ -17,8 +17,72 @@ pub struct VersionCheck {
     pub intake_validation_supported: bool,
     pub revision_creation_supported: bool,
     pub revision_approval_supported: bool,
+    pub delivery_creation_supported: bool,
     pub version: Option<String>,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliveryCreationRequest {
+    pub client_id: String,
+    pub project_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlannedDeliveryFile {
+    pub source_name: String,
+    pub deliverable_type: String,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ExcludedDeliveryFile {
+    pub name: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliveryCreationPreview {
+    pub client_id: String,
+    pub project_id: String,
+    pub project_name: String,
+    pub current_revision: u32,
+    pub approved_revision: u32,
+    pub delivered_revision: Option<u32>,
+    pub delivery_method: String,
+    pub selected: Vec<PlannedDeliveryFile>,
+    pub excluded: Vec<ExcludedDeliveryFile>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliveryOperationResult {
+    pub ok: bool,
+    pub code: DeliveryOperationCode,
+    pub message: String,
+    pub delivery: Option<DeliveryCreationPreview>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DeliveryOperationCode {
+    Ready,
+    Created,
+    InvalidInput,
+    AutomationUnavailable,
+    UnsupportedVersion,
+    UnsupportedPlatform,
+    WorkspaceBlocked,
+    ProjectUnavailable,
+    ApprovalRequired,
+    AlreadyDelivered,
+    Rejected,
+    Uncertain,
+    Failed,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -263,6 +327,7 @@ pub struct ProjectManifest {
     pub project_name: String,
     pub artist: String,
     pub audio: Audio,
+    pub delivery: DeliveryMethod,
     pub state: ProjectState,
     pub revisions: Vec<RevisionDocument>,
 }
@@ -394,6 +459,7 @@ pub struct ProjectSummary {
     pub sample_rate: u32,
     pub bit_depth: u16,
     pub file_format: String,
+    pub delivery_method: String,
     pub current_revision: u32,
     pub approved_revision: Option<u32>,
     pub delivered_revision: Option<u32>,
