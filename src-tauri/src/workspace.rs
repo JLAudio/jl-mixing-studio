@@ -206,6 +206,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                 sample_rate: manifest.audio.sample_rate,
                 bit_depth: manifest.audio.bit_depth,
                 file_format: manifest.audio.file_format,
+                delivery_method: manifest.delivery.method,
                 current_revision: manifest.state.current_revision,
                 approved_revision: manifest.state.approved_revision,
                 delivered_revision: manifest.state.delivered_revision,
@@ -398,6 +399,7 @@ fn read_delivery_summary(
         || delivery.revision.number != delivered
         || delivery.revision.revision_id != revision.revision_id
         || delivery.revision.description != revision.description
+        || delivery.delivery.method != project.delivery.method
     {
         return Err(DocumentFailure::InvalidSchema);
     }

@@ -13,6 +13,9 @@ import type {
   ClientCreationSummary,
   ClientOperationResult,
   ClientSummary,
+  DeliveryCreationPreview,
+  DeliveryCreationRequest,
+  DeliveryOperationResult,
   DiscoveryIssue,
   IntakeOperationResult,
   IntakeReport,
@@ -135,6 +138,21 @@ type ApprovalWorkflowState =
 interface ApprovalFormValues {
   approvedBy: string;
 }
+
+type DeliveryWorkflowState =
+  | { status: "closed" }
+  | { status: "preflighting" }
+  | {
+      status: "confirming";
+      request: DeliveryCreationRequest;
+      preview: DeliveryCreationPreview;
+    }
+  | {
+      status: "creating";
+      request: DeliveryCreationRequest;
+      preview: DeliveryCreationPreview;
+    }
+  | { status: "uncertain"; message: string };
 
 type PrimaryRoute =
   | "dashboard"
@@ -300,6 +318,25 @@ const safeError = (error: unknown, fallback: string) =>
     : typeof error === "string" && error
       ? error
       : fallback;
+
+const sameDeliveryPlan = (
+  left: DeliveryCreationPreview,
+  right: DeliveryCreationPreview,
+) =>
+  left.clientId === right.clientId &&
+  left.projectId === right.projectId &&
+  left.projectName === right.projectName &&
+  left.currentRevision === right.currentRevision &&
+  left.approvedRevision === right.approvedRevision &&
+  left.deliveryMethod === right.deliveryMethod &&
+  left.selected.length === right.selected.length &&
+  left.selected.every((file, index) => {
+    const candidate = right.selected[index];
+    return candidate &&
+      file.sourceName === candidate.sourceName &&
+      file.deliverableType === candidate.deliverableType &&
+      file.path === candidate.path;
+  });
 
 function IssueDetail({ issue }: { issue: DiscoveryIssue }) {
   return (
@@ -1033,12 +1070,16 @@ function RevisionsView({
   );
 }
 
-function DeliveryView({ project, loading, onOverview, onIntake, onRevisions, onRefresh }: {
+function DeliveryView({ project, loading, actionError, creationAvailable, creationHelp, onOverview, onIntake, onRevisions, onCreate, onRefresh }: {
   project: ProjectSummary;
   loading: boolean;
+  actionError: string | null;
+  creationAvailable: boolean;
+  creationHelp: string;
   onOverview: () => void;
   onIntake: () => void;
   onRevisions: () => void;
+  onCreate: () => void;
   onRefresh: () => void;
 }) {
   const delivery = project.delivery;
@@ -1046,14 +1087,16 @@ function DeliveryView({ project, loading, onOverview, onIntake, onRevisions, onR
   const readiness = project.approvedRevision === null
     ? { title: "Approval required", detail: "Approve a revision before creating a delivery package." }
     : delivery === null
-      ? { title: "Ready for first delivery", detail: `Approved Revision ${project.approvedRevision} can be packaged in a future guided workflow.` }
+      ? { title: "Ready for first delivery", detail: `Approved Revision ${project.approvedRevision} can be packaged with the guided workflow.` }
       : project.approvedRevision === project.deliveredRevision
         ? { title: "Delivery is current", detail: `The recorded package represents approved Revision ${project.deliveredRevision}.` }
         : { title: "Replacement review required", detail: `The existing package represents Revision ${project.deliveredRevision}; approved Revision ${project.approvedRevision} requires an explicit replacement workflow.` };
   return <>
     <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Delivery</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
     <ProjectWorkflowTabs active="delivery" onOverview={onOverview} onIntake={onIntake} onRevisions={onRevisions} onDelivery={() => undefined} />
-    <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" className="planned-action" disabled>Create delivery <span>Planned</span></button></section>
+    <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : "Create delivery"}</button></section>
+    <p className="action-help">{creationHelp}</p>
+    {actionError && <div className="form-error" role="alert">{actionError}</div>}
     <section className="notice" role="status"><strong>{readiness.title}</strong><span>{readiness.detail}</span></section>
     {!delivery ? <section className="empty-state"><h2>No delivery package recorded</h2><p>Studio found no validated delivery manifest for this project.</p></section> : <>
       <section className="panel"><div className="panel-heading"><div><p className="kicker">Delivery manifest</p><h2>Revision {delivery.revision}</h2></div></div><dl className="metadata-list">
@@ -1063,6 +1106,49 @@ function DeliveryView({ project, loading, onOverview, onIntake, onRevisions, onR
       <aside className="route-note"><strong>Manifest record</strong><span>Checksums are the values recorded and verified by JL Mixing Automation when this package was created. Studio did not re-hash delivery files.</span></aside>
     </>}
   </>;
+}
+
+function DeliveryDialog({
+  state,
+  onConfirm,
+  onClose,
+}: {
+  state: Exclude<DeliveryWorkflowState, { status: "closed" } | { status: "preflighting" }>;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const pending = state.status === "creating";
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (state.status === "confirming") confirmButton.current?.focus();
+  }, [state.status]);
+  return (
+    <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
+      <section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-dialog-title">
+        <p className="kicker">Guided first delivery</p>
+        <h2 id="delivery-dialog-title">{state.status === "uncertain" ? "Delivery needs verification" : "Confirm delivery package"}</h2>
+        {state.status === "uncertain" ? <>
+          <div className="form-error" role="alert">{state.message}</div>
+          <p className="dialog-intro">Do not submit the request again automatically. Close this message and refresh the authoritative delivery state.</p>
+          <div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div>
+        </> : <>
+          <p className="dialog-intro">Create the first final-delivery package for <strong>{state.preview.projectName}</strong>. Automation will verify every copied file with SHA-256 and update the delivered pointer transactionally.</p>
+          <dl className="confirmation-list">
+            <div><dt>Approved revision</dt><dd>Revision {state.preview.approvedRevision}</dd></div>
+            <div><dt>Current revision</dt><dd>Revision {state.preview.currentRevision}</dd></div>
+            <div><dt>Delivery method</dt><dd>{state.preview.deliveryMethod}</dd></div>
+            <div><dt>Files</dt><dd>{state.preview.selected.length}</dd></div>
+            <div><dt>Replacement mode</dt><dd>None — first package only</dd></div>
+            <div><dt>ZIP</dt><dd>Not created</dd></div>
+          </dl>
+          <div className="table-scroll"><table><thead><tr><th>Source</th><th>Type</th><th>Destination</th></tr></thead><tbody>{state.preview.selected.map((file) => <tr key={`${file.sourceName}:${file.path}`}><td>{file.sourceName}</td><td>{file.deliverableType.replace(/_/g, " ")}</td><td><code>{file.path}</code></td></tr>)}</tbody></table></div>
+          {state.preview.excluded.length > 0 && <section className="route-note"><strong>Excluded by Automation defaults</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
+          <div className="notice warning" role="status"><strong>Workspace change</strong><span>This creates files in 05_Final_Delivery and changes state.delivered_revision from none to Revision {state.preview.approvedRevision}. Overwrite, clean replacement, filters, and ZIP are not enabled.</span></div>
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Creating…" : "Create delivery"}</button></div>
+        </>}
+      </section>
+    </div>
+  );
 }
 
 function RevisionDialog({
@@ -1624,11 +1710,14 @@ export default function App() {
   const [approvalWorkflow, setApprovalWorkflow] = useState<ApprovalWorkflowState>({ status: "closed" });
   const [approvalForm, setApprovalForm] = useState<ApprovalFormValues>(emptyApprovalForm);
   const [approvalActionError, setApprovalActionError] = useState<string | null>(null);
+  const [deliveryWorkflow, setDeliveryWorkflow] = useState<DeliveryWorkflowState>({ status: "closed" });
+  const [deliveryActionError, setDeliveryActionError] = useState<string | null>(null);
   const [creationNotice, setCreationNotice] = useState<string | null>(null);
   const [projectCreationNotice, setProjectCreationNotice] = useState<string | null>(null);
   const [intakeNotice, setIntakeNotice] = useState<string | null>(null);
   const [revisionNotice, setRevisionNotice] = useState<string | null>(null);
   const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
+  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
   const requestId = useRef(0);
 
   const refresh = useCallback(() => {
@@ -1718,6 +1807,11 @@ export default function App() {
     workspace.value.status === "healthy" &&
     version.status === "ready" &&
     version.value.revisionApprovalSupported;
+  const deliveryCreationSupported =
+    workspace.status === "ready" &&
+    workspace.value.status === "healthy" &&
+    version.status === "ready" &&
+    version.value.deliveryCreationSupported;
 
   const clientCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
@@ -2032,6 +2126,85 @@ export default function App() {
     setApprovalWorkflow({ status: "closed" });
   };
 
+  const openDeliveryWorkflow = () => {
+    if (!resolvedProjectClient || !resolvedProject || !deliveryCreationAvailable) return;
+    const request: DeliveryCreationRequest = {
+      clientId: resolvedProjectClient.clientId,
+      projectId: resolvedProject.projectId,
+    };
+    setDeliveryNotice(null);
+    setDeliveryActionError(null);
+    setDeliveryWorkflow({ status: "preflighting" });
+    invoke<DeliveryOperationResult>("preflight_delivery_creation", { request })
+      .then((result) => {
+        if (
+          result.ok &&
+          result.code === "ready" &&
+          result.delivery &&
+          result.delivery.clientId === request.clientId &&
+          result.delivery.projectId === request.projectId &&
+          result.delivery.projectName === resolvedProject.projectName &&
+          result.delivery.currentRevision === resolvedProject.currentRevision &&
+          result.delivery.approvedRevision === resolvedProject.approvedRevision &&
+          result.delivery.deliveredRevision === null &&
+          result.delivery.deliveryMethod === resolvedProject.deliveryMethod &&
+          result.delivery.selected.length > 0
+        ) {
+          setDeliveryWorkflow({ status: "confirming", request, preview: result.delivery });
+        } else {
+          setDeliveryWorkflow({ status: "closed" });
+          setDeliveryActionError(result.ok ? "The delivery preview did not match the authoritative project state." : result.message);
+        }
+      })
+      .catch((error: unknown) => {
+        setDeliveryWorkflow({ status: "closed" });
+        setDeliveryActionError(safeError(error, "The delivery preview could not be completed."));
+      });
+  };
+
+  const closeDeliveryWorkflow = () => {
+    if (deliveryWorkflow.status === "creating") return;
+    setDeliveryWorkflow({ status: "closed" });
+  };
+
+  const confirmDelivery = () => {
+    if (deliveryWorkflow.status !== "confirming") return;
+    const { request, preview } = deliveryWorkflow;
+    setDeliveryWorkflow({ status: "creating", request, preview });
+    invoke<DeliveryOperationResult>("create_delivery", { request })
+      .then(async (result) => {
+        if (!result.ok || result.code !== "created" || !result.delivery) {
+          if (result.code === "uncertain") setDeliveryWorkflow({ status: "uncertain", message: result.message });
+          else {
+            setDeliveryWorkflow({ status: "closed" });
+            setDeliveryActionError(result.message);
+          }
+          return;
+        }
+        if (!sameDeliveryPlan(preview, result.delivery) || result.delivery.deliveredRevision !== preview.approvedRevision) {
+          setDeliveryWorkflow({ status: "uncertain", message: "JL Mixing Automation reported success, but the created delivery did not match the confirmed preview. The operation may have completed; do not retry automatically." });
+          return;
+        }
+        try {
+          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
+          setWorkspace({ status: "ready", value: refreshed });
+          const client = refreshed.clients.find((item) => item.clientId === request.clientId);
+          const project = client?.projects.find((item) => item.projectId === request.projectId);
+          if (!project?.delivery || project.deliveredRevision !== preview.approvedRevision) {
+            setDeliveryWorkflow({ status: "uncertain", message: "The delivery command succeeded, but the refreshed authoritative package did not match the preview. The operation may have completed; do not retry automatically." });
+            return;
+          }
+          setDeliveryNotice(`Revision ${project.deliveredRevision} was packaged and verified with ${project.delivery.files.length} delivered ${project.delivery.files.length === 1 ? "file" : "files"}.`);
+          setDeliveryWorkflow({ status: "closed" });
+        } catch (error: unknown) {
+          setDeliveryWorkflow({ status: "uncertain", message: safeError(error, "The delivery command succeeded, but the workspace could not be refreshed. The operation may have completed; do not retry automatically.") });
+        }
+      })
+      .catch((error: unknown) => {
+        setDeliveryWorkflow({ status: "uncertain", message: safeError(error, "The delivery-creation result could not be confirmed. The operation may have completed; do not retry automatically.") });
+      });
+  };
+
   const openRevisionWorkflow = () => {
     if (!resolvedProjectClient || !resolvedProject || !revisionCreationAvailable) return;
     setRevisionNotice(null);
@@ -2289,6 +2462,21 @@ export default function App() {
   const resolvedProject = resolvedProjectClient && selectedProject
     ? resolvedProjectClient.projects.find((project) => project.projectId === selectedProject.projectId) ?? null
     : null;
+  const deliveryCreationAvailable =
+    deliveryCreationSupported &&
+    resolvedProject !== null &&
+    resolvedProject.approvedRevision !== null &&
+    resolvedProject.deliveredRevision === null &&
+    resolvedProject.delivery === null;
+  const deliveryCreationHelp = (() => {
+    if (!resolvedProject) return "Select a project before creating a delivery.";
+    if (workspace.status !== "ready" || version.status !== "ready") return "Workspace and automation checks must finish first.";
+    if (workspace.value.status !== "healthy") return "Delivery history remains readable, but workspace issues must be resolved before creating a package.";
+    if (!version.value.deliveryCreationSupported) return version.value.message;
+    if (resolvedProject.approvedRevision === null) return "Approve a revision before creating the first delivery package.";
+    if (resolvedProject.deliveredRevision !== null || resolvedProject.delivery !== null) return "The existing package remains read-only; replacement requires a separate reviewed workflow.";
+    return "Preview and confirm the first package using Automation defaults with mandatory SHA-256 verification.";
+  })();
   const baseRouteDefinition = routes.find((route) => route.id === activeRoute) ?? routes[0];
   const activeRouteDefinition: RouteDefinition = resolvedProject
     ? {
@@ -2335,6 +2523,9 @@ export default function App() {
         {approvalNotice && (
           <section className="notice success" role="status"><strong>Revision approved</strong><span>{approvalNotice}</span></section>
         )}
+        {deliveryNotice && (
+          <section className="notice success" role="status"><strong>Delivery created</strong><span>{deliveryNotice}</span></section>
+        )}
         {activeRoute === "dashboard" && (
           <Dashboard
             workspace={workspace}
@@ -2375,7 +2566,7 @@ export default function App() {
           />
         ))}
         {activeRoute === "projects" && resolvedProject && selectedProject && projectView === "delivery" ? (
-          <DeliveryView project={resolvedProject} loading={loading} onOverview={() => setProjectView("overview")} onIntake={openIntake} onRevisions={openRevisions} onRefresh={refresh} />
+          <DeliveryView project={resolvedProject} loading={loading || deliveryWorkflow.status === "preflighting" || deliveryWorkflow.status === "creating"} actionError={deliveryActionError} creationAvailable={deliveryCreationAvailable} creationHelp={deliveryCreationHelp} onOverview={() => setProjectView("overview")} onIntake={openIntake} onRevisions={openRevisions} onCreate={openDeliveryWorkflow} onRefresh={refresh} />
         ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "revisions" ? (
           <RevisionsView
             client={resolvedProjectClient}
@@ -2525,6 +2716,16 @@ export default function App() {
             setApprovalWorkflow({ status: "editing", revision: approvalWorkflow.revision });
           }}
           onClose={closeApprovalWorkflow}
+        />
+      )}
+      {deliveryWorkflow.status !== "closed" && deliveryWorkflow.status !== "preflighting" && (
+        <DeliveryDialog
+          state={deliveryWorkflow}
+          onConfirm={confirmDelivery}
+          onClose={() => {
+            closeDeliveryWorkflow();
+            if (deliveryWorkflow.status === "uncertain") refresh();
+          }}
         />
       )}
     </div>

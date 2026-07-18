@@ -5,7 +5,8 @@ mod workspace;
 
 use models::{
     ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientOperationCode,
-    ClientOperationResult, IntakeOperationCode, IntakeOperationResult, IntakeRequest,
+    ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest, DeliveryOperationCode,
+    DeliveryOperationResult, IntakeOperationCode, IntakeOperationResult, IntakeRequest,
     ProjectCreationRequest, ProjectOperationCode, ProjectOperationResult, ProjectSummary,
     RevisionApprovalRequest, RevisionApprovalSummary, RevisionCreationRequest,
     RevisionCreationSummary, RevisionOperationCode, RevisionOperationResult, SystemInfo,
@@ -36,6 +37,7 @@ fn get_jl_mixing_version(app: tauri::AppHandle) -> VersionCheck {
             intake_validation_supported: false,
             revision_creation_supported: false,
             revision_approval_supported: false,
+            delivery_creation_supported: false,
             version: None,
             message,
         },
@@ -152,6 +154,22 @@ fn approve_revision(
     request: RevisionApprovalRequest,
 ) -> ApprovalOperationResult {
     run_approval_operation(&app, request, cli::approve_revision, true)
+}
+
+#[tauri::command]
+fn preflight_delivery_creation(
+    app: tauri::AppHandle,
+    request: DeliveryCreationRequest,
+) -> DeliveryOperationResult {
+    run_delivery_operation(&app, request, cli::preflight_delivery_creation, false)
+}
+
+#[tauri::command]
+fn create_delivery(
+    app: tauri::AppHandle,
+    request: DeliveryCreationRequest,
+) -> DeliveryOperationResult {
+    run_delivery_operation(&app, request, cli::create_delivery, true)
 }
 
 fn resolve_home(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -417,6 +435,7 @@ fn verify_revision_creation(
         || after.sample_rate != before.sample_rate
         || after.bit_depth != before.bit_depth
         || after.file_format != before.file_format
+        || after.delivery_method != before.delivery_method
         || after.current_revision != next_number
         || after.approved_revision != before.approved_revision
         || after.delivered_revision != before.delivered_revision
@@ -585,6 +604,7 @@ fn verify_revision_approval(
         || after.sample_rate != before.sample_rate
         || after.bit_depth != before.bit_depth
         || after.file_format != before.file_format
+        || after.delivery_method != before.delivery_method
         || after.current_revision != before.current_revision
         || after.delivered_revision != before.delivered_revision
         || after.approved_revision != Some(expected.revision)
@@ -633,6 +653,159 @@ fn uncertain_approval_result() -> ApprovalOperationResult {
     )
 }
 
+fn run_delivery_operation(
+    app: &tauri::AppHandle,
+    request: DeliveryCreationRequest,
+    operation: fn(
+        &std::path::Path,
+        &std::path::Path,
+        DeliveryCreationRequest,
+    ) -> DeliveryOperationResult,
+    verify_after_creation: bool,
+) -> DeliveryOperationResult {
+    if cfg!(target_os = "windows") {
+        return cli::blocked_delivery_operation(
+            DeliveryOperationCode::UnsupportedPlatform,
+            "Delivery creation requires JL Mixing Automation on macOS or Linux",
+        );
+    }
+    let home = match resolve_home(app) {
+        Ok(home) => home,
+        Err(message) => {
+            return cli::blocked_delivery_operation(DeliveryOperationCode::Failed, &message)
+        }
+    };
+    let workspace_path = home.join("Music").join("Mixes");
+    let snapshot = workspace::discover_workspace_at(&workspace_path);
+    if !workspace_allows_delivery_creation(snapshot.status) {
+        return cli::blocked_delivery_operation(
+            DeliveryOperationCode::WorkspaceBlocked,
+            "Resolve workspace issues before creating a delivery",
+        );
+    }
+    let client_id = request.client_id.trim().to_owned();
+    let project_id = request.project_id.trim().to_owned();
+    let Some(before) = find_project_summary(&snapshot, &client_id, &project_id).cloned() else {
+        return cli::blocked_delivery_operation(
+            DeliveryOperationCode::ProjectUnavailable,
+            "The selected project is no longer available in the validated workspace",
+        );
+    };
+    let Some(approved_revision) = before.approved_revision else {
+        return cli::blocked_delivery_operation(
+            DeliveryOperationCode::ApprovalRequired,
+            "Approve a revision before creating a delivery",
+        );
+    };
+    if before.delivered_revision.is_some() || before.delivery.is_some() {
+        return cli::blocked_delivery_operation(
+            DeliveryOperationCode::AlreadyDelivered,
+            "This project already has a delivery package; replacement requires a separate reviewed workflow",
+        );
+    }
+    let Some(project_directory) =
+        validated_project_directory(&workspace_path, &snapshot, &client_id, &project_id)
+    else {
+        return cli::blocked_delivery_operation(
+            DeliveryOperationCode::ProjectUnavailable,
+            "The selected project directory could not be resolved safely",
+        );
+    };
+
+    let result = operation(&home, &project_directory, request);
+    if result.ok {
+        let Some(preview) = result.delivery.as_ref() else {
+            return if verify_after_creation {
+                uncertain_delivery_result()
+            } else {
+                cli::blocked_delivery_operation(
+                    DeliveryOperationCode::Failed,
+                    "The delivery preview did not include a verifiable package plan",
+                )
+            };
+        };
+        let expected_delivered = verify_after_creation.then_some(approved_revision);
+        if preview.client_id != client_id
+            || preview.project_id != project_id
+            || preview.project_name != before.project_name
+            || preview.current_revision != before.current_revision
+            || preview.approved_revision != approved_revision
+            || preview.delivered_revision != expected_delivered
+            || preview.delivery_method != before.delivery_method
+        {
+            return if verify_after_creation {
+                uncertain_delivery_result()
+            } else {
+                cli::blocked_delivery_operation(
+                    DeliveryOperationCode::Failed,
+                    "The delivery preview did not match the authoritative project state",
+                )
+            };
+        }
+    }
+    if !verify_after_creation || !result.ok || result.code != DeliveryOperationCode::Created {
+        return result;
+    }
+    let Some(expected) = result.delivery.as_ref() else {
+        return uncertain_delivery_result();
+    };
+    let refreshed = workspace::discover_workspace_at(&workspace_path);
+    let Some(after) = find_project_summary(&refreshed, &client_id, &project_id) else {
+        return uncertain_delivery_result();
+    };
+    if !verify_delivery_creation(&before, after, expected) {
+        return uncertain_delivery_result();
+    }
+    result
+}
+
+fn verify_delivery_creation(
+    before: &ProjectSummary,
+    after: &ProjectSummary,
+    expected: &DeliveryCreationPreview,
+) -> bool {
+    let Some(approved_revision) = before.approved_revision else {
+        return false;
+    };
+    if after.project_id != before.project_id
+        || after.project_name != before.project_name
+        || after.artist != before.artist
+        || after.schema_version != before.schema_version
+        || after.created_with != before.created_with
+        || after.sample_rate != before.sample_rate
+        || after.bit_depth != before.bit_depth
+        || after.file_format != before.file_format
+        || after.delivery_method != before.delivery_method
+        || after.current_revision != before.current_revision
+        || after.approved_revision != before.approved_revision
+        || after.delivered_revision != Some(approved_revision)
+        || after.revisions != before.revisions
+    {
+        return false;
+    }
+    let Some(delivery) = after.delivery.as_ref() else {
+        return false;
+    };
+    if delivery.revision != approved_revision
+        || delivery.method != before.delivery_method
+        || delivery.files.len() != expected.selected.len()
+    {
+        return false;
+    }
+    expected.selected.iter().all(|planned| {
+        delivery.files.iter().any(|file| {
+            file.path == planned.path && file.deliverable_type == planned.deliverable_type
+        })
+    })
+}
+
+fn uncertain_delivery_result() -> DeliveryOperationResult {
+    cli::blocked_delivery_operation(
+        DeliveryOperationCode::Uncertain,
+        "JL Mixing Automation reported success, but the authoritative delivery state could not be reconciled. The operation may have completed; do not retry automatically.",
+    )
+}
+
 fn validated_project_directory(
     workspace_path: &std::path::Path,
     snapshot: &WorkspaceSnapshot,
@@ -667,6 +840,10 @@ fn workspace_allows_revision_approval(status: WorkspaceStatus) -> bool {
     matches!(status, WorkspaceStatus::Healthy)
 }
 
+fn workspace_allows_delivery_creation(status: WorkspaceStatus) -> bool {
+    matches!(status, WorkspaceStatus::Healthy)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -685,6 +862,8 @@ pub fn run() {
             create_revision,
             preflight_revision_approval,
             approve_revision,
+            preflight_delivery_creation,
+            create_delivery,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -693,7 +872,7 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::RevisionSummary;
+    use crate::models::{DeliveryFile, DeliverySummary, PlannedDeliveryFile, RevisionSummary};
 
     fn project_with_two_revisions() -> ProjectSummary {
         ProjectSummary {
@@ -705,6 +884,7 @@ mod tests {
             sample_rate: 48_000,
             bit_depth: 24,
             file_format: "WAV".into(),
+            delivery_method: "Download".into(),
             current_revision: 2,
             approved_revision: Some(1),
             delivered_revision: None,
@@ -776,6 +956,47 @@ mod tests {
         project
     }
 
+    fn expected_delivery() -> DeliveryCreationPreview {
+        DeliveryCreationPreview {
+            client_id: "acme".into(),
+            project_id: "blue-sky".into(),
+            project_name: "Blue Sky".into(),
+            current_revision: 2,
+            approved_revision: 1,
+            delivered_revision: Some(1),
+            delivery_method: "Download".into(),
+            selected: vec![PlannedDeliveryFile {
+                source_name: "Blue Sky Main Mix.wav".into(),
+                deliverable_type: "main_mix".into(),
+                path: "Blue Sky Main Mix.wav".into(),
+            }],
+            excluded: Vec::new(),
+        }
+    }
+
+    fn project_after_delivery_creation() -> ProjectSummary {
+        let mut project = project_with_two_revisions();
+        project.delivered_revision = Some(1);
+        project.delivery = Some(DeliverySummary {
+            document_id: "f5a3d96c-5d1a-4d0f-9712-cfc4f070d065".into(),
+            created_with: "jl-mixing 1.2.0".into(),
+            created_at: "2026-07-18T14:00:00Z".into(),
+            method: "Download".into(),
+            revision: 1,
+            revision_id: project.revisions[0].revision_id.clone(),
+            description: project.revisions[0].description.clone(),
+            approved_at: project.revisions[0].approved_at.clone().unwrap(),
+            approved_by: project.revisions[0].approved_by.clone().unwrap(),
+            files: vec![DeliveryFile {
+                path: "Blue Sky Main Mix.wav".into(),
+                deliverable_type: "main_mix".into(),
+                size_bytes: 12,
+                sha256: "0".repeat(64),
+            }],
+        });
+        project
+    }
+
     #[test]
     fn only_healthy_and_empty_workspaces_allow_client_creation() {
         assert!(workspace_allows_client_creation(WorkspaceStatus::Healthy));
@@ -844,6 +1065,18 @@ mod tests {
         ));
         assert!(!workspace_allows_revision_approval(WorkspaceStatus::Empty));
         assert!(!workspace_allows_revision_approval(
+            WorkspaceStatus::Invalid
+        ));
+    }
+
+    #[test]
+    fn only_healthy_workspaces_allow_delivery_creation() {
+        assert!(workspace_allows_delivery_creation(WorkspaceStatus::Healthy));
+        assert!(!workspace_allows_delivery_creation(
+            WorkspaceStatus::Partial
+        ));
+        assert!(!workspace_allows_delivery_creation(WorkspaceStatus::Empty));
+        assert!(!workspace_allows_delivery_creation(
             WorkspaceStatus::Invalid
         ));
     }
@@ -933,6 +1166,35 @@ mod tests {
             &before,
             &changed_delivery,
             &expected_approval(2),
+        ));
+    }
+
+    #[test]
+    fn verifies_exact_first_delivery_transition() {
+        assert!(verify_delivery_creation(
+            &project_with_two_revisions(),
+            &project_after_delivery_creation(),
+            &expected_delivery(),
+        ));
+    }
+
+    #[test]
+    fn rejects_delivery_reconciliation_when_history_or_files_change() {
+        let before = project_with_two_revisions();
+        let mut changed_history = project_after_delivery_creation();
+        changed_history.revisions[0].description = "Changed".into();
+        assert!(!verify_delivery_creation(
+            &before,
+            &changed_history,
+            &expected_delivery(),
+        ));
+
+        let mut changed_files = project_after_delivery_creation();
+        changed_files.delivery.as_mut().unwrap().files[0].path = "Other.wav".into();
+        assert!(!verify_delivery_creation(
+            &before,
+            &changed_files,
+            &expected_delivery(),
         ));
     }
 }

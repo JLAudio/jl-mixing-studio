@@ -131,6 +131,8 @@ Revision creation resolves an exact validated client/project identity and invoke
 
 Revision approval resolves the same exact project identity and invokes only `approve-mix --revision NUMBER --approved-by NAME --dry-run` for preview or `approve-mix --revision NUMBER --approved-by NAME` after confirmation. Studio does not expose `--project`, `--date`, notes, or delivery arguments. Automation supplies the execution timestamp. After success, Rust requires the selected revision to contain the returned approval identity and timestamp, the approved pointer to identify it, and all unrelated project and revision state—including the delivered pointer—to remain unchanged.
 
+First-delivery creation resolves the same exact project identity and is available only when an approved revision exists without a delivered pointer or delivery manifest. Preview invokes only `create-delivery --dry-run` from the validated project directory; confirmation invokes `create-delivery` with no arguments. Studio exposes no project path, include/exclude patterns, working-prefix override, ZIP, overwrite, or clean replacement. After success, Rust re-discovers the workspace and requires the delivered pointer, validated manifest revision, file paths, and classifications to match the Automation plan while all pre-existing project metadata, pointers, and revision history remain unchanged.
+
 ## Automated checks
 
 ```shell
@@ -193,21 +195,27 @@ On the Intel MacBook running macOS Monterey 12.7.6, while signed into the dispos
 37. Select an older historically approved revision and verify the confirmation warns that prior approval metadata will be replaced and that the revision is older than current.
 38. If a delivery exists for another revision, verify the confirmation states that delivery remains unchanged.
 39. Simulate an unverifiable approval result only in the disposable environment and verify Studio warns not to retry automatically.
+40. Open Delivery for a project with an approved but undelivered revision and select **Create delivery**.
+41. Confirm the preview lists Automation's selected paths, classifications, exclusions, fixed default replacement mode, and no ZIP while the workspace inventory remains unchanged.
+42. Cancel once and verify the project manifest and delivery directory inventory are unchanged.
+43. Repeat the preview, confirm creation, and verify the delivered pointer, delivery manifest, copied files, and SHA-256 records appear after refresh.
+44. Verify existing packages disable creation and explain that replacement requires a separate reviewed workflow.
+45. Simulate an unverifiable confirmed delivery only in the disposable environment and verify Studio warns not to retry automatically.
 
-Record the results on the guided-revision-approval pull request. Keep or manually archive the disposable test account after validation; JL Mixing Studio must not add unapproved deletion behavior for test cleanup.
+Record the results on the guided-first-delivery pull request. Keep or manually archive the disposable test account after validation; JL Mixing Studio must not add unapproved deletion behavior for test cleanup.
 
 ## Known limitations
 
 - Automation detection reads only the fixed `VERSION` metadata associated with the resolved `new-client` launcher and executes only its fixed `--help` health check.
 - Only the fixed default workspace can be discovered; arbitrary workspace selection is not implemented.
-- Discovery remains read-only; only approved guided client creation, project creation, intake-report updates, revision creation, and revision approval mutate the workspace.
+- Discovery remains read-only; only approved guided client creation, project creation, intake-report updates, revision creation, revision approval, and first-delivery creation mutate the workspace.
 - Client creation exposes only client ID, display name, and optional default artist; other values inherit studio defaults.
 - Project creation exposes only a validated client, project display name, and optional artist; Automation derives all other values and creates Revision 1.
 - Intake validation uses only Automation defaults; custom source, expected-format, and duplicate-check options are not exposed.
 - Revision creation accepts only an optional description; Automation's `--source` option is not exposed.
 - Revision approval accepts only a selected validated revision and approver identity; approval timestamp override is not exposed.
-- Delivery creation remains Planned.
-- Delivery inspection is read-only; package creation, ZIP generation, filters, overwrite, and destructive clean replacement remain Planned.
+- First-delivery creation uses only Automation defaults and is unavailable once a package exists.
+- ZIP generation, filters, overwrite, and destructive clean replacement remain Planned.
 - Client editing and deletion are not implemented.
 - JL Mixing Automation v1.2.0 does not run natively on Windows.
 - Browser rendering does not validate native Tauri integration.

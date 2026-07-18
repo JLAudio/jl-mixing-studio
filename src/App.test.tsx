@@ -5,6 +5,7 @@ import App from "./App";
 import type {
   ApprovalOperationResult,
   ClientOperationResult,
+  DeliveryOperationResult,
   IntakeOperationResult,
   IntakeReport,
   ProjectOperationResult,
@@ -26,6 +27,7 @@ const version: VersionCheck = {
   intakeValidationSupported: true,
   revisionCreationSupported: true,
   revisionApprovalSupported: true,
+  deliveryCreationSupported: true,
   version: "1.2.0",
   message: "JL Mixing Automation 1.2.0 detected",
 };
@@ -81,6 +83,33 @@ const revisionCreateResult: RevisionOperationResult = {
   ...revisionPreviewResult,
   code: "created",
   message: "Revision created successfully.",
+};
+
+const deliveryPreviewResult: DeliveryOperationResult = {
+  ok: true,
+  code: "ready",
+  message: "Delivery preview completed. No changes were made.",
+  delivery: {
+    clientId: "acme",
+    projectId: "blue-sky",
+    projectName: "Blue Sky",
+    currentRevision: 2,
+    approvedRevision: 1,
+    deliveredRevision: null,
+    deliveryMethod: "Download",
+    selected: [
+      { sourceName: "Blue Sky Main Mix.wav", deliverableType: "main_mix", path: "Blue Sky Main Mix.wav" },
+      { sourceName: "Blue Sky Stems.wav", deliverableType: "stems", path: "Stems/Blue Sky Stems.wav" },
+    ],
+    excluded: [{ name: "Revision_Notes.md", reason: "revision notes" }],
+  },
+};
+
+const deliveryCreateResult: DeliveryOperationResult = {
+  ...deliveryPreviewResult,
+  code: "created",
+  message: "Delivery package created successfully.",
+  delivery: { ...deliveryPreviewResult.delivery!, deliveredRevision: 1 },
 };
 
 const approvalPreviewResult: ApprovalOperationResult = {
@@ -165,6 +194,7 @@ const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
       sampleRate: 48000,
       bitDepth: 24,
       fileFormat: "WAV",
+      deliveryMethod: "Download",
       currentRevision: 2,
       approvedRevision: 1,
       deliveredRevision: null,
@@ -334,7 +364,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getAllByText(/history remains readable/i)).toHaveLength(2);
   });
 
-  it("shows authoritative first-delivery readiness without enabling mutation", async () => {
+  it("shows authoritative first-delivery readiness with guided creation available", async () => {
     render(<App />);
     await screen.findByText("JL Mix Studio");
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
@@ -343,8 +373,34 @@ describe("JL Mixing Studio", () => {
 
     expect(screen.getByRole("heading", { name: "Delivery", level: 2 })).toBeInTheDocument();
     expect(screen.getByText("Ready for first delivery")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create delivery Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Create delivery" })).toBeEnabled();
     expect(screen.getByText("No delivery package recorded")).toBeInTheDocument();
+  });
+
+  it("previews the fixed first-delivery plan and cancels without creating", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "preflight_delivery_creation") return Promise.resolve(deliveryPreviewResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create delivery" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Confirm delivery package" });
+    expect(within(dialog).getAllByText("Blue Sky Main Mix.wav")).toHaveLength(2);
+    expect(within(dialog).getByText("Stems/Blue Sky Stems.wav")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Revision_Notes.md \(revision notes\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/overwrite, clean replacement, filters, and ZIP are not enabled/i)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(screen.queryByRole("dialog", { name: "Confirm delivery package" })).not.toBeInTheDocument();
+    expect(mockedInvoke.mock.calls.some(([command]) => command === "create_delivery")).toBe(false);
   });
 
   it("displays a validated current delivery manifest and recorded checksums", async () => {
@@ -375,6 +431,51 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText("main mix")).toBeInTheDocument();
     expect(screen.getAllByText("1,200")).toHaveLength(2);
     expect(screen.getByText(/did not re-hash delivery files/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create delivery" })).toBeDisabled();
+    expect(screen.getByText(/replacement requires a separate reviewed workflow/i)).toBeInTheDocument();
+  });
+
+  it("creates the first delivery and refreshes the authoritative package", async () => {
+    const before = healthyWorkspace();
+    const after = healthyWorkspace();
+    const project = after.clients[0].projects[0];
+    project.deliveredRevision = 1;
+    project.delivery = {
+      documentId: "f5a3d96c-5d1a-4d0f-9712-cfc4f070d065",
+      createdWith: "jl-mixing 1.2.0",
+      createdAt: "2026-07-18T13:00:00Z",
+      method: "Download",
+      revision: 1,
+      revisionId: project.revisions[0].revisionId,
+      description: project.revisions[0].description,
+      approvedAt: project.revisions[0].approvedAt!,
+      approvedBy: project.revisions[0].approvedBy!,
+      files: [
+        { path: "Blue Sky Main Mix.wav", deliverableType: "main_mix", sizeBytes: 1200, sha256: "0".repeat(64) },
+        { path: "Stems/Blue Sky Stems.wav", deliverableType: "stems", sizeBytes: 2400, sha256: "1".repeat(64) },
+      ],
+    };
+    let discoveries = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(discoveries++ === 0 ? before : after);
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "preflight_delivery_creation") return Promise.resolve(deliveryPreviewResult);
+      if (command === "create_delivery") return Promise.resolve(deliveryCreateResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create delivery" }));
+    const dialog = await screen.findByRole("dialog", { name: "Confirm delivery package" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create delivery" }));
+
+    expect(await screen.findByText(/Revision 1 was packaged and verified with 2 delivered files/)).toBeInTheDocument();
+    expect(screen.getByText("Delivery is current")).toBeInTheDocument();
+    expect(screen.getByText("Stems/Blue Sky Stems.wav")).toBeInTheDocument();
   });
 
   it("identifies an existing package that requires replacement review", async () => {
@@ -1114,6 +1215,7 @@ describe("JL Mixing Studio", () => {
         intakeValidationSupported: false,
       revisionCreationSupported: false,
       revisionApprovalSupported: false,
+      deliveryCreationSupported: false,
       version: null,
       message: "JL Mixing Automation was not found in its default install location or on PATH",
     });
@@ -1373,6 +1475,7 @@ describe("JL Mixing Studio", () => {
         intakeValidationSupported: false,
       revisionCreationSupported: false,
       revisionApprovalSupported: false,
+      deliveryCreationSupported: false,
       version: "1.3.0",
       message: "JL Mixing Automation 1.3.0 detected; guided creation requires 1.2.0",
     });
