@@ -3,8 +3,8 @@ mod models;
 mod workspace;
 
 use models::{
-    ClientCreationRequest, ClientOperationCode, ClientOperationResult, SystemInfo, VersionCheck,
-    ProjectCreationRequest, ProjectOperationCode, ProjectOperationResult, WorkspaceSnapshot,
+    ClientCreationRequest, ClientOperationCode, ClientOperationResult, ProjectCreationRequest,
+    ProjectOperationCode, ProjectOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot,
     WorkspaceStatus,
 };
 use std::path::PathBuf;
@@ -158,8 +158,7 @@ fn run_project_operation(
             "The selected client is no longer available in the validated workspace",
         );
     }
-    let Some(client_directory) =
-        workspace::find_validated_client_path(&workspace_path, client_id)
+    let Some(client_directory) = workspace::find_validated_client_path(&workspace_path, client_id)
     else {
         return cli::blocked_project_operation(
             ProjectOperationCode::ClientUnavailable,

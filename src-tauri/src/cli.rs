@@ -394,10 +394,7 @@ fn client_arguments(client: &ClientCreationSummary, operation: ClientOperation) 
     arguments
 }
 
-fn project_arguments(
-    request: &ProjectCreationRequest,
-    operation: ProjectOperation,
-) -> Vec<String> {
+fn project_arguments(request: &ProjectCreationRequest, operation: ProjectOperation) -> Vec<String> {
     let mut arguments = vec!["--project".into(), request.project_name.clone()];
     if let Some(artist) = &request.artist {
         arguments.push("--artist".into());
@@ -972,7 +969,13 @@ mod tests {
         );
         assert_eq!(
             invocations[1].arguments,
-            vec!["--project", "Blue Sky", "--artist", "The Artist", "--dry-run"]
+            vec![
+                "--project",
+                "Blue Sky",
+                "--artist",
+                "The Artist",
+                "--dry-run"
+            ]
         );
         assert!(!invocations[1].arguments.contains(&"--no-cd".into()));
         assert_eq!(
