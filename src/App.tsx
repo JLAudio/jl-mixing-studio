@@ -13,6 +13,9 @@ import type {
   ClientOperationResult,
   ClientSummary,
   DiscoveryIssue,
+  IntakeOperationResult,
+  IntakeReport,
+  IntakeRequest,
   ProjectCreationRequest,
   ProjectCreationSummary,
   ProjectOperationResult,
@@ -72,6 +75,17 @@ interface ProjectFormValues {
   projectName: string;
   artist: string;
 }
+
+type ProjectView = "overview" | "intake";
+
+type IntakeWorkflowState =
+  | { status: "closed" }
+  | { status: "preflighting" }
+  | { status: "confirming"; preview: IntakeReport }
+  | { status: "running"; preview: IntakeReport }
+  | { status: "uncertain"; message: string };
+
+type IntakeReportState = { status: "idle" } | ResourceState<IntakeOperationResult>;
 
 type PrimaryRoute =
   | "dashboard"
@@ -705,6 +719,25 @@ function ProjectsRoute({
   );
 }
 
+function ProjectWorkflowTabs({
+  active,
+  onOverview,
+  onIntake,
+}: {
+  active: ProjectView;
+  onOverview: () => void;
+  onIntake: () => void;
+}) {
+  const planned = ["Revisions", "Delivery", "Reports", "Files", "Metadata"];
+  return (
+    <div className="workflow-tabs" aria-label="Project workflow">
+      {active === "overview" ? <span aria-current="page">Overview</span> : <button type="button" onClick={onOverview}>Overview</button>}
+      {active === "intake" ? <span aria-current="page">Intake</span> : <button type="button" onClick={onIntake}>Intake</button>}
+      {planned.map((tab) => <button key={tab} type="button" disabled>{tab}<small>Planned</small></button>)}
+    </div>
+  );
+}
+
 function ProjectOverview({
   client,
   project,
@@ -712,6 +745,7 @@ function ProjectOverview({
   onProjects,
   onClient,
   onRefresh,
+  onIntake,
   loading,
 }: {
   client: ClientSummary;
@@ -720,9 +754,9 @@ function ProjectOverview({
   onProjects: () => void;
   onClient: () => void;
   onRefresh: () => void;
+  onIntake: () => void;
   loading: boolean;
 }) {
-  const workflowTabs = ["Overview", "Intake", "Revisions", "Delivery", "Reports", "Files", "Metadata"];
   return (
     <>
       <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb">
@@ -730,9 +764,7 @@ function ProjectOverview({
         {fromClient && <><button type="button" onClick={onClient}>{client.clientName}</button><span aria-hidden="true">/</span></>}
         <span aria-current="page">{project.projectName}</span>
       </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <div className="workflow-tabs" aria-label="Project workflow">
-        {workflowTabs.map((tab) => tab === "Overview" ? <span key={tab} aria-current="page">{tab}</span> : <button key={tab} type="button" disabled>{tab}<small>Planned</small></button>)}
-      </div>
+      <ProjectWorkflowTabs active="overview" onOverview={() => undefined} onIntake={onIntake} />
       <section className="detail-summary project-revisions" aria-label="Project revision state">
         <article><span>Current</span><strong>{revisionLabel(project.currentRevision)}</strong></article>
         <article><span>Approved</span><strong>{revisionLabel(project.approvedRevision)}</strong></article>
@@ -746,12 +778,125 @@ function ProjectOverview({
           </dl>
         </section>
         <section className="panel" aria-labelledby="project-actions-heading">
-          <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Workflow controls</h2></div><span className="planned-pill">Planned</span></div>
-          <div className="action-stack"><button type="button" disabled>Open folder — Planned</button><button type="button" disabled>Open DAW — Planned</button><button type="button" disabled>Validate intake — Planned</button></div>
-          <p className="action-help">Project creation is available from the directories; lifecycle actions remain planned.</p>
+          <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Workflow controls</h2></div></div>
+          <div className="action-stack"><button type="button" disabled>Open folder — Planned</button><button type="button" disabled>Open DAW — Planned</button><button type="button" onClick={onIntake}>Validate intake</button></div>
+          <p className="action-help">Preview the authoritative intake report before updating its managed section.</p>
         </section>
       </div>
     </>
+  );
+}
+
+function IntakeReportContent({ report, compact = false }: { report: IntakeReport; compact?: boolean }) {
+  const findingGroups = [
+    ["Critical errors", report.criticalErrors],
+    ["Duplicate filenames", report.duplicateFilenames],
+    ["Project-format mismatches", report.formatMismatches],
+    ["Unsupported or non-audio files", report.unsupportedFiles],
+    ["Skipped or unavailable checks", report.unavailableChecks],
+  ] as const;
+  return (
+    <>
+      <section className="detail-summary intake-summary" aria-label="Intake summary">
+        <article><span>Files</span><strong>{report.filesDiscovered}</strong></article>
+        <article><span>Blocking errors</span><strong>{report.blockingErrors}</strong></article>
+        <article><span>Warnings</span><strong>{report.warnings}</strong></article>
+      </section>
+      <p className="intake-format">Expected format: {report.expectedSampleRate / 1000} kHz / {report.expectedBitDepth}-bit · Enhanced inspection {report.enhancedInspectionAvailable ? "available" : "unavailable"}</p>
+      {!compact && (
+        <>
+          <div className="intake-findings">
+            {findingGroups.map(([label, findings]) => (
+              <section key={label} className="panel">
+                <h3>{label}</h3>
+                {findings.length > 0 ? <ul>{findings.map((finding) => <li key={finding}>{finding}</li>)}</ul> : <p>None.</p>}
+              </section>
+            ))}
+          </div>
+          <section className="panel intake-inventory" aria-labelledby="intake-inventory-heading">
+            <div className="panel-heading"><div><p className="kicker">Source inventory</p><h2 id="intake-inventory-heading">{report.inventory.length} inspected {report.inventory.length === 1 ? "file" : "files"}</h2></div></div>
+            <div className="table-scroll"><table><thead><tr><th scope="col">File</th><th scope="col">Size</th><th scope="col">Technical details</th></tr></thead><tbody>
+              {report.inventory.map((item) => <tr key={item.file}><td><code>{item.file}</code></td><td>{item.sizeBytes.toLocaleString()} bytes</td><td>{item.technicalDetails}</td></tr>)}
+              {report.inventory.length === 0 && <tr><td colSpan={3}>No files discovered.</td></tr>}
+            </tbody></table></div>
+          </section>
+          <section className="panel intake-recommendations"><p className="kicker">Preparation recommendations</p><ul>{report.recommendations.map((item) => <li key={item}>{item}</li>)}</ul></section>
+          <p className="intake-source">Source: <code>{report.source}</code></p>
+        </>
+      )}
+    </>
+  );
+}
+
+function IntakeView({
+  client,
+  project,
+  reportState,
+  actionError,
+  validationAvailable,
+  validationHelp,
+  loading,
+  onOverview,
+  onPreview,
+  onRefresh,
+}: {
+  client: ClientSummary;
+  project: ProjectSummary;
+  reportState: IntakeReportState;
+  actionError: string | null;
+  validationAvailable: boolean;
+  validationHelp: string;
+  loading: boolean;
+  onOverview: () => void;
+  onPreview: () => void;
+  onRefresh: () => void;
+}) {
+  const result = reportState.status === "ready" ? reportState.value : null;
+  return (
+    <>
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Intake</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+      <ProjectWorkflowTabs active="intake" onOverview={onOverview} onIntake={() => undefined} />
+      <section className="directory-toolbar intake-toolbar" aria-labelledby="intake-heading">
+        <div><p className="kicker">{client.clientName}</p><h2 id="intake-heading">Intake validation</h2></div>
+        <button type="button" onClick={onPreview} disabled={!validationAvailable || loading}>Preview validation</button>
+      </section>
+      <p className="action-help directory-help">{validationHelp}</p>
+      {actionError && <div className="notice error" role="alert">{actionError}</div>}
+      {(reportState.status === "idle" || reportState.status === "loading") && <section className="empty-state"><h2>Loading intake report</h2><p>Reading the Automation-managed report from the validated project.</p></section>}
+      {reportState.status === "error" && <section className="notice error" role="alert"><strong>Report unavailable</strong><span>{reportState.message}</span></section>}
+      {result && !result.ok && <section className="notice error" role="alert"><strong>Report unavailable</strong><span>{result.message}</span></section>}
+      {result?.ok && !result.report && <section className="empty-state"><h2>Intake validation has not been run</h2><p>Preview the default Automation validation before updating the managed report section.</p></section>}
+      {result?.ok && result.report && <IntakeReportContent report={result.report} />}
+    </>
+  );
+}
+
+function IntakeDialog({
+  state,
+  onConfirm,
+  onClose,
+}: {
+  state: Exclude<IntakeWorkflowState, { status: "closed" } | { status: "preflighting" }>;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const pending = state.status === "running";
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (state.status === "confirming") confirmButton.current?.focus();
+  }, [state.status]);
+  return (
+    <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
+      <section className="client-dialog intake-dialog" role="dialog" aria-modal="true" aria-labelledby="intake-dialog-title">
+        <p className="kicker">Guided validation</p>
+        <h2 id="intake-dialog-title">{state.status === "uncertain" ? "Validation needs verification" : "Confirm intake report update"}</h2>
+        {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not run validation again automatically. Close this message and refresh the authoritative report.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></> : <>
+          <p className="dialog-intro">The dry-run preview below did not change the project. Confirm to replace only the Automation-managed section of <code>00_Admin/Intake_Report.md</code>. Intake source files will not be modified.</p>
+          <IntakeReportContent report={state.preview} compact />
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Updating report…" : "Update intake report"}</button></div>
+        </>}
+      </section>
+    </div>
   );
 }
 
@@ -1126,8 +1271,13 @@ export default function App() {
   const [clientForm, setClientForm] = useState<ClientFormValues>(emptyClientForm);
   const [projectWorkflow, setProjectWorkflow] = useState<ProjectWorkflowState>({ status: "closed" });
   const [projectForm, setProjectForm] = useState<ProjectFormValues>(emptyProjectForm);
+  const [projectView, setProjectView] = useState<ProjectView>("overview");
+  const [intakeReport, setIntakeReport] = useState<IntakeReportState>({ status: "idle" });
+  const [intakeWorkflow, setIntakeWorkflow] = useState<IntakeWorkflowState>({ status: "closed" });
+  const [intakeActionError, setIntakeActionError] = useState<string | null>(null);
   const [creationNotice, setCreationNotice] = useState<string | null>(null);
   const [projectCreationNotice, setProjectCreationNotice] = useState<string | null>(null);
+  const [intakeNotice, setIntakeNotice] = useState<string | null>(null);
   const requestId = useRef(0);
 
   const refresh = useCallback(() => {
@@ -1167,6 +1317,8 @@ export default function App() {
       const project = client?.projects.find((item) => item.projectId === selectedProject.projectId);
       if (!client || !project) {
         setSelectedProject(null);
+        setProjectView("overview");
+        setIntakeReport({ status: "idle" });
         setSelectedClientId(null);
         setActiveRoute("projects");
         setRouteNotice("The selected project is no longer available in the refreshed workspace.");
@@ -1200,6 +1352,11 @@ export default function App() {
     workspaceAllowsProjectCreation &&
     version.status === "ready" &&
     version.value.projectCreationSupported;
+  const intakeValidationAvailable =
+    workspace.status === "ready" &&
+    workspace.value.status === "healthy" &&
+    version.status === "ready" &&
+    version.value.intakeValidationSupported;
 
   const clientCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
@@ -1227,6 +1384,17 @@ export default function App() {
       return version.value.message;
     }
     return "Preview and confirm a new project using JL Mixing Automation v1.2.0.";
+  })();
+
+  const intakeValidationHelp = (() => {
+    if (workspace.status !== "ready" || version.status !== "ready") {
+      return "Workspace and automation checks must finish first.";
+    }
+    if (workspace.value.status !== "healthy") {
+      return "The existing report remains readable, but workspace issues must be resolved before validation can run.";
+    }
+    if (!version.value.intakeValidationSupported) return version.value.message;
+    return "Preview the Automation v1.2.0 defaults, then confirm the managed report update.";
   })();
 
   const openClientWorkflow = () => {
@@ -1445,10 +1613,81 @@ export default function App() {
       });
   };
 
+  const loadIntakeReport = (request: IntakeRequest) => {
+    setIntakeReport({ status: "loading" });
+    invoke<IntakeOperationResult>("get_intake_report", { request })
+      .then((result) => setIntakeReport({ status: "ready", value: result }))
+      .catch((error: unknown) => {
+        setIntakeReport({ status: "error", message: safeError(error, "The intake report could not be read.") });
+      });
+  };
+
+  const openIntake = () => {
+    if (!resolvedProjectClient || !resolvedProject) return;
+    const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
+    setProjectView("intake");
+    setIntakeWorkflow({ status: "closed" });
+    setIntakeActionError(null);
+    setIntakeNotice(null);
+    loadIntakeReport(request);
+  };
+
+  const preflightIntake = () => {
+    if (!resolvedProjectClient || !resolvedProject || !intakeValidationAvailable) return;
+    const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
+    setIntakeActionError(null);
+    setIntakeNotice(null);
+    setIntakeWorkflow({ status: "preflighting" });
+    invoke<IntakeOperationResult>("preflight_intake_validation", { request })
+      .then((result) => {
+        if (result.ok && result.report && (result.code === "ready" || result.code === "blockingFindings")) {
+          setIntakeWorkflow({ status: "confirming", preview: result.report });
+        } else {
+          setIntakeWorkflow({ status: "closed" });
+          setIntakeActionError(result.message);
+        }
+      })
+      .catch((error: unknown) => {
+        setIntakeWorkflow({ status: "closed" });
+        setIntakeActionError(safeError(error, "The intake preview could not be completed."));
+      });
+  };
+
+  const confirmIntake = () => {
+    if (intakeWorkflow.status !== "confirming" || !resolvedProjectClient || !resolvedProject) return;
+    const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
+    const preview = intakeWorkflow.preview;
+    setIntakeWorkflow({ status: "running", preview });
+    invoke<IntakeOperationResult>("run_intake_validation", { request })
+      .then((result) => {
+        if (result.code === "uncertain") {
+          setIntakeWorkflow({ status: "uncertain", message: result.message });
+          return;
+        }
+        if (!result.ok || !result.report || (result.code !== "validated" && result.code !== "blockingFindings")) {
+          setIntakeWorkflow({ status: "closed" });
+          setIntakeActionError(result.message);
+          return;
+        }
+        if (result.report.clientId !== request.clientId || result.report.projectId !== request.projectId) {
+          setIntakeWorkflow({ status: "uncertain", message: "The intake report was updated, but its project identity could not be verified. Do not retry automatically." });
+          return;
+        }
+        setIntakeReport({ status: "ready", value: result });
+        setIntakeWorkflow({ status: "closed" });
+        setIntakeNotice(result.report.blockingErrors > 0 ? "The intake report was updated with blocking findings." : "The intake report was updated and verified.");
+      })
+      .catch((error: unknown) => {
+        setIntakeWorkflow({ status: "uncertain", message: safeError(error, "The intake-validation result could not be confirmed. The report may have been updated; do not retry automatically.") });
+      });
+  };
+
   const navigate = (route: PrimaryRoute) => {
     setActiveRoute(route);
     setSelectedClientId(null);
     setSelectedProject(null);
+    setProjectView("overview");
+    setIntakeReport({ status: "idle" });
     setRouteNotice(null);
   };
 
@@ -1466,9 +1705,9 @@ export default function App() {
     ? {
         id: "projects",
         label: "Projects",
-        eyebrow: "Project overview",
+        eyebrow: projectView === "intake" ? "Project intake" : "Project overview",
         title: resolvedProject.projectName,
-        description: `${resolvedProject.artist} · Read-only authoritative project state.`,
+        description: projectView === "intake" ? `${resolvedProject.artist} · Automation-managed intake validation.` : `${resolvedProject.artist} · Authoritative project state.`,
       }
     : resolvedClient
       ? {
@@ -1498,6 +1737,9 @@ export default function App() {
             <span>{projectCreationNotice}</span>
           </section>
         )}
+        {intakeNotice && (
+          <section className="notice success" role="status"><strong>Intake report updated</strong><span>{intakeNotice}</span></section>
+        )}
         {activeRoute === "dashboard" && (
           <Dashboard
             workspace={workspace}
@@ -1521,6 +1763,7 @@ export default function App() {
             projectCreationHelp={projectCreationHelp}
             onSelectProject={(projectId) => {
               setSelectedProject({ clientId: resolvedClient.clientId, projectId, fromClient: true });
+              setProjectView("overview");
               setActiveRoute("projects");
               setRouteNotice(null);
             }}
@@ -1536,19 +1779,37 @@ export default function App() {
             clientCreationHelp={clientCreationHelp}
           />
         ))}
-        {activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject ? (
+        {activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "intake" ? (
+          <IntakeView
+            client={resolvedProjectClient}
+            project={resolvedProject}
+            reportState={intakeReport}
+            actionError={intakeActionError}
+            validationAvailable={intakeValidationAvailable}
+            validationHelp={intakeValidationHelp}
+            loading={loading || intakeWorkflow.status === "preflighting"}
+            onOverview={() => { setProjectView("overview"); setIntakeWorkflow({ status: "closed" }); setIntakeActionError(null); }}
+            onPreview={preflightIntake}
+            onRefresh={() => {
+              refresh();
+              loadIntakeReport({ clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId });
+            }}
+          />
+        ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject ? (
           <ProjectOverview
             client={resolvedProjectClient}
             project={resolvedProject}
             fromClient={selectedProject.fromClient}
-            onProjects={() => { setSelectedProject(null); setSelectedClientId(null); setRouteNotice(null); }}
+            onProjects={() => { setSelectedProject(null); setSelectedClientId(null); setProjectView("overview"); setRouteNotice(null); }}
             onClient={() => {
               setSelectedProject(null);
+              setProjectView("overview");
               setSelectedClientId(resolvedProjectClient.clientId);
               setActiveRoute("clients");
               setRouteNotice(null);
             }}
             onRefresh={refresh}
+            onIntake={openIntake}
             loading={loading}
           />
         ) : activeRoute === "projects" ? (
@@ -1562,6 +1823,7 @@ export default function App() {
             onSelectProject={(clientId, projectId) => {
               setSelectedClientId(null);
               setSelectedProject({ clientId, projectId, fromClient: false });
+              setProjectView("overview");
               setRouteNotice(null);
             }}
           />
@@ -1599,6 +1861,19 @@ export default function App() {
             });
           }}
           onClose={closeProjectWorkflow}
+        />
+      )}
+      {intakeWorkflow.status !== "closed" && intakeWorkflow.status !== "preflighting" && (
+        <IntakeDialog
+          state={intakeWorkflow}
+          onConfirm={confirmIntake}
+          onClose={() => {
+            if (intakeWorkflow.status === "running") return;
+            setIntakeWorkflow({ status: "closed" });
+            if (resolvedProjectClient && resolvedProject) {
+              loadIntakeReport({ clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId });
+            }
+          }}
         />
       )}
     </div>

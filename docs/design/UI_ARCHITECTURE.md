@@ -2,9 +2,9 @@
 
 **Status:** Approved design direction  
 **Approved:** July 17, 2026  
-**Implemented milestones:** [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8), [Issue #11](https://github.com/JLAudio/jl-mixing-studio/issues/11)
+**Implemented milestones:** [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8), [Issue #11](https://github.com/JLAudio/jl-mixing-studio/issues/11), [Issue #13](https://github.com/JLAudio/jl-mixing-studio/issues/13)
 
-**Current milestone:** [Issue #13](https://github.com/JLAudio/jl-mixing-studio/issues/13)
+**Current milestone:** [Issue #15](https://github.com/JLAudio/jl-mixing-studio/issues/15)
 
 **Functional baseline:** JL Mixing Automation v1.2.0
 
@@ -53,10 +53,10 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Dashboard | Answer “What do I need to work on today?” through authoritative summary, Today’s Work, Studio Health, Quick Actions, and Recent Activity sections | Implemented summary and guided New Client; unsupported sections remain Planned |
 | Studio | Display studio identity, configured defaults, workspace information, and approved diagnostics | Future milestone |
 | Clients | List clients and enter approved client workflows | Implemented directory and guided client creation |
-| Client Details | Present validated client defaults and the client's projects; enter a selected project | Implemented; guided project creation current; client editing unsupported |
+| Client Details | Present validated client defaults and the client's projects; enter a selected project | Implemented; guided project creation available; client editing unsupported |
 | Projects | Search, filter, and inspect projects using derived lifecycle state | Implemented directory and selection; search and filters remain Planned |
-| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview; lifecycle actions remain Planned |
-| Intake | Run and present non-destructive validation | Future milestone |
+| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview and Intake entry; remaining lifecycle actions Planned |
+| Intake | Run and present non-destructive source validation with an authoritative managed-report update | Current milestone |
 | Revisions | Present revision history and approved revision actions | Future milestone |
 | Delivery | Present delivery readiness and approved delivery actions | Future milestone |
 | Tasks | Derive actionable work from authoritative project state | Approved derivation rules; future milestone |
@@ -198,6 +198,19 @@ The shell milestone establishes the complete product-level layout vocabulary but
 5. Automation remains authoritative for project ID derivation, inherited defaults, folder structure, and initial Revision 1.
 6. Successful creation is reconciled through workspace discovery before Project Overview opens.
 7. Uncertain outcomes are never retried automatically.
+
+## Guided intake-validation milestone
+
+[Issue #15](https://github.com/JLAudio/jl-mixing-studio/issues/15) activates the project Intake route without broadening Automation's source-file boundary:
+
+1. Existing managed intake reports are readable for exact validated client/project identities, including in otherwise partial workspaces.
+2. Rust resolves the project directory internally and accepts no frontend path or custom validation arguments.
+3. Preview uses only `validate-intake --dry-run`; confirmation uses the fixed command with no arguments.
+4. Exit code 5 is represented as a completed validation with blocking findings.
+5. The UI displays Automation-derived counts, findings, inventory, inspection availability, and recommendations.
+6. Confirmation states that only the managed section of `00_Admin/Intake_Report.md` changes and intake source files remain untouched.
+7. A confirmed result is successful only after the authoritative report is re-read and verified from disk.
+8. Uncertain outcomes are never retried automatically.
 
 ## Accessibility and responsive requirements
 

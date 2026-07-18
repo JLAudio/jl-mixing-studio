@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Approved baseline; guided project creation current
+**Status:** Approved baseline; guided intake validation current
 
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
@@ -257,7 +257,7 @@ This completed milestone made the approved Clients and Projects routes useful wh
 
 Client editing, project creation, folder and DAW launch, intake validation, revision creation, approval, delivery, reports, files, and metadata editing remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #11](https://github.com/JLAudio/jl-mixing-studio/issues/11).
 
-## 16. Current milestone: safe guided project creation
+## 16. Completed milestone: safe guided project creation
 
 This milestone adds the next controlled write workflow while retaining JL Mixing Automation v1.2.0 as the functional baseline. The application shall:
 
@@ -275,7 +275,24 @@ This milestone adds the next controlled write workflow while retaining JL Mixing
 
 Client editing or deletion, project editing or deletion, intake validation, revision creation or approval, delivery, folder or DAW launch, and arbitrary workspace or executable selection remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #13](https://github.com/JLAudio/jl-mixing-studio/issues/13).
 
-## 17. Future decisions requiring approval
+## 17. Current milestone: guided intake validation
+
+This milestone activates the project Intake route while preserving JL Mixing Automation v1.2.0 and its managed report as authoritative. The application shall:
+
+1. Resolve a validated project directory internally from its client ID and project ID without accepting a frontend path.
+2. Read and parse the existing `00_Admin/Intake_Report.md` managed section, including its explicit not-yet-run state.
+3. Preview only the fixed `validate-intake --dry-run` operation from the validated project directory.
+4. Use Automation defaults for source, sample rate, bit depth, and duplicate detection without exposing overrides.
+5. Treat exit code 5 as a completed report with blocking findings rather than a command failure.
+6. Display authoritative counts, findings, source inventory, enhanced-inspection availability, and preparation recommendations.
+7. Require explicit confirmation before invoking `validate-intake` with no arguments to update only the managed report section.
+8. Re-read and verify the report from disk before reporting a confirmed result.
+9. Keep valid existing reports readable in partial workspaces while disabling new validation until workspace issues are resolved.
+10. Treat unverified confirmed outcomes as uncertain and never retry automatically.
+
+Custom intake sources, expected-format overrides, disabled duplicate detection, intake-file mutation, automatic conversion, DAW import, revision creation or approval, and delivery remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #15](https://github.com/JLAudio/jl-mixing-studio/issues/15).
+
+## 18. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.
