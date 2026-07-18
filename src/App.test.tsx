@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
@@ -80,7 +80,7 @@ const respondWith = (
   });
 };
 
-describe("workspace dashboard", () => {
+describe("JL Mixing Studio", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
     respondWith(healthyWorkspace());
@@ -115,22 +115,21 @@ describe("workspace dashboard", () => {
     expect(screen.getByRole("button", { name: "Validate intake Planned" })).toBeDisabled();
   });
 
-  it("navigates with a programmatic active state and honest planned route content", async () => {
+  it("navigates to the functional project directory with a programmatic active state", async () => {
     render(<App />);
     await screen.findByText("JL Mix Studio");
 
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
 
     expect(screen.getByRole("button", { name: "Dashboard" })).not.toHaveAttribute("aria-current");
-    expect(screen.getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
+    expect(within(screen.getByRole("navigation", { name: "Primary navigation" })).getByRole("button", { name: "Projects" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("heading", { name: "Projects", level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Project directory is planned" })).toBeInTheDocument();
-    expect(screen.getByText(/Projects remains the active primary route/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Blue Sky" })).toBeInTheDocument();
     expect(screen.getByLabelText("Projects search")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByLabelText("Global search")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("keeps guided client creation available from the planned Clients route", async () => {
+  it("keeps guided client creation available from the Clients directory", async () => {
     render(<App />);
     await screen.findByText("JL Mix Studio");
 
@@ -140,6 +139,85 @@ describe("workspace dashboard", () => {
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "New client" })).toBeInTheDocument();
+  });
+
+  it("opens Client Details and the shared Project Overview from Clients", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clients" }));
+    expect(screen.getByRole("button", { name: "Acme Records" })).toBeInTheDocument();
+    expect(screen.getByText("acme")).toBeInTheDocument();
+    expect(screen.getByText("The Artist")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Acme Records" }));
+    expect(screen.getByRole("heading", { name: "Acme Records", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/no approved client-edit command/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Blue Sky" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    expect(
+      within(screen.getByRole("navigation", { name: "Primary navigation" })).getByRole("button", {
+        name: "Projects",
+      }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("heading", { name: "Blue Sky", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("48 kHz / 24-bit / WAV")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Intake Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open folder — Planned" })).toBeDisabled();
+  });
+
+  it("uses the client and project ID pair when opening projects across clients", async () => {
+    const snapshot = healthyWorkspace("Blue Sky");
+    snapshot.clients.push({
+      clientId: "second-client",
+      clientName: "Second Client",
+      defaultArtist: "Second Artist",
+      projects: [{
+        ...snapshot.clients[0].projects[0],
+        projectId: "blue-sky",
+        projectName: "Second Blue Sky",
+        artist: "Second Artist",
+      }],
+    });
+    snapshot.counts = { clients: 2, projects: 2, issues: 0 };
+    respondWith(snapshot);
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Second Blue Sky" }));
+
+    expect(screen.getByRole("heading", { name: "Second Blue Sky", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("Second Client")).toBeInTheDocument();
+    expect(screen.getByText("Second Artist")).toBeInTheDocument();
+  });
+
+  it("returns safely to Projects when refresh removes the selected project", async () => {
+    let workspaceCalls = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") {
+        workspaceCalls += 1;
+        const snapshot = healthyWorkspace();
+        if (workspaceCalls > 1) {
+          snapshot.clients[0].projects = [];
+          snapshot.counts.projects = 0;
+        }
+        return Promise.resolve(snapshot);
+      }
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(/selected project is no longer available/i);
+    expect(screen.getByRole("heading", { name: "Projects", level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Blue Sky", level: 1 })).not.toBeInTheDocument();
   });
 
   it("shows partial-discovery guidance without duplicating project details", async () => {
@@ -163,6 +241,11 @@ describe("workspace dashboard", () => {
     expect(screen.getByText(/1 workspace item needs attention/i)).toBeInTheDocument();
     expect(screen.getByText(/correct or recreate/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    expect(screen.getByRole("button", { name: "Blue Sky" })).toBeInTheDocument();
+    expect(screen.getByText("Broken Project")).toBeInTheDocument();
+    expect(screen.getByText(/only validated clients and projects are shown/i)).toBeInTheDocument();
   });
 
   it("shows setup guidance for an unavailable workspace", async () => {
