@@ -3,8 +3,9 @@ mod models;
 mod workspace;
 
 use models::{
-    ClientCreationRequest, ClientOperationCode, ClientOperationResult, SystemInfo, VersionCheck,
-    WorkspaceSnapshot, WorkspaceStatus,
+    ClientCreationRequest, ClientOperationCode, ClientOperationResult, ProjectCreationRequest,
+    ProjectOperationCode, ProjectOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot,
+    WorkspaceStatus,
 };
 use std::path::PathBuf;
 use tauri::Manager;
@@ -27,6 +28,7 @@ fn get_jl_mixing_version(app: tauri::AppHandle) -> VersionCheck {
             available: false,
             supported: false,
             client_creation_supported: false,
+            project_creation_supported: false,
             version: None,
             message,
         },
@@ -52,6 +54,22 @@ fn preflight_client_creation(
 #[tauri::command]
 fn create_client(app: tauri::AppHandle, request: ClientCreationRequest) -> ClientOperationResult {
     run_client_operation(&app, request, cli::create_client)
+}
+
+#[tauri::command]
+fn preflight_project_creation(
+    app: tauri::AppHandle,
+    request: ProjectCreationRequest,
+) -> ProjectOperationResult {
+    run_project_operation(&app, request, cli::preflight_project_creation)
+}
+
+#[tauri::command]
+fn create_project(
+    app: tauri::AppHandle,
+    request: ProjectCreationRequest,
+) -> ProjectOperationResult {
+    run_project_operation(&app, request, cli::create_project)
 }
 
 fn resolve_home(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -98,6 +116,63 @@ fn workspace_allows_client_creation(status: WorkspaceStatus) -> bool {
     matches!(status, WorkspaceStatus::Healthy | WorkspaceStatus::Empty)
 }
 
+fn run_project_operation(
+    app: &tauri::AppHandle,
+    request: ProjectCreationRequest,
+    operation: fn(
+        &std::path::Path,
+        &std::path::Path,
+        ProjectCreationRequest,
+    ) -> ProjectOperationResult,
+) -> ProjectOperationResult {
+    if cfg!(target_os = "windows") {
+        return cli::blocked_project_operation(
+            ProjectOperationCode::UnsupportedPlatform,
+            "Project creation requires JL Mixing Automation on macOS or Linux",
+        );
+    }
+
+    let home = match resolve_home(app) {
+        Ok(home) => home,
+        Err(message) => {
+            return cli::blocked_project_operation(ProjectOperationCode::Failed, &message)
+        }
+    };
+    let workspace_path = home.join("Music").join("Mixes");
+    let snapshot = workspace::discover_workspace_at(&workspace_path);
+    if !workspace_allows_project_creation(snapshot.status) {
+        return cli::blocked_project_operation(
+            ProjectOperationCode::WorkspaceBlocked,
+            "Resolve workspace issues before creating a project",
+        );
+    }
+
+    let client_id = request.client_id.trim();
+    if !snapshot
+        .clients
+        .iter()
+        .any(|client| client.client_id == client_id)
+    {
+        return cli::blocked_project_operation(
+            ProjectOperationCode::ClientUnavailable,
+            "The selected client is no longer available in the validated workspace",
+        );
+    }
+    let Some(client_directory) = workspace::find_validated_client_path(&workspace_path, client_id)
+    else {
+        return cli::blocked_project_operation(
+            ProjectOperationCode::ClientUnavailable,
+            "The selected client directory could not be resolved safely",
+        );
+    };
+
+    operation(&home, &client_directory, request)
+}
+
+fn workspace_allows_project_creation(status: WorkspaceStatus) -> bool {
+    matches!(status, WorkspaceStatus::Healthy)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -106,7 +181,9 @@ pub fn run() {
             get_jl_mixing_version,
             discover_default_workspace,
             preflight_client_creation,
-            create_client
+            create_client,
+            preflight_project_creation,
+            create_project,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -125,5 +202,16 @@ mod tests {
             WorkspaceStatus::Unavailable
         ));
         assert!(!workspace_allows_client_creation(WorkspaceStatus::Invalid));
+    }
+
+    #[test]
+    fn only_healthy_workspaces_allow_project_creation() {
+        assert!(workspace_allows_project_creation(WorkspaceStatus::Healthy));
+        assert!(!workspace_allows_project_creation(WorkspaceStatus::Empty));
+        assert!(!workspace_allows_project_creation(WorkspaceStatus::Partial));
+        assert!(!workspace_allows_project_creation(
+            WorkspaceStatus::Unavailable
+        ));
+        assert!(!workspace_allows_project_creation(WorkspaceStatus::Invalid));
     }
 }

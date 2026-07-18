@@ -13,6 +13,9 @@ import type {
   ClientOperationResult,
   ClientSummary,
   DiscoveryIssue,
+  ProjectCreationRequest,
+  ProjectCreationSummary,
+  ProjectOperationResult,
   ProjectSummary,
   VersionCheck,
   WorkspaceSnapshot,
@@ -44,6 +47,30 @@ interface ClientFormValues {
   clientId: string;
   clientName: string;
   defaultArtist: string;
+}
+
+type ProjectWorkflowState =
+  | { status: "closed" }
+  | { status: "editing"; lockedClientId: string | null; fromClient: boolean; error?: string }
+  | { status: "preflighting"; lockedClientId: string | null; fromClient: boolean }
+  | {
+      status: "confirming";
+      request: ProjectCreationRequest;
+      preview: ProjectCreationSummary;
+      fromClient: boolean;
+    }
+  | {
+      status: "creating";
+      request: ProjectCreationRequest;
+      preview: ProjectCreationSummary;
+      fromClient: boolean;
+    }
+  | { status: "uncertain"; message: string };
+
+interface ProjectFormValues {
+  clientId: string;
+  projectName: string;
+  artist: string;
 }
 
 type PrimaryRoute =
@@ -185,6 +212,12 @@ const emptyClientForm: ClientFormValues = {
   clientId: "",
   clientName: "",
   defaultArtist: "",
+};
+
+const emptyProjectForm: ProjectFormValues = {
+  clientId: "",
+  projectName: "",
+  artist: "",
 };
 
 const clientIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -569,14 +602,20 @@ function ClientDetails({
   client,
   onBack,
   onSelectProject,
+  onNewProject,
   onRefresh,
   loading,
+  projectCreationAvailable,
+  projectCreationHelp,
 }: {
   client: ClientSummary;
   onBack: () => void;
   onSelectProject: (projectId: string) => void;
+  onNewProject: () => void;
   onRefresh: () => void;
   loading: boolean;
+  projectCreationAvailable: boolean;
+  projectCreationHelp: string;
 }) {
   return (
     <>
@@ -590,9 +629,10 @@ function ClientDetails({
       </section>
       <aside className="route-note"><strong>Read only</strong><span>Client editing is unavailable because JL Mixing Automation v1.2.0 has no approved client-edit command.</span></aside>
       <section className="detail-section" aria-labelledby="client-projects-heading">
-        <div className="panel-heading"><div><p className="kicker">Client projects</p><h2 id="client-projects-heading">Projects for {client.clientName}</h2></div><button type="button" disabled className="planned-action">Edit client <span>Planned</span></button></div>
+        <div className="panel-heading"><div><p className="kicker">Client projects</p><h2 id="client-projects-heading">Projects for {client.clientName}</h2></div><div className="directory-actions"><button type="button" disabled className="planned-action">Edit client <span>Planned</span></button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="client-new-project-help">New project</button></div></div>
+        <p id="client-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
         {client.projects.length === 0 ? (
-          <div className="planned-message compact"><strong>No projects for this client.</strong><p>Project creation requires a separately approved automation workflow.</p></div>
+          <div className="planned-message compact"><strong>No projects for this client.</strong><p>Create the first project with the guided JL Mixing Automation workflow.</p></div>
         ) : (
           <div className="table-scroll">
             <table>
@@ -619,13 +659,19 @@ interface ProjectEntry {
 function ProjectsRoute({
   workspace,
   onSelectProject,
+  onNewProject,
   onRefresh,
   loading,
+  projectCreationAvailable,
+  projectCreationHelp,
 }: {
   workspace: ResourceState<WorkspaceSnapshot>;
   onSelectProject: (clientId: string, projectId: string) => void;
+  onNewProject: () => void;
   onRefresh: () => void;
   loading: boolean;
+  projectCreationAvailable: boolean;
+  projectCreationHelp: string;
 }) {
   if (workspace.status === "loading") return <section className="notice" aria-live="polite">Reading projects…</section>;
   if (workspace.status === "error") return <section className="notice error" role="alert"><strong>Projects could not be loaded</strong><span>{workspace.message}</span></section>;
@@ -636,8 +682,9 @@ function ProjectsRoute({
     <>
       <section className="directory-toolbar" aria-labelledby="project-directory-heading">
         <div><p className="kicker">Validated workspace</p><h2 id="project-directory-heading">{entries.length} {entries.length === 1 ? "project" : "projects"}</h2></div>
-        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" disabled className="planned-action">New project <span>Planned</span></button></div>
+        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="projects-new-project-help">New project</button></div>
       </section>
+      <p id="projects-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
       <ContextSearch label="Projects" />
       {(snapshot.status === "unavailable" || snapshot.status === "invalid" || snapshot.status === "empty") && <WorkspaceContent snapshot={snapshot} />}
       {entries.length > 0 && (
@@ -701,7 +748,7 @@ function ProjectOverview({
         <section className="panel" aria-labelledby="project-actions-heading">
           <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Workflow controls</h2></div><span className="planned-pill">Planned</span></div>
           <div className="action-stack"><button type="button" disabled>Open folder — Planned</button><button type="button" disabled>Open DAW — Planned</button><button type="button" disabled>Validate intake — Planned</button></div>
-          <p className="action-help">No project operation is available in this read-only milestone.</p>
+          <p className="action-help">Project creation is available from the directories; lifecycle actions remain planned.</p>
         </section>
       </div>
     </>
@@ -910,6 +957,160 @@ function ClientDialog({
   );
 }
 
+interface ProjectDialogProps {
+  state: Exclude<ProjectWorkflowState, { status: "closed" }>;
+  values: ProjectFormValues;
+  clients: ClientSummary[];
+  onChange: (values: ProjectFormValues) => void;
+  onPreflight: (event: FormEvent<HTMLFormElement>) => void;
+  onConfirm: () => void;
+  onBack: () => void;
+  onClose: () => void;
+}
+
+function ProjectDialog({
+  state,
+  values,
+  clients,
+  onChange,
+  onPreflight,
+  onConfirm,
+  onBack,
+  onClose,
+}: ProjectDialogProps) {
+  const clientSelect = useRef<HTMLSelectElement>(null);
+  const projectNameInput = useRef<HTMLInputElement>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
+  const pending = state.status === "preflighting" || state.status === "creating";
+  const editing = state.status === "editing" || state.status === "preflighting";
+  const lockedClientId = editing ? state.lockedClientId : null;
+
+  useEffect(() => {
+    if (state.status === "editing") {
+      if (state.lockedClientId) projectNameInput.current?.focus();
+      else clientSelect.current?.focus();
+    }
+    if (state.status === "confirming") confirmButton.current?.focus();
+  }, [state]);
+
+  return (
+    <div
+      className="dialog-backdrop"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !pending) onClose();
+      }}
+    >
+      <section
+        className="client-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-dialog-title"
+      >
+        <p className="kicker">Guided setup</p>
+        <h2 id="project-dialog-title">
+          {state.status === "confirming" || state.status === "creating"
+            ? "Confirm new project"
+            : state.status === "uncertain"
+              ? "Creation needs verification"
+              : "New project"}
+        </h2>
+
+        {editing && (
+          <form onSubmit={onPreflight} noValidate>
+            <p className="dialog-intro">
+              Audio and delivery settings inherit the selected client and studio defaults. Revision 1 is created automatically.
+            </p>
+            {state.status === "editing" && state.error && (
+              <div className="form-error" role="alert">{state.error}</div>
+            )}
+            <label>
+              Client
+              <select
+                ref={clientSelect}
+                aria-label="Client"
+                name="clientId"
+                value={values.clientId}
+                onChange={(event) => onChange({ ...values, clientId: event.target.value })}
+                disabled={pending || lockedClientId !== null}
+                required
+              >
+                <option value="">Select a client</option>
+                {clients.map((client) => (
+                  <option key={client.clientId} value={client.clientId}>{client.clientName}</option>
+                ))}
+              </select>
+              {lockedClientId && <small>This project will be created for the current client.</small>}
+            </label>
+            <label>
+              Project name
+              <input
+                ref={projectNameInput}
+                aria-label="Project name"
+                name="projectName"
+                value={values.projectName}
+                onChange={(event) => onChange({ ...values, projectName: event.target.value })}
+                placeholder="Blue Sky"
+                autoComplete="off"
+                disabled={pending}
+                required
+              />
+              <small>JL Mixing Automation derives the stable project ID.</small>
+            </label>
+            <label>
+              Artist <span>(optional)</span>
+              <input
+                name="artist"
+                aria-label="Artist"
+                value={values.artist}
+                onChange={(event) => onChange({ ...values, artist: event.target.value })}
+                placeholder="Use the client default"
+                autoComplete="off"
+                disabled={pending}
+              />
+            </label>
+            <div className="dialog-actions">
+              <button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button>
+              <button type="submit" disabled={pending}>{pending ? "Checking…" : "Review project"}</button>
+            </div>
+          </form>
+        )}
+
+        {(state.status === "confirming" || state.status === "creating") && (
+          <div>
+            <p className="dialog-intro">
+              Preflight passed without changing the workspace. Confirm to create this project and Revision 1.
+            </p>
+            <dl className="confirmation-list">
+              <div><dt>Client</dt><dd>{clients.find((client) => client.clientId === state.preview.clientId)?.clientName ?? state.preview.clientId}</dd></div>
+              <div><dt>Project</dt><dd>{state.preview.projectName}</dd></div>
+              <div><dt>Project ID</dt><dd><code>{state.preview.projectId}</code></dd></div>
+              <div><dt>Artist</dt><dd>{state.preview.artist}</dd></div>
+              <div><dt>Initial revision</dt><dd>Revision 1</dd></div>
+            </dl>
+            <div className="dialog-actions">
+              <button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button>
+              <button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button>
+              <button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>
+                {pending ? "Creating…" : "Create project"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {state.status === "uncertain" && (
+          <div>
+            <div className="form-error" role="alert">{state.message}</div>
+            <p className="dialog-intro">
+              Do not submit the request again automatically. Close this message and use Refresh to inspect the workspace.
+            </p>
+            <div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   const [activeRoute, setActiveRoute] = useState<PrimaryRoute>("dashboard");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -923,7 +1124,10 @@ export default function App() {
   const [version, setVersion] = useState<ResourceState<VersionCheck>>({ status: "loading" });
   const [clientWorkflow, setClientWorkflow] = useState<ClientWorkflowState>({ status: "closed" });
   const [clientForm, setClientForm] = useState<ClientFormValues>(emptyClientForm);
+  const [projectWorkflow, setProjectWorkflow] = useState<ProjectWorkflowState>({ status: "closed" });
+  const [projectForm, setProjectForm] = useState<ProjectFormValues>(emptyProjectForm);
   const [creationNotice, setCreationNotice] = useState<string | null>(null);
+  const [projectCreationNotice, setProjectCreationNotice] = useState<string | null>(null);
   const requestId = useRef(0);
 
   const refresh = useCallback(() => {
@@ -988,6 +1192,14 @@ export default function App() {
     workspaceAllowsCreation &&
     version.status === "ready" &&
     version.value.clientCreationSupported;
+  const workspaceAllowsProjectCreation =
+    workspace.status === "ready" &&
+    workspace.value.status === "healthy" &&
+    workspace.value.clients.length > 0;
+  const projectCreationAvailable =
+    workspaceAllowsProjectCreation &&
+    version.status === "ready" &&
+    version.value.projectCreationSupported;
 
   const clientCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
@@ -1002,9 +1214,25 @@ export default function App() {
     return "Preview and confirm a new client using JL Mixing Automation v1.2.0.";
   })();
 
+  const projectCreationHelp = (() => {
+    if (workspace.status !== "ready" || version.status !== "ready") {
+      return "Workspace and automation checks must finish first.";
+    }
+    if (!workspaceAllowsProjectCreation) {
+      return workspace.value.status === "empty"
+        ? "Create a client before creating a project."
+        : "Resolve workspace issues before creating a project.";
+    }
+    if (!version.value.projectCreationSupported) {
+      return version.value.message;
+    }
+    return "Preview and confirm a new project using JL Mixing Automation v1.2.0.";
+  })();
+
   const openClientWorkflow = () => {
     if (!clientCreationAvailable) return;
     setCreationNotice(null);
+    setProjectWorkflow({ status: "closed" });
     setClientForm(emptyClientForm);
     setClientWorkflow({ status: "editing" });
   };
@@ -1012,6 +1240,20 @@ export default function App() {
   const closeClientWorkflow = () => {
     if (clientWorkflow.status === "preflighting" || clientWorkflow.status === "creating") return;
     setClientWorkflow({ status: "closed" });
+  };
+
+  const openProjectWorkflow = (clientId: string | null, fromClient: boolean) => {
+    if (!projectCreationAvailable) return;
+    if (clientId && workspace.status === "ready" && !workspace.value.clients.some((client) => client.clientId === clientId)) return;
+    setProjectCreationNotice(null);
+    setClientWorkflow({ status: "closed" });
+    setProjectForm({ ...emptyProjectForm, clientId: clientId ?? "" });
+    setProjectWorkflow({ status: "editing", lockedClientId: clientId, fromClient });
+  };
+
+  const closeProjectWorkflow = () => {
+    if (projectWorkflow.status === "preflighting" || projectWorkflow.status === "creating") return;
+    setProjectWorkflow({ status: "closed" });
   };
 
   const preflightClient = (event: FormEvent<HTMLFormElement>) => {
@@ -1097,6 +1339,112 @@ export default function App() {
       });
   };
 
+  const preflightProject = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (projectWorkflow.status !== "editing") return;
+    const { lockedClientId, fromClient } = projectWorkflow;
+    const request: ProjectCreationRequest = {
+      clientId: projectForm.clientId.trim(),
+      projectName: projectForm.projectName.trim(),
+      artist: projectForm.artist.trim() || null,
+    };
+    const clientExists = workspace.status === "ready" && workspace.value.clients.some(
+      (client) => client.clientId === request.clientId,
+    );
+    if (!clientExists) {
+      setProjectWorkflow({ status: "editing", lockedClientId, fromClient, error: "Select a valid client." });
+      return;
+    }
+    if (!request.projectName) {
+      setProjectWorkflow({ status: "editing", lockedClientId, fromClient, error: "Project name is required." });
+      return;
+    }
+
+    setProjectWorkflow({ status: "preflighting", lockedClientId, fromClient });
+    invoke<ProjectOperationResult>("preflight_project_creation", { request })
+      .then((result) => {
+        if (result.ok && result.code === "ready" && result.project) {
+          setProjectWorkflow({ status: "confirming", request, preview: result.project, fromClient });
+        } else {
+          setProjectWorkflow({ status: "editing", lockedClientId, fromClient, error: result.message });
+        }
+      })
+      .catch((error: unknown) => {
+        setProjectWorkflow({
+          status: "editing",
+          lockedClientId,
+          fromClient,
+          error: safeError(error, "Project preflight could not be completed."),
+        });
+      });
+  };
+
+  const confirmProjectCreation = () => {
+    if (projectWorkflow.status !== "confirming") return;
+    const { request, preview, fromClient } = projectWorkflow;
+    setProjectWorkflow({ status: "creating", request, preview, fromClient });
+
+    invoke<ProjectOperationResult>("create_project", { request })
+      .then(async (result) => {
+        if (!result.ok || result.code !== "created" || !result.project) {
+          if (result.code === "uncertain") {
+            setProjectWorkflow({ status: "uncertain", message: result.message });
+          } else {
+            setProjectWorkflow({
+              status: "editing",
+              lockedClientId: fromClient ? request.clientId : null,
+              fromClient,
+              error: result.message,
+            });
+          }
+          return;
+        }
+        if (
+          result.project.clientId !== preview.clientId ||
+          result.project.projectId !== preview.projectId
+        ) {
+          setProjectWorkflow({
+            status: "uncertain",
+            message: "JL Mixing Automation reported success, but the created project identity did not match the preflight. The operation may have completed.",
+          });
+          return;
+        }
+
+        try {
+          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
+          setWorkspace({ status: "ready", value: refreshed });
+          const client = refreshed.clients.find((item) => item.clientId === result.project?.clientId);
+          const project = client?.projects.find((item) => item.projectId === result.project?.projectId);
+          if (!client || !project) {
+            setProjectWorkflow({
+              status: "uncertain",
+              message: "JL Mixing Automation reported success, but the new project was not found after refresh. The operation may have completed.",
+            });
+            return;
+          }
+          setProjectCreationNotice(`${project.projectName} was created with Revision 1.`);
+          setSelectedClientId(null);
+          setSelectedProject({ clientId: client.clientId, projectId: project.projectId, fromClient });
+          setActiveRoute("projects");
+          setRouteNotice(null);
+          setProjectWorkflow({ status: "closed" });
+        } catch (error: unknown) {
+          const detail = safeError(error, "");
+          setProjectWorkflow({
+            status: "uncertain",
+            message: `JL Mixing Automation reported success, but the workspace could not be refreshed. The operation may have completed.${detail ? ` ${detail}` : ""}`,
+          });
+        }
+      })
+      .catch((error: unknown) => {
+        const detail = safeError(error, "");
+        setProjectWorkflow({
+          status: "uncertain",
+          message: `The project creation result could not be confirmed. The operation may have completed.${detail ? ` ${detail}` : ""}`,
+        });
+      });
+  };
+
   const navigate = (route: PrimaryRoute) => {
     setActiveRoute(route);
     setSelectedClientId(null);
@@ -1144,6 +1492,12 @@ export default function App() {
             <span>{creationNotice}</span>
           </section>
         )}
+        {projectCreationNotice && (
+          <section className="notice success" role="status">
+            <strong>Project created</strong>
+            <span>{projectCreationNotice}</span>
+          </section>
+        )}
         {activeRoute === "dashboard" && (
           <Dashboard
             workspace={workspace}
@@ -1162,6 +1516,9 @@ export default function App() {
             onBack={() => { setSelectedClientId(null); setRouteNotice(null); }}
             onRefresh={refresh}
             loading={loading}
+            onNewProject={() => openProjectWorkflow(resolvedClient.clientId, true)}
+            projectCreationAvailable={projectCreationAvailable}
+            projectCreationHelp={projectCreationHelp}
             onSelectProject={(projectId) => {
               setSelectedProject({ clientId: resolvedClient.clientId, projectId, fromClient: true });
               setActiveRoute("projects");
@@ -1199,6 +1556,9 @@ export default function App() {
             workspace={workspace}
             onRefresh={refresh}
             loading={loading}
+            onNewProject={() => openProjectWorkflow(null, false)}
+            projectCreationAvailable={projectCreationAvailable}
+            projectCreationHelp={projectCreationHelp}
             onSelectProject={(clientId, projectId) => {
               setSelectedClientId(null);
               setSelectedProject({ clientId, projectId, fromClient: false });
@@ -1220,6 +1580,25 @@ export default function App() {
           onConfirm={confirmClientCreation}
           onBack={() => setClientWorkflow({ status: "editing" })}
           onClose={closeClientWorkflow}
+        />
+      )}
+      {projectWorkflow.status !== "closed" && (
+        <ProjectDialog
+          state={projectWorkflow}
+          values={projectForm}
+          clients={workspace.status === "ready" ? workspace.value.clients : []}
+          onChange={setProjectForm}
+          onPreflight={preflightProject}
+          onConfirm={confirmProjectCreation}
+          onBack={() => {
+            if (projectWorkflow.status !== "confirming") return;
+            setProjectWorkflow({
+              status: "editing",
+              lockedClientId: projectWorkflow.fromClient ? projectWorkflow.request.clientId : null,
+              fromClient: projectWorkflow.fromClient,
+            });
+          }}
+          onClose={closeProjectWorkflow}
         />
       )}
     </div>

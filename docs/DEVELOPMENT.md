@@ -49,9 +49,10 @@ cargo clippy --version
 rustfmt --version
 cat "$HOME/.local/share/jl-mixing/VERSION"
 new-client --help
+new-mix --help
 ```
 
-For the current functional baseline, the installed `VERSION` file must report `1.2.0` and `new-client --help` must succeed. JL Mixing Automation v1.2.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.2.0 is not supported, the application reports the CLI as unavailable without preventing the read-only dashboard from loading.
+For the current functional baseline, the installed `VERSION` file must report `1.2.0`, and both `new-client --help` and `new-mix --help` must succeed. JL Mixing Automation v1.2.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.2.0 is not supported, the application reports guided creation as unavailable without preventing read-only browsing.
 
 On macOS, also confirm the Apple developer tools path:
 
@@ -123,14 +124,14 @@ npm run tauri build -- --no-bundle
 
 Release installers, signing, notarization, and automatic updates remain outside the current milestone.
 
-## Intel macOS Monterey client-creation validation
+## Intel macOS Monterey guided-creation validation
 
-Client creation is a real workspace mutation. Use a disposable macOS test account with its own `~/Music/Mixes` workspace. Do not use a production studio workspace merely for validation; this milestone intentionally has no client-deletion workflow.
+Client and project creation are real workspace mutations. Use a disposable macOS test account with its own `~/Music/Mixes` workspace. Do not use a production studio workspace merely for validation; this milestone intentionally has no deletion workflow.
 
 On the Intel MacBook running macOS Monterey 12.7.6, while signed into the disposable account:
 
 1. Run all commands under **Verify prerequisites**.
-2. Confirm `~/.local/share/jl-mixing/VERSION` reports `1.2.0` and `new-client --help` succeeds.
+2. Confirm `~/.local/share/jl-mixing/VERSION` reports `1.2.0`, and both `new-client --help` and `new-mix --help` succeed.
 3. Create an isolated default test workspace with `new-studio` if the account does not have one.
 4. Run `npm ci` and all commands under **Automated checks**.
 5. Record a recursive file inventory and checksums for `~/Music/Mixes`.
@@ -144,15 +145,22 @@ On the Intel MacBook running macOS Monterey 12.7.6, while signed into the dispos
 13. Attempt the same client ID again and confirm a collision is reported without unrelated changes.
 14. Confirm keyboard focus moves into the form and confirmation step, Escape cancels when no operation is running, and repeated clicks cannot submit twice.
 15. Resize the window to its minimum size and confirm the dashboard and client dialog remain readable.
+16. Open the created client's details, select **New project**, enter a unique project name, and select **Review project**.
+17. Confirm the Automation-derived project ID, inherited artist, and initial Revision 1 are shown while the workspace inventory remains unchanged.
+18. Cancel once and confirm no project was created; repeat the preflight and confirm creation.
+19. Verify the new project opens in Project Overview with Revision 1 and that its standard JL Mixing Automation structure is present under the selected client.
+20. Repeat the same project name and confirm a collision is reported without unrelated changes.
+21. Start another confirmed creation and simulate or observe a refresh failure only in an isolated test environment; verify Studio warns that the result is uncertain and does not retry automatically.
 
-Record the results on the guided-client-creation pull request. Keep or manually archive the disposable test account after validation; JL Mixing Studio must not add unapproved deletion behavior for test cleanup.
+Record the results on the guided-project-creation pull request. Keep or manually archive the disposable test account after validation; JL Mixing Studio must not add unapproved deletion behavior for test cleanup.
 
 ## Known limitations
 
 - Automation detection reads only the fixed `VERSION` metadata associated with the resolved `new-client` launcher and executes only its fixed `--help` health check.
 - Only the fixed default workspace can be discovered; arbitrary workspace selection is not implemented.
-- Discovery is read-only and cannot create or modify projects.
+- Discovery remains read-only; only the approved guided client and project creation commands mutate the workspace.
 - Client creation exposes only client ID, display name, and optional default artist; other values inherit studio defaults.
+- Project creation exposes only a validated client, project display name, and optional artist; Automation derives all other values and creates Revision 1.
 - Client editing and deletion are not implemented.
 - JL Mixing Automation v1.2.0 does not run natively on Windows.
 - Browser rendering does not validate native Tauri integration.

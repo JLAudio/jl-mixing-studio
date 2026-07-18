@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import App from "./App";
 import type {
   ClientOperationResult,
+  ProjectOperationResult,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -17,6 +18,7 @@ const version: VersionCheck = {
   available: true,
   supported: true,
   clientCreationSupported: true,
+  projectCreationSupported: true,
   version: "1.2.0",
   message: "JL Mixing Automation 1.2.0 detected",
 };
@@ -36,6 +38,24 @@ const createResult: ClientOperationResult = {
   ...preflightResult,
   code: "created",
   message: "Client created successfully.",
+};
+
+const projectPreflightResult: ProjectOperationResult = {
+  ok: true,
+  code: "ready",
+  message: "Preflight passed. No changes were made.",
+  project: {
+    clientId: "acme",
+    projectId: "night-drive",
+    projectName: "Night Drive",
+    artist: "The Artist",
+  },
+};
+
+const projectCreateResult: ProjectOperationResult = {
+  ...projectPreflightResult,
+  code: "created",
+  message: "Project created successfully.",
 };
 
 const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
@@ -246,6 +266,192 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByRole("button", { name: "Blue Sky" })).toBeInTheDocument();
     expect(screen.getByText("Broken Project")).toBeInTheDocument();
     expect(screen.getByText(/only validated clients and projects are shown/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New project" })).toBeDisabled();
+  });
+
+  it("launches project creation from Client Details with the client locked", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Clients" }));
+    fireEvent.click(screen.getByRole("button", { name: "Acme Records" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+
+    expect(screen.getByRole("heading", { name: "New project" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Client")).toHaveValue("acme");
+    expect(screen.getByLabelText("Client")).toBeDisabled();
+    expect(screen.getByLabelText(/^project name/i)).toHaveFocus();
+  });
+
+  it("requires an explicit client when project creation starts from Projects", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+
+    expect(screen.getByLabelText("Client")).toBeEnabled();
+    expect(screen.getByLabelText("Client")).toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Review project" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/select a valid client/i);
+    expect(mockedInvoke).not.toHaveBeenCalledWith("preflight_project_creation", expect.anything());
+  });
+
+  it("preflights the project summary and cancels without creating", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_project_creation") return Promise.resolve(projectPreflightResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    fireEvent.change(screen.getByLabelText("Client"), { target: { value: "acme" } });
+    fireEvent.change(screen.getByLabelText(/^project name/i), { target: { value: " Night Drive " } });
+    fireEvent.click(screen.getByRole("button", { name: "Review project" }));
+
+    expect(await screen.findByRole("heading", { name: "Confirm new project" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create project" })).toHaveFocus());
+    expect(screen.getByText("night-drive")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Revision 1")).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("preflight_project_creation", {
+      request: { clientId: "acme", projectName: "Night Drive", artist: null },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockedInvoke).not.toHaveBeenCalledWith("create_project", expect.anything());
+  });
+
+  it("preserves project values when preflight rejects the request", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_project_creation") {
+        return Promise.resolve({
+          ok: false,
+          code: "collision",
+          message: "Project destination already exists",
+          project: null,
+        } satisfies ProjectOperationResult);
+      }
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    fireEvent.change(screen.getByLabelText("Client"), { target: { value: "acme" } });
+    fireEvent.change(screen.getByLabelText(/^project name/i), { target: { value: "Night Drive" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review project" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/already exists/i);
+    expect(screen.getByLabelText("Client")).toHaveValue("acme");
+    expect(screen.getByLabelText(/^project name/i)).toHaveValue("Night Drive");
+  });
+
+  it("creates, verifies, and opens the authoritative Project Overview", async () => {
+    let workspaceCalls = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") {
+        workspaceCalls += 1;
+        const snapshot = healthyWorkspace();
+        if (workspaceCalls > 1) {
+          snapshot.clients[0].projects.push({
+            ...snapshot.clients[0].projects[0],
+            projectId: "night-drive",
+            projectName: "Night Drive",
+            currentRevision: 1,
+            approvedRevision: null,
+            deliveredRevision: null,
+          });
+          snapshot.counts.projects = 2;
+        }
+        return Promise.resolve(snapshot);
+      }
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_project_creation") return Promise.resolve(projectPreflightResult);
+      if (command === "create_project") return Promise.resolve(projectCreateResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    fireEvent.change(screen.getByLabelText("Client"), { target: { value: "acme" } });
+    fireEvent.change(screen.getByLabelText(/^project name/i), { target: { value: "Night Drive" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review project" }));
+    await screen.findByRole("heading", { name: "Confirm new project" });
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+
+    expect(await screen.findByRole("heading", { name: "Night Drive", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/was created with Revision 1/i)).toBeInTheDocument();
+    expect(screen.getByText("Revision 1")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("navigation", { name: "Primary navigation" })).getByRole("button", { name: "Projects" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_project")).toHaveLength(1);
+  });
+
+  it("does not retry an uncertain project creation result", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_project_creation") return Promise.resolve(projectPreflightResult);
+      if (command === "create_project") {
+        return Promise.resolve({
+          ok: false,
+          code: "uncertain",
+          message: "The operation may have completed.",
+          project: null,
+        } satisfies ProjectOperationResult);
+      }
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    fireEvent.change(screen.getByLabelText("Client"), { target: { value: "acme" } });
+    fireEvent.change(screen.getByLabelText(/^project name/i), { target: { value: "Night Drive" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review project" }));
+    await screen.findByRole("heading", { name: "Confirm new project" });
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+
+    expect(await screen.findByRole("heading", { name: "Creation needs verification" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/may have completed/i);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_project")).toHaveLength(1);
+  });
+
+  it("treats refresh failure after project success as uncertain", async () => {
+    let workspaceCalls = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") {
+        workspaceCalls += 1;
+        return workspaceCalls === 1
+          ? Promise.resolve(healthyWorkspace())
+          : Promise.reject(new Error("Refresh failed"));
+      }
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_project_creation") return Promise.resolve(projectPreflightResult);
+      if (command === "create_project") return Promise.resolve(projectCreateResult);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    fireEvent.change(screen.getByLabelText("Client"), { target: { value: "acme" } });
+    fireEvent.change(screen.getByLabelText(/^project name/i), { target: { value: "Night Drive" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review project" }));
+    await screen.findByRole("heading", { name: "Confirm new project" });
+    fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/workspace could not be refreshed/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/may have completed/i);
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_project")).toHaveLength(1);
   });
 
   it("shows setup guidance for an unavailable workspace", async () => {
@@ -312,6 +518,7 @@ describe("JL Mixing Studio", () => {
       available: false,
       supported: false,
       clientCreationSupported: false,
+      projectCreationSupported: false,
       version: null,
       message: "JL Mixing Automation was not found in its default install location or on PATH",
     });
@@ -567,13 +774,14 @@ describe("JL Mixing Studio", () => {
       available: true,
       supported: false,
       clientCreationSupported: false,
+      projectCreationSupported: false,
       version: "1.3.0",
-      message: "JL Mixing Automation 1.3.0 detected; client creation requires 1.2.0",
+      message: "JL Mixing Automation 1.3.0 detected; guided creation requires 1.2.0",
     });
     render(<App />);
 
     expect(await screen.findByText("JL Mix Studio")).toBeInTheDocument();
-    expect(screen.getAllByText(/client creation requires 1.2.0/i)).toHaveLength(2);
+    expect(screen.getAllByText(/guided creation requires 1.2.0/i)).toHaveLength(2);
     expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
 });
