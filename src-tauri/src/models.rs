@@ -13,6 +13,7 @@ pub struct VersionCheck {
     pub available: bool,
     pub supported: bool,
     pub client_creation_supported: bool,
+    pub project_creation_supported: bool,
     pub version: Option<String>,
     pub message: String,
 }
@@ -54,6 +55,49 @@ pub enum ClientOperationCode {
     WorkspaceBlocked,
     Collision,
     Rejected,
+    Failed,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectCreationRequest {
+    pub client_id: String,
+    pub project_name: String,
+    pub artist: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectCreationSummary {
+    pub client_id: String,
+    pub project_id: String,
+    pub project_name: String,
+    pub artist: String,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectOperationResult {
+    pub ok: bool,
+    pub code: ProjectOperationCode,
+    pub message: String,
+    pub project: Option<ProjectCreationSummary>,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ProjectOperationCode {
+    Ready,
+    Created,
+    InvalidInput,
+    AutomationUnavailable,
+    UnsupportedVersion,
+    UnsupportedPlatform,
+    WorkspaceBlocked,
+    ClientUnavailable,
+    Collision,
+    Rejected,
+    Uncertain,
     Failed,
 }
 

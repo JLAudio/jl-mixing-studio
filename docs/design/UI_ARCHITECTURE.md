@@ -2,7 +2,10 @@
 
 **Status:** Approved design direction  
 **Approved:** July 17, 2026  
-**Implementation milestone:** [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8)  
+**Implemented milestones:** [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8), [Issue #11](https://github.com/JLAudio/jl-mixing-studio/issues/11)
+
+**Current milestone:** [Issue #13](https://github.com/JLAudio/jl-mixing-studio/issues/13)
+
 **Functional baseline:** JL Mixing Automation v1.2.0
 
 ![JL Mixing Studio revised product wireframe](./jl-mixing-studio-wireframe-rev2.svg)
@@ -47,12 +50,12 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 
 | Screen | Intended responsibility | Implementation status |
 | --- | --- | --- |
-| Dashboard | Answer “What do I need to work on today?” through authoritative summary, Today’s Work, Studio Health, Quick Actions, and Recent Activity sections | Existing workspace overview and guided New Client action will move into the shell; unsupported sections remain Planned |
+| Dashboard | Answer “What do I need to work on today?” through authoritative summary, Today’s Work, Studio Health, Quick Actions, and Recent Activity sections | Implemented summary and guided New Client; unsupported sections remain Planned |
 | Studio | Display studio identity, configured defaults, workspace information, and approved diagnostics | Future milestone |
-| Clients | List clients and enter approved client workflows | Guided creation exists; client directory is future work |
-| Client Details | Present validated client defaults and the client's projects; enter a selected project | Future milestone; client editing is not yet supported |
-| Projects | Search, filter, and inspect projects using derived lifecycle state | Future milestone |
-| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Future milestone |
+| Clients | List clients and enter approved client workflows | Implemented directory and guided client creation |
+| Client Details | Present validated client defaults and the client's projects; enter a selected project | Implemented; guided project creation current; client editing unsupported |
+| Projects | Search, filter, and inspect projects using derived lifecycle state | Implemented directory and selection; search and filters remain Planned |
+| Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview; lifecycle actions remain Planned |
 | Intake | Run and present non-destructive validation | Future milestone |
 | Revisions | Present revision history and approved revision actions | Future milestone |
 | Delivery | Present delivery readiness and approved delivery actions | Future milestone |
@@ -168,7 +171,7 @@ The following sample elements are not approved product behavior as drawn:
 - If a cache or index is introduced, it is disposable and completely rebuildable from authoritative workspace files. It must never become a competing source of truth.
 - Exact query syntax, ranking, indexing strategy, result navigation, keyboard shortcuts, and performance limits require a focused implementation milestone.
 
-## Application shell milestone
+## Completed application shell milestone
 
 [Issue #8](https://github.com/JLAudio/jl-mixing-studio/issues/8) is limited to the shared shell and navigation foundation:
 
@@ -183,6 +186,18 @@ The following sample elements are not approved product behavior as drawn:
 9. Do not add new workflow state, broad filesystem access, arbitrary command execution, functional search, or unsupported mutations.
 
 The shell milestone establishes the complete product-level layout vocabulary but does not implement every screen, data source, diagnostic, or workflow shown in the wireframe.
+
+## Guided project-creation milestone
+
+[Issue #13](https://github.com/JLAudio/jl-mixing-studio/issues/13) activates project creation without broadening the approved execution boundary:
+
+1. Client Details launches the workflow with its validated client fixed; Projects requires an explicit validated client selection.
+2. The UI collects only project name and an optional artist override.
+3. Rust resolves the client directory internally, invokes only the fixed `new-mix` executable, and accepts no frontend path or arbitrary arguments.
+4. Preflight uses `--dry-run`; confirmed creation uses `--no-cd`.
+5. Automation remains authoritative for project ID derivation, inherited defaults, folder structure, and initial Revision 1.
+6. Successful creation is reconciled through workspace discovery before Project Overview opens.
+7. Uncertain outcomes are never retried automatically.
 
 ## Accessibility and responsive requirements
 

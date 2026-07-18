@@ -7,10 +7,12 @@ use std::process::Command;
 
 use crate::models::{
     ClientCreationRequest, ClientCreationSummary, ClientOperationCode, ClientOperationResult,
+    ProjectCreationRequest, ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult,
     VersionCheck,
 };
 
 const CLIENT_EXECUTABLE: &str = "new-client";
+const PROJECT_EXECUTABLE: &str = "new-mix";
 const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.2.0";
 const MAX_VERSION_FILE_BYTES: usize = 64;
@@ -48,12 +50,52 @@ pub fn create_client(
     )
 }
 
+pub fn preflight_project_creation(
+    home: &Path,
+    client_directory: &Path,
+    request: ProjectCreationRequest,
+) -> ProjectOperationResult {
+    run_project_operation(
+        home,
+        client_directory,
+        request,
+        ProjectOperation::Preflight,
+        &SystemProcessRunner,
+    )
+}
+
+pub fn create_project(
+    home: &Path,
+    client_directory: &Path,
+    request: ProjectCreationRequest,
+) -> ProjectOperationResult {
+    run_project_operation(
+        home,
+        client_directory,
+        request,
+        ProjectOperation::Create,
+        &SystemProcessRunner,
+    )
+}
+
 pub fn blocked_client_operation(code: ClientOperationCode, message: &str) -> ClientOperationResult {
     ClientOperationResult {
         ok: false,
         code,
         message: message.to_owned(),
         client: None,
+    }
+}
+
+pub fn blocked_project_operation(
+    code: ProjectOperationCode,
+    message: &str,
+) -> ProjectOperationResult {
+    ProjectOperationResult {
+        ok: false,
+        code,
+        message: message.to_owned(),
+        project: None,
     }
 }
 
@@ -100,6 +142,12 @@ struct ProcessResult {
 
 #[derive(Clone, Copy)]
 enum ClientOperation {
+    Preflight,
+    Create,
+}
+
+#[derive(Clone, Copy)]
+enum ProjectOperation {
     Preflight,
     Create,
 }
@@ -162,6 +210,95 @@ fn run_client_operation<R: ProcessRunner>(
     }
 }
 
+fn run_project_operation<R: ProcessRunner>(
+    home: &Path,
+    client_directory: &Path,
+    request: ProjectCreationRequest,
+    operation: ProjectOperation,
+    runner: &R,
+) -> ProjectOperationResult {
+    let request = match normalize_project_request(request) {
+        Ok(request) => request,
+        Err(message) => {
+            return blocked_project_operation(ProjectOperationCode::InvalidInput, &message)
+        }
+    };
+
+    let version = check_version_with_runner(home, runner);
+    if !version.available {
+        return blocked_project_operation(
+            ProjectOperationCode::AutomationUnavailable,
+            &version.message,
+        );
+    }
+    if !version.supported {
+        return blocked_project_operation(
+            ProjectOperationCode::UnsupportedVersion,
+            &version.message,
+        );
+    }
+
+    let Some(executable) = resolve_command(home, PROJECT_EXECUTABLE) else {
+        return blocked_project_operation(
+            ProjectOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation new-mix command was not found",
+        );
+    };
+    let arguments = project_arguments(&request, operation);
+    match runner.run(&executable, &arguments, Some(client_directory)) {
+        Ok(output) if output.success => {
+            let Some(project) = parse_project_preview(&output.stdout, &request) else {
+                return blocked_project_operation(
+                    match operation {
+                        ProjectOperation::Preflight => ProjectOperationCode::Failed,
+                        ProjectOperation::Create => ProjectOperationCode::Uncertain,
+                    },
+                    match operation {
+                        ProjectOperation::Preflight => {
+                            "The JL Mixing Automation project preview could not be verified"
+                        }
+                        ProjectOperation::Create => {
+                            "JL Mixing Automation reported success, but the created project identity could not be verified. The operation may have completed."
+                        }
+                    },
+                );
+            };
+            ProjectOperationResult {
+                ok: true,
+                code: match operation {
+                    ProjectOperation::Preflight => ProjectOperationCode::Ready,
+                    ProjectOperation::Create => ProjectOperationCode::Created,
+                },
+                message: match operation {
+                    ProjectOperation::Preflight => "Preflight passed. No changes were made.",
+                    ProjectOperation::Create => "Project created successfully.",
+                }
+                .to_owned(),
+                project: Some(project),
+            }
+        }
+        Ok(output) => rejected_project_operation(output),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_project_operation(
+            ProjectOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation new-mix command was not found",
+        ),
+        Err(_) => blocked_project_operation(
+            match operation {
+                ProjectOperation::Preflight => ProjectOperationCode::Failed,
+                ProjectOperation::Create => ProjectOperationCode::Uncertain,
+            },
+            match operation {
+                ProjectOperation::Preflight => {
+                    "The JL Mixing Automation new-mix command could not be started"
+                }
+                ProjectOperation::Create => {
+                    "The JL Mixing Automation new-mix result could not be confirmed. The operation may have completed."
+                }
+            },
+        ),
+    }
+}
+
 fn normalize_request(request: ClientCreationRequest) -> Result<ClientCreationSummary, String> {
     let client_id = request.client_id.trim().to_owned();
     let client_name = request.client_name.trim().to_owned();
@@ -198,6 +335,39 @@ fn normalize_request(request: ClientCreationRequest) -> Result<ClientCreationSum
     })
 }
 
+fn normalize_project_request(
+    request: ProjectCreationRequest,
+) -> Result<ProjectCreationRequest, String> {
+    let client_id = request.client_id.trim().to_owned();
+    let project_name = request.project_name.trim().to_owned();
+    let artist = request
+        .artist
+        .map(|artist| artist.trim().to_owned())
+        .filter(|artist| !artist.is_empty());
+
+    if client_id.is_empty() || !is_valid_client_id(&client_id) {
+        return Err("Select a valid client before creating a project".into());
+    }
+    if project_name.is_empty() {
+        return Err("Project name is required".into());
+    }
+    if project_name.chars().any(char::is_control) {
+        return Err("Project name cannot contain control characters".into());
+    }
+    if artist
+        .as_ref()
+        .is_some_and(|value| value.chars().any(char::is_control))
+    {
+        return Err("Artist cannot contain control characters".into());
+    }
+
+    Ok(ProjectCreationRequest {
+        client_id,
+        project_name,
+        artist,
+    })
+}
+
 fn is_valid_client_id(value: &str) -> bool {
     value.split('-').all(|part| {
         !part.is_empty()
@@ -222,6 +392,45 @@ fn client_arguments(client: &ClientCreationSummary, operation: ClientOperation) 
         ClientOperation::Create => arguments.push("--no-cd".into()),
     }
     arguments
+}
+
+fn project_arguments(
+    request: &ProjectCreationRequest,
+    operation: ProjectOperation,
+) -> Vec<String> {
+    let mut arguments = vec!["--project".into(), request.project_name.clone()];
+    if let Some(artist) = &request.artist {
+        arguments.push("--artist".into());
+        arguments.push(artist.clone());
+    }
+    match operation {
+        ProjectOperation::Preflight => arguments.push("--dry-run".into()),
+        ProjectOperation::Create => arguments.push("--no-cd".into()),
+    }
+    arguments
+}
+
+fn parse_project_preview(
+    stdout: &str,
+    request: &ProjectCreationRequest,
+) -> Option<ProjectCreationSummary> {
+    let field = |label: &str| {
+        stdout.lines().find_map(|line| {
+            let (candidate, value) = line.split_once(':')?;
+            (candidate.trim() == label).then(|| value.trim().to_owned())
+        })
+    };
+    let project_id = field("Project ID")?;
+    let artist = field("Artist")?;
+    if !is_valid_client_id(&project_id) || artist.is_empty() {
+        return None;
+    }
+    Some(ProjectCreationSummary {
+        client_id: request.client_id.clone(),
+        project_id,
+        project_name: request.project_name.clone(),
+        artist,
+    })
 }
 
 fn rejected_operation(
@@ -250,6 +459,32 @@ fn rejected_operation(
         },
         message,
         client: Some(client),
+    }
+}
+
+fn rejected_project_operation(output: ProcessResult) -> ProjectOperationResult {
+    let fallback = format!(
+        "JL Mixing Automation rejected the project request with exit code {}",
+        output
+            .exit_code
+            .map_or_else(|| "unknown".into(), |code| code.to_string())
+    );
+    let message = bounded_process_message(&output.stderr, &output.stdout, &fallback);
+    let normalized = message.to_ascii_lowercase();
+    let collision = normalized.contains("already exists")
+        || normalized.contains("already used")
+        || normalized.contains("already in use")
+        || normalized.contains("collision");
+
+    ProjectOperationResult {
+        ok: false,
+        code: if collision {
+            ProjectOperationCode::Collision
+        } else {
+            ProjectOperationCode::Rejected
+        },
+        message,
+        project: None,
     }
 }
 
@@ -339,11 +574,12 @@ fn evaluate_version(version: &str) -> VersionCheck {
         available: true,
         supported,
         client_creation_supported: supported && !cfg!(target_os = "windows"),
+        project_creation_supported: supported && !cfg!(target_os = "windows"),
         message: if supported {
             format!("JL Mixing Automation {version} detected")
         } else {
             format!(
-                "JL Mixing Automation {version} detected; client creation requires {SUPPORTED_VERSION}"
+                "JL Mixing Automation {version} detected; guided creation requires {SUPPORTED_VERSION}"
             )
         },
         version: Some(version.to_owned()),
@@ -355,6 +591,7 @@ fn unavailable_version(message: &str) -> VersionCheck {
         available: false,
         supported: false,
         client_creation_supported: false,
+        project_creation_supported: false,
         version: None,
         message: message.to_owned(),
     }
@@ -469,6 +706,18 @@ mod tests {
         }
     }
 
+    fn project_request(artist: Option<&str>) -> ProjectCreationRequest {
+        ProjectCreationRequest {
+            client_id: "acme-records".into(),
+            project_name: " Blue Sky ".into(),
+            artist: artist.map(str::to_owned),
+        }
+    }
+
+    fn project_output(project_id: &str, artist: &str) -> String {
+        format!("Project: Blue Sky\nProject ID: {project_id}\nArtist: {artist}\n")
+    }
+
     fn installed_home(version: &str) -> tempfile::TempDir {
         let home = tempfile::tempdir().unwrap();
         let bin = home.path().join(".local/bin");
@@ -476,6 +725,7 @@ mod tests {
         std::fs::create_dir_all(&bin).unwrap();
         std::fs::create_dir_all(&application).unwrap();
         std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(application.join(VERSION_FILE), format!("{version}\n")).unwrap();
         home
     }
@@ -685,6 +935,126 @@ mod tests {
         );
         assert_eq!(result.code, ClientOperationCode::AutomationUnavailable);
         assert!(result.message.contains("new-client"));
+    }
+
+    #[test]
+    fn project_preflight_uses_fixed_arguments_and_validated_client_directory() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(&project_output("blue-sky", "The Artist")),
+        ]);
+        let client_directory = Path::new("/fixed/workspace/Clients/Acme Records");
+        let result = run_project_operation(
+            home.path(),
+            client_directory,
+            project_request(Some(" The Artist ")),
+            ProjectOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, ProjectOperationCode::Ready);
+        assert_eq!(
+            result.project,
+            Some(ProjectCreationSummary {
+                client_id: "acme-records".into(),
+                project_id: "blue-sky".into(),
+                project_name: "Blue Sky".into(),
+                artist: "The Artist".into(),
+            })
+        );
+        let invocations = runner.invocations.borrow();
+        assert_eq!(invocations.len(), 2);
+        assert_eq!(
+            invocations[1].executable,
+            home.path().join(".local/bin/new-mix")
+        );
+        assert_eq!(
+            invocations[1].arguments,
+            vec!["--project", "Blue Sky", "--artist", "The Artist", "--dry-run"]
+        );
+        assert!(!invocations[1].arguments.contains(&"--no-cd".into()));
+        assert_eq!(
+            invocations[1].current_directory,
+            Some(client_directory.to_owned())
+        );
+    }
+
+    #[test]
+    fn confirmed_project_creation_uses_no_cd_and_inherits_artist() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(&project_output("blue-sky", "Inherited Artist")),
+        ]);
+        let result = run_project_operation(
+            home.path(),
+            Path::new("/fixed/client"),
+            project_request(Some("   ")),
+            ProjectOperation::Create,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, ProjectOperationCode::Created);
+        assert_eq!(
+            runner.invocations.borrow()[1].arguments,
+            vec!["--project", "Blue Sky", "--no-cd"]
+        );
+        assert_eq!(result.project.unwrap().artist, "Inherited Artist");
+    }
+
+    #[test]
+    fn invalid_project_input_never_starts_a_process() {
+        let runner = FakeRunner::new(Vec::new());
+        let mut invalid = project_request(None);
+        invalid.project_name = "   ".into();
+        let result = run_project_operation(
+            Path::new("/home/tester"),
+            Path::new("/fixed/client"),
+            invalid,
+            ProjectOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, ProjectOperationCode::InvalidInput);
+        assert!(runner.invocations.borrow().is_empty());
+    }
+
+    #[test]
+    fn project_collision_is_reported_from_preflight() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            failure(4, "Project destination already exists"),
+        ]);
+        let result = run_project_operation(
+            home.path(),
+            Path::new("/fixed/client"),
+            project_request(None),
+            ProjectOperation::Preflight,
+            &runner,
+        );
+
+        assert_eq!(result.code, ProjectOperationCode::Collision);
+        assert!(result.message.contains("already exists"));
+    }
+
+    #[test]
+    fn successful_creation_without_identity_is_uncertain() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("Project created")]);
+        let result = run_project_operation(
+            home.path(),
+            Path::new("/fixed/client"),
+            project_request(None),
+            ProjectOperation::Create,
+            &runner,
+        );
+
+        assert_eq!(result.code, ProjectOperationCode::Uncertain);
+        assert!(result.message.contains("may have completed"));
     }
 
     #[test]

@@ -242,6 +242,30 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
     }
 }
 
+/// Resolves one validated client directory without accepting a frontend path.
+/// Duplicate IDs are treated as unavailable so the caller can never choose an
+/// ambiguous working directory.
+pub fn find_validated_client_path(root: &Path, client_id: &str) -> Option<PathBuf> {
+    let clients_path = root.join("Clients");
+    let mut matches = directory_entries(&clients_path)
+        .ok()?
+        .into_iter()
+        .filter(|path| path.is_dir() && !is_symlink(path))
+        .filter(|path| {
+            read_document::<ClientDocument>(
+                &path.join("client.json"),
+                CLIENT_SCHEMA,
+                "mixing-client",
+            )
+            .is_ok_and(|client| client.client_id == client_id)
+        });
+    let matched = matches.next()?;
+    if matches.next().is_some() {
+        return None;
+    }
+    Some(matched)
+}
+
 fn read_document<T: DeserializeOwned>(
     path: &Path,
     schema_json: &str,
@@ -526,6 +550,31 @@ mod tests {
         discover_workspace_at(&root);
 
         assert_eq!(file_snapshot(&root), before);
+    }
+
+    #[test]
+    fn resolves_a_validated_client_directory_by_stable_id() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "Acme Records", "Acme Records", "The Artist");
+
+        assert_eq!(
+            find_validated_client_path(&root, "acme-records"),
+            Some(root.join("Clients/Acme Records"))
+        );
+        assert_eq!(find_validated_client_path(&root, "missing"), None);
+    }
+
+    #[test]
+    fn refuses_an_ambiguous_client_id() {
+        let temp = tempfile::tempdir().expect("temporary directory");
+        let root = temp.path().join("Mixes");
+        write_workspace(&root);
+        write_client(&root, "duplicate-id", "First Client", "Artist");
+        write_client(&root, "duplicate id", "Second Client", "Artist");
+
+        assert_eq!(find_validated_client_path(&root, "duplicate-id"), None);
     }
 
     fn write_workspace(root: &Path) {
