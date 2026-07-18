@@ -641,10 +641,17 @@ mod tests {
         write_client(&root, "client", "Client", "Artist");
         write_project(&root, "client", "project", "Project", "project");
         write_delivery(&root, "client", "project", false);
+        let delivery_path =
+            root.join("Clients/client/Projects/project/05_Final_Delivery/delivery-manifest.json");
+        let historical = fs::read_to_string(&delivery_path)
+            .unwrap()
+            .replace("jl-mixing 1.2.0", "jl-mixing 1.1.1");
+        fs::write(&delivery_path, historical).unwrap();
 
         let snapshot = discover_workspace_at(&root);
         let delivery = snapshot.clients[0].projects[0].delivery.as_ref().unwrap();
         assert_eq!(snapshot.status, WorkspaceStatus::Healthy);
+        assert_eq!(delivery.created_with, "jl-mixing 1.1.1");
         assert_eq!(delivery.revision, 1);
         assert_eq!(delivery.method, "Download");
         assert_eq!(delivery.files[0].path, "Project Main Mix.wav");
