@@ -12,7 +12,6 @@ import type {
   ClientCreationSummary,
   ClientOperationResult,
   DiscoveryIssue,
-  ProjectSummary,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -206,8 +205,11 @@ const emptyClientForm: ClientFormValues = {
 
 const clientIdPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-const formatRevision = (revision: number | null) =>
-  revision === null ? "Not set" : "Revision " + revision;
+const displayWorkspacePath = (path: string) =>
+  path
+    .replace(/^\/Users\/[^/]+(?=\/)/, "~")
+    .replace(/^\/home\/[^/]+(?=\/)/, "~")
+    .replace(/^[A-Za-z]:\\Users\\[^\\]+(?=\\)/, "~");
 
 const safeError = (error: unknown, fallback: string) =>
   error instanceof Error && error.message
@@ -215,29 +217,6 @@ const safeError = (error: unknown, fallback: string) =>
     : typeof error === "string" && error
       ? error
       : fallback;
-
-function ProjectCard({ project }: { project: ProjectSummary }) {
-  return (
-    <article className="project-card">
-      <div className="project-title">
-        <div>
-          <p className="kicker">Project</p>
-          <h3>{project.projectName}</h3>
-        </div>
-        <span className="artist">{project.artist}</span>
-      </div>
-      <dl className="revision-grid">
-        <div><dt>Current</dt><dd>{formatRevision(project.currentRevision)}</dd></div>
-        <div><dt>Approved</dt><dd>{formatRevision(project.approvedRevision)}</dd></div>
-        <div><dt>Delivered</dt><dd>{formatRevision(project.deliveredRevision)}</dd></div>
-      </dl>
-      <footer>
-        <span>Schema {project.schemaVersion}</span>
-        <span>Created with {project.createdWith}</span>
-      </footer>
-    </article>
-  );
-}
 
 function IssueDetail({ issue }: { issue: DiscoveryIssue }) {
   return (
@@ -285,35 +264,6 @@ function WorkspaceContent({ snapshot }: { snapshot: WorkspaceSnapshot }) {
           <p className="kicker">Workspace ready</p>
           <h2>No clients or projects yet</h2>
           <p>Use <strong>New client</strong> to create the first client safely.</p>
-        </section>
-      )}
-
-      {snapshot.clients.length > 0 && (
-        <section className="clients" aria-labelledby="clients-heading">
-          <div className="section-heading">
-            <p className="kicker">Workspace contents</p>
-            <h2 id="clients-heading">Clients and projects</h2>
-          </div>
-          {snapshot.clients.map((client) => (
-            <section className="client-group" key={client.clientId}>
-              <div className="client-heading">
-                <div>
-                  <h3>{client.clientName}</h3>
-                  {client.defaultArtist && <p>Default artist: {client.defaultArtist}</p>}
-                </div>
-                <span>{client.projects.length} {client.projects.length === 1 ? "project" : "projects"}</span>
-              </div>
-              {client.projects.length === 0 ? (
-                <p className="client-empty">No projects for this client.</p>
-              ) : (
-                <div className="project-list">
-                  {client.projects.map((project) => (
-                    <ProjectCard key={project.projectId} project={project} />
-                  ))}
-                </div>
-              )}
-            </section>
-          ))}
         </section>
       )}
 
@@ -402,6 +352,9 @@ function Sidebar({
                 ? "Checking…"
                 : "Unavailable"}
           </strong>
+          {workspace.status === "ready" && (
+            <code>{displayWorkspacePath(workspace.value.workspacePath)}</code>
+          )}
         </span>
       </div>
     </aside>
@@ -540,15 +493,7 @@ function Dashboard({
         </section>
       </div>
 
-      {snapshot && (
-        <section className="workspace-section" aria-labelledby="workspace-contents-heading">
-          <div className="section-heading">
-            <p className="kicker">Authoritative workspace</p>
-            <h2 id="workspace-contents-heading">Clients and projects</h2>
-          </div>
-          <WorkspaceContent snapshot={snapshot} />
-        </section>
-      )}
+      {snapshot && <WorkspaceContent snapshot={snapshot} />}
     </>
   );
 }

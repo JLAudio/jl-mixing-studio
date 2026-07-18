@@ -42,6 +42,7 @@ code { overflow-wrap: anywhere; }
 .workspace-context > span:last-child { min-width: 0; display: grid; gap: 3px; }
 .workspace-context small { color: #8590a3; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
 .workspace-context strong { font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-context code { color: #78849a; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .68rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-dot { width: 8px; height: 8px; margin-top: 4px; border-radius: 999px; background: #d49224; box-shadow: 0 0 0 3px #fff1d7; flex: 0 0 auto; }
 .workspace-dot.good { background: #28a36a; box-shadow: 0 0 0 3px #e3f7ed; }
 
