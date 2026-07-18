@@ -5,6 +5,7 @@ These are unchanged copies of the JSON Schemas released by [JL Mixing Automation
 - `studio.schema.json`
 - `client.schema.json`
 - `project-manifest.schema.json`
+- `delivery-manifest.schema.json`
 
 JL Mixing Automation v1.2.0 uses document schema version `1.1.0`. Application release versions and document schema versions are intentionally independent.
 

@@ -1,6 +1,6 @@
 # JL Mixing Studio Product Requirements Document
 
-**Status:** Approved baseline; guided revision approval current
+**Status:** Approved baseline; authoritative delivery inspection current
 
 **Product:** JL Mixing Studio  
 **License:** Apache-2.0  
@@ -324,7 +324,7 @@ This milestone activates controlled creation of the next project revision while 
 
 Revision source import, notes-file browsing, approval, delivery, deletion, editing, folder or DAW launch, and arbitrary manifest changes remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #19](https://github.com/JLAudio/jl-mixing-studio/issues/19).
 
-## 20. Current milestone: safe guided revision approval
+## 20. Completed milestone: safe guided revision approval
 
 This milestone activates controlled approval of a selected project revision while preserving JL Mixing Automation v1.2.0 and the project manifest as authoritative. The application shall:
 
@@ -342,7 +342,23 @@ This milestone activates controlled approval of a selected project revision whil
 
 Delivery creation, approval timestamp override, revision notes or file editing, source import, deletion, arbitrary paths, and manifest editing remain outside this milestone. The scope and acceptance criteria are tracked in [Issue #21](https://github.com/JLAudio/jl-mixing-studio/issues/21).
 
-## 21. Future decisions requiring approval
+## 21. Current milestone: authoritative delivery readiness and package inspection
+
+This milestone activates the Delivery route without running `create-delivery` or introducing competing lifecycle state. The application shall:
+
+1. Validate the released v1.2.0 delivery-manifest schema locally and offline.
+2. Require a delivery manifest and `state.delivered_revision` to exist together.
+3. Correlate delivery client, project, revision identity, description, and approval metadata with the containing validated manifests.
+4. Reject duplicate or unsafe recorded file paths while preserving valid sibling projects during partial discovery.
+5. Present approval-required, ready-for-first-delivery, current-delivery, and replacement-review-required states.
+6. Display delivery identity, creation provenance, method, revision, approval, file count, total bytes, deliverable types, relative paths, and recorded SHA-256 values.
+7. Explain that recorded checksums are not recalculated during discovery.
+8. Keep package creation, ZIP creation, filters, overwrite, destructive clean replacement, notes editing, transfer, and deletion disabled and Planned.
+9. Perform no filesystem mutation or process execution.
+
+The scope and acceptance criteria are tracked in [Issue #23](https://github.com/JLAudio/jl-mixing-studio/issues/23).
+
+## 22. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.

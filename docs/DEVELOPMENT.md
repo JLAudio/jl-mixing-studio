@@ -123,6 +123,8 @@ Intake reads `00_Admin/Intake_Report.md` only after Rust resolves an exact valid
 
 Workspace discovery validates `studio.json`, `client.json`, and project manifests against copies of the released JL Mixing Automation v1.2.0 schemas in `schemas/jl-mixing-v1.2.0/`. Those document schemas remain version `1.1.0`.
 
+When a project records a delivered revision, discovery also validates `05_Final_Delivery/delivery-manifest.json` against the released delivery schema and correlates its client, project, revision, approval, and safe unique file paths with the project manifest. Studio displays the manifest's recorded SHA-256 values but does not re-hash package files during discovery. A missing or inconsistent delivery manifest invalidates only that project and preserves valid siblings.
+
 Revision history is part of workspace discovery rather than a separate read command or cache. Rust preserves each manifest revision's stable ID, timestamp, description, and paired approval metadata, sorts records deterministically for the frontend, and rejects duplicate or gapped revision numbers, duplicate revision IDs, inconsistent current-revision counts, and approved or delivered pointers that do not identify an approved revision. The history remains readable for valid projects retained in a partial workspace.
 
 Revision creation resolves an exact validated client/project identity and invokes only `new-revision [--description TEXT] --dry-run` for preview or `new-revision [--description TEXT] --no-cd` after confirmation. The frontend cannot provide a source path. After success, Rust re-discovers the project and requires one new contiguous revision, unchanged prior revision records, unchanged approved and delivered pointers, and a new unique revision ID before reporting a confirmed result.
@@ -205,6 +207,7 @@ Record the results on the guided-revision-approval pull request. Keep or manuall
 - Revision creation accepts only an optional description; Automation's `--source` option is not exposed.
 - Revision approval accepts only a selected validated revision and approver identity; approval timestamp override is not exposed.
 - Delivery creation remains Planned.
+- Delivery inspection is read-only; package creation, ZIP generation, filters, overwrite, and destructive clean replacement remain Planned.
 - Client editing and deletion are not implemented.
 - JL Mixing Automation v1.2.0 does not run natively on Windows.
 - Browser rendering does not validate native Tauri integration.
