@@ -149,7 +149,11 @@ fn bullet_section(content: &str, heading: &str) -> Result<Vec<String>, IntakeRep
 fn inventory_section(content: &str) -> Result<Vec<IntakeInventoryItem>, IntakeReportError> {
     let content = section(content, "Source Inventory").ok_or(IntakeReportError::Invalid)?;
     let mut inventory = Vec::new();
-    for line in content.lines().map(str::trim).filter(|line| line.starts_with('|')) {
+    for line in content
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('|'))
+    {
         if line.starts_with("| File |") || line.starts_with("|---") {
             continue;
         }
@@ -162,9 +166,7 @@ fn inventory_section(content: &str) -> Result<Vec<IntakeInventoryItem>, IntakeRe
         }
         inventory.push(IntakeInventoryItem {
             file: cells[0].trim_matches('`').replace("\\|", "|"),
-            size_bytes: cells[1]
-                .parse()
-                .map_err(|_| IntakeReportError::Invalid)?,
+            size_bytes: cells[1].parse().map_err(|_| IntakeReportError::Invalid)?,
             technical_details: cells[2].to_owned(),
         });
     }
@@ -266,9 +268,7 @@ mod tests {
 
     #[test]
     fn recognizes_the_untouched_report_template() {
-        let report = format!(
-            "# Intake Report\n\n{BEGIN_MARKER}\n{NOT_RUN}\n{END_MARKER}\n"
-        );
+        let report = format!("# Intake Report\n\n{BEGIN_MARKER}\n{NOT_RUN}\n{END_MARKER}\n");
         assert_eq!(parse_report(&report, &request()), Ok(None));
     }
 
@@ -284,7 +284,10 @@ mod tests {
     #[test]
     fn rejects_inconsistent_or_unbounded_reports() {
         assert_eq!(
-            parse_report(&REPORT.replace("Files discovered: 2", "Files discovered: 3"), &request()),
+            parse_report(
+                &REPORT.replace("Files discovered: 2", "Files discovered: 3"),
+                &request()
+            ),
             Err(IntakeReportError::Invalid)
         );
         assert_eq!(

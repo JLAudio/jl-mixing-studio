@@ -7,9 +7,8 @@ use std::process::Command;
 
 use crate::models::{
     ClientCreationRequest, ClientCreationSummary, ClientOperationCode, ClientOperationResult,
-    IntakeOperationCode, IntakeOperationResult, IntakeRequest,
-    ProjectCreationRequest, ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult,
-    VersionCheck,
+    IntakeOperationCode, IntakeOperationResult, IntakeRequest, ProjectCreationRequest,
+    ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult, VersionCheck,
 };
 use crate::{intake, intake::IntakeReportError};
 
@@ -140,10 +139,7 @@ pub fn blocked_project_operation(
     }
 }
 
-pub fn blocked_intake_operation(
-    code: IntakeOperationCode,
-    message: &str,
-) -> IntakeOperationResult {
+pub fn blocked_intake_operation(code: IntakeOperationCode, message: &str) -> IntakeOperationResult {
     IntakeOperationResult {
         ok: false,
         code,
@@ -1366,9 +1362,15 @@ mod tests {
         assert!(result.ok);
         assert_eq!(result.code, IntakeOperationCode::Ready);
         let invocations = runner.invocations.borrow();
-        assert_eq!(invocations[1].executable, home.path().join(".local/bin/validate-intake"));
+        assert_eq!(
+            invocations[1].executable,
+            home.path().join(".local/bin/validate-intake")
+        );
         assert_eq!(invocations[1].arguments, vec!["--dry-run"]);
-        assert_eq!(invocations[1].current_directory, Some(project_directory.into()));
+        assert_eq!(
+            invocations[1].current_directory,
+            Some(project_directory.into())
+        );
     }
 
     #[test]
@@ -1405,7 +1407,10 @@ mod tests {
             ),
         )
         .unwrap();
-        let runner = FakeRunner::new(vec![success("help"), success("Intake validation completed")]);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success("Intake validation completed"),
+        ]);
         let result = run_intake_operation(
             home.path(),
             project.path(),
@@ -1417,7 +1422,10 @@ mod tests {
         assert!(result.ok);
         assert_eq!(result.code, IntakeOperationCode::Validated);
         assert!(runner.invocations.borrow()[1].arguments.is_empty());
-        assert_eq!(runner.invocations.borrow()[1].current_directory, Some(project.path().into()));
+        assert_eq!(
+            runner.invocations.borrow()[1].current_directory,
+            Some(project.path().into())
+        );
     }
 
     #[test]

@@ -4,8 +4,8 @@ mod models;
 mod workspace;
 
 use models::{
-    ClientCreationRequest, ClientOperationCode, ClientOperationResult, ProjectCreationRequest,
-    IntakeOperationCode, IntakeOperationResult, IntakeRequest, ProjectOperationCode,
+    ClientCreationRequest, ClientOperationCode, ClientOperationResult, IntakeOperationCode,
+    IntakeOperationResult, IntakeRequest, ProjectCreationRequest, ProjectOperationCode,
     ProjectOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
 };
 use std::path::PathBuf;
@@ -109,10 +109,7 @@ fn preflight_intake_validation(
 }
 
 #[tauri::command]
-fn run_intake_validation(
-    app: tauri::AppHandle,
-    request: IntakeRequest,
-) -> IntakeOperationResult {
+fn run_intake_validation(app: tauri::AppHandle, request: IntakeRequest) -> IntakeOperationResult {
     run_intake_operation(&app, request, cli::run_intake_validation)
 }
 
@@ -328,17 +325,27 @@ mod tests {
 
     #[test]
     fn intake_reports_remain_readable_in_partial_workspaces() {
-        assert!(workspace_allows_intake_report_read(WorkspaceStatus::Healthy));
-        assert!(workspace_allows_intake_report_read(WorkspaceStatus::Partial));
+        assert!(workspace_allows_intake_report_read(
+            WorkspaceStatus::Healthy
+        ));
+        assert!(workspace_allows_intake_report_read(
+            WorkspaceStatus::Partial
+        ));
         assert!(!workspace_allows_intake_report_read(WorkspaceStatus::Empty));
-        assert!(!workspace_allows_intake_report_read(WorkspaceStatus::Invalid));
+        assert!(!workspace_allows_intake_report_read(
+            WorkspaceStatus::Invalid
+        ));
     }
 
     #[test]
     fn only_healthy_workspaces_allow_intake_validation() {
         assert!(workspace_allows_intake_validation(WorkspaceStatus::Healthy));
-        assert!(!workspace_allows_intake_validation(WorkspaceStatus::Partial));
+        assert!(!workspace_allows_intake_validation(
+            WorkspaceStatus::Partial
+        ));
         assert!(!workspace_allows_intake_validation(WorkspaceStatus::Empty));
-        assert!(!workspace_allows_intake_validation(WorkspaceStatus::Invalid));
+        assert!(!workspace_allows_intake_validation(
+            WorkspaceStatus::Invalid
+        ));
     }
 }
