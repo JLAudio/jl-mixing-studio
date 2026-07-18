@@ -87,8 +87,9 @@ h3 { margin: 0; font-size: 1rem; }
 .status-dot.good { background: #28a36a; box-shadow: 0 0 0 3px #e3f7ed; }
 .workspace-path { display: block; margin-top: 16px; color: #4f5d74; background: #f3f6f9; border-radius: 6px; padding: 8px 9px; font-size: .72rem; }
 .health-detail { color: #7a8699; font-size: .75rem; line-height: 1.5; margin: 11px 0 0; }
-.quick-actions { grid-column: 1 / 2; }
-.activity-panel { grid-column: 2 / 3; }
+.quick-actions { grid-column: 2 / 3; }
+.activity-panel { grid-column: 1 / 2; }
+.quick-actions .action-grid { grid-template-columns: 1fr; }
 .action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .action-grid button { display: flex; justify-content: center; align-items: center; gap: 8px; }
 .planned-action { background: #f7f9fc; color: #718097; border-color: #dbe2eb; }
