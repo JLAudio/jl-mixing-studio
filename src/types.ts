@@ -5,6 +5,7 @@ export interface VersionCheck {
   projectCreationSupported: boolean;
   intakeValidationSupported: boolean;
   revisionCreationSupported: boolean;
+  revisionApprovalSupported: boolean;
   version: string | null;
   message: string;
 }
@@ -40,6 +41,43 @@ export interface RevisionOperationResult {
   code: RevisionOperationCode;
   message: string;
   revision: RevisionCreationSummary | null;
+}
+
+export interface RevisionApprovalRequest {
+  clientId: string;
+  projectId: string;
+  revision: number;
+  approvedBy: string;
+}
+
+export interface RevisionApprovalSummary {
+  clientId: string;
+  projectId: string;
+  revision: number;
+  approvedBy: string;
+  approvedAt: string | null;
+}
+
+export type ApprovalOperationCode =
+  | "ready"
+  | "approved"
+  | "invalidInput"
+  | "automationUnavailable"
+  | "unsupportedVersion"
+  | "unsupportedPlatform"
+  | "workspaceBlocked"
+  | "projectUnavailable"
+  | "revisionUnavailable"
+  | "alreadyApproved"
+  | "rejected"
+  | "uncertain"
+  | "failed";
+
+export interface ApprovalOperationResult {
+  ok: boolean;
+  code: ApprovalOperationCode;
+  message: string;
+  approval: RevisionApprovalSummary | null;
 }
 
 export interface IntakeRequest {

@@ -4,11 +4,12 @@ mod models;
 mod workspace;
 
 use models::{
-    ClientCreationRequest, ClientOperationCode, ClientOperationResult, IntakeOperationCode,
-    IntakeOperationResult, IntakeRequest, ProjectCreationRequest, ProjectOperationCode,
-    ProjectOperationResult, ProjectSummary, RevisionCreationRequest, RevisionCreationSummary,
-    RevisionOperationCode, RevisionOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot,
-    WorkspaceStatus,
+    ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientOperationCode,
+    ClientOperationResult, IntakeOperationCode, IntakeOperationResult, IntakeRequest,
+    ProjectCreationRequest, ProjectOperationCode, ProjectOperationResult, ProjectSummary,
+    RevisionApprovalRequest, RevisionApprovalSummary, RevisionCreationRequest,
+    RevisionCreationSummary, RevisionOperationCode, RevisionOperationResult, SystemInfo,
+    VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
 };
 use std::path::PathBuf;
 use tauri::Manager;
@@ -34,6 +35,7 @@ fn get_jl_mixing_version(app: tauri::AppHandle) -> VersionCheck {
             project_creation_supported: false,
             intake_validation_supported: false,
             revision_creation_supported: false,
+            revision_approval_supported: false,
             version: None,
             message,
         },
@@ -134,6 +136,22 @@ fn create_revision(
     request: RevisionCreationRequest,
 ) -> RevisionOperationResult {
     run_revision_operation(&app, request, cli::create_revision, true)
+}
+
+#[tauri::command]
+fn preflight_revision_approval(
+    app: tauri::AppHandle,
+    request: RevisionApprovalRequest,
+) -> ApprovalOperationResult {
+    run_approval_operation(&app, request, cli::preflight_revision_approval, false)
+}
+
+#[tauri::command]
+fn approve_revision(
+    app: tauri::AppHandle,
+    request: RevisionApprovalRequest,
+) -> ApprovalOperationResult {
+    run_approval_operation(&app, request, cli::approve_revision, true)
 }
 
 fn resolve_home(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -438,6 +456,183 @@ fn uncertain_revision_result() -> RevisionOperationResult {
     )
 }
 
+fn run_approval_operation(
+    app: &tauri::AppHandle,
+    request: RevisionApprovalRequest,
+    operation: fn(
+        &std::path::Path,
+        &std::path::Path,
+        RevisionApprovalRequest,
+    ) -> ApprovalOperationResult,
+    verify_after_approval: bool,
+) -> ApprovalOperationResult {
+    if cfg!(target_os = "windows") {
+        return cli::blocked_approval_operation(
+            ApprovalOperationCode::UnsupportedPlatform,
+            "Revision approval requires JL Mixing Automation on macOS or Linux",
+        );
+    }
+    let home = match resolve_home(app) {
+        Ok(home) => home,
+        Err(message) => {
+            return cli::blocked_approval_operation(ApprovalOperationCode::Failed, &message)
+        }
+    };
+    let workspace_path = home.join("Music").join("Mixes");
+    let snapshot = workspace::discover_workspace_at(&workspace_path);
+    if !workspace_allows_revision_approval(snapshot.status) {
+        return cli::blocked_approval_operation(
+            ApprovalOperationCode::WorkspaceBlocked,
+            "Resolve workspace issues before approving a revision",
+        );
+    }
+    let client_id = request.client_id.trim().to_owned();
+    let project_id = request.project_id.trim().to_owned();
+    let revision_number = request.revision;
+    let approved_by = request.approved_by.trim().to_owned();
+    let Some(before) = find_project_summary(&snapshot, &client_id, &project_id).cloned() else {
+        return cli::blocked_approval_operation(
+            ApprovalOperationCode::ProjectUnavailable,
+            "The selected project is no longer available in the validated workspace",
+        );
+    };
+    if !before
+        .revisions
+        .iter()
+        .any(|revision| revision.number == revision_number)
+    {
+        return cli::blocked_approval_operation(
+            ApprovalOperationCode::RevisionUnavailable,
+            "The selected revision is no longer available in the validated project",
+        );
+    }
+    if before.approved_revision == Some(revision_number) {
+        return cli::blocked_approval_operation(
+            ApprovalOperationCode::AlreadyApproved,
+            "The selected revision is already the approved revision",
+        );
+    }
+    let Some(project_directory) =
+        validated_project_directory(&workspace_path, &snapshot, &client_id, &project_id)
+    else {
+        return cli::blocked_approval_operation(
+            ApprovalOperationCode::ProjectUnavailable,
+            "The selected project directory could not be resolved safely",
+        );
+    };
+
+    let result = operation(&home, &project_directory, request);
+    if result.ok {
+        let Some(approval) = result.approval.as_ref() else {
+            return if verify_after_approval {
+                uncertain_approval_result()
+            } else {
+                cli::blocked_approval_operation(
+                    ApprovalOperationCode::Failed,
+                    "The approval preview did not include a verifiable revision identity",
+                )
+            };
+        };
+        if approval.client_id != client_id
+            || approval.project_id != project_id
+            || approval.revision != revision_number
+            || approval.approved_by != approved_by
+            || !before
+                .revisions
+                .iter()
+                .any(|revision| revision.number == approval.revision)
+        {
+            return if verify_after_approval {
+                uncertain_approval_result()
+            } else {
+                cli::blocked_approval_operation(
+                    ApprovalOperationCode::Failed,
+                    "The approval preview did not match the authoritative project state",
+                )
+            };
+        }
+    }
+    if !verify_after_approval || !result.ok || result.code != ApprovalOperationCode::Approved {
+        return result;
+    }
+    let Some(expected) = result.approval.as_ref() else {
+        return uncertain_approval_result();
+    };
+    if expected.client_id != client_id || expected.project_id != project_id {
+        return uncertain_approval_result();
+    }
+    let refreshed = workspace::discover_workspace_at(&workspace_path);
+    let Some(after) = find_project_summary(&refreshed, &client_id, &project_id) else {
+        return uncertain_approval_result();
+    };
+    if !verify_revision_approval(&before, after, expected) {
+        return uncertain_approval_result();
+    }
+    result
+}
+
+fn verify_revision_approval(
+    before: &ProjectSummary,
+    after: &ProjectSummary,
+    expected: &RevisionApprovalSummary,
+) -> bool {
+    if expected.approved_at.as_deref().is_none_or(str::is_empty)
+        || after.project_id != before.project_id
+        || after.project_name != before.project_name
+        || after.artist != before.artist
+        || after.schema_version != before.schema_version
+        || after.created_with != before.created_with
+        || after.sample_rate != before.sample_rate
+        || after.bit_depth != before.bit_depth
+        || after.file_format != before.file_format
+        || after.current_revision != before.current_revision
+        || after.delivered_revision != before.delivered_revision
+        || after.approved_revision != Some(expected.revision)
+        || after.revisions.len() != before.revisions.len()
+    {
+        return false;
+    }
+    if !before.revisions.iter().all(|revision| {
+        if revision.number == expected.revision {
+            return true;
+        }
+        after
+            .revisions
+            .iter()
+            .find(|candidate| candidate.number == revision.number)
+            == Some(revision)
+    }) {
+        return false;
+    }
+    let Some(previous) = before
+        .revisions
+        .iter()
+        .find(|revision| revision.number == expected.revision)
+    else {
+        return false;
+    };
+    let Some(approved) = after
+        .revisions
+        .iter()
+        .find(|revision| revision.number == expected.revision)
+    else {
+        return false;
+    };
+    approved.number == previous.number
+        && approved.revision_id == previous.revision_id
+        && approved.created_at == previous.created_at
+        && approved.description == previous.description
+        && approved.approved_by == Some(expected.approved_by.clone())
+        && approved.approved_at == expected.approved_at
+}
+
+fn uncertain_approval_result() -> ApprovalOperationResult {
+    cli::blocked_approval_operation(
+        ApprovalOperationCode::Uncertain,
+        "JL Mixing Automation reported success, but the authoritative approval state could not be reconciled. The operation may have completed; do not retry automatically.",
+    )
+}
+
 fn validated_project_directory(
     workspace_path: &std::path::Path,
     snapshot: &WorkspaceSnapshot,
@@ -468,6 +663,10 @@ fn workspace_allows_revision_creation(status: WorkspaceStatus) -> bool {
     matches!(status, WorkspaceStatus::Healthy)
 }
 
+fn workspace_allows_revision_approval(status: WorkspaceStatus) -> bool {
+    matches!(status, WorkspaceStatus::Healthy)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -484,6 +683,8 @@ pub fn run() {
             run_intake_validation,
             preflight_revision_creation,
             create_revision,
+            preflight_revision_approval,
+            approve_revision,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -551,6 +752,29 @@ mod tests {
         project
     }
 
+    fn expected_approval(revision: u32) -> RevisionApprovalSummary {
+        RevisionApprovalSummary {
+            client_id: "acme".into(),
+            project_id: "blue-sky".into(),
+            revision,
+            approved_by: "Client".into(),
+            approved_at: Some("2026-07-18T13:00:00Z".into()),
+        }
+    }
+
+    fn project_after_revision_approval(revision: u32) -> ProjectSummary {
+        let mut project = project_with_two_revisions();
+        project.approved_revision = Some(revision);
+        let selected = project
+            .revisions
+            .iter_mut()
+            .find(|candidate| candidate.number == revision)
+            .unwrap();
+        selected.approved_by = Some("Client".into());
+        selected.approved_at = Some("2026-07-18T13:00:00Z".into());
+        project
+    }
+
     #[test]
     fn only_healthy_and_empty_workspaces_allow_client_creation() {
         assert!(workspace_allows_client_creation(WorkspaceStatus::Healthy));
@@ -612,6 +836,18 @@ mod tests {
     }
 
     #[test]
+    fn only_healthy_workspaces_allow_revision_approval() {
+        assert!(workspace_allows_revision_approval(WorkspaceStatus::Healthy));
+        assert!(!workspace_allows_revision_approval(
+            WorkspaceStatus::Partial
+        ));
+        assert!(!workspace_allows_revision_approval(WorkspaceStatus::Empty));
+        assert!(!workspace_allows_revision_approval(
+            WorkspaceStatus::Invalid
+        ));
+    }
+
+    #[test]
     fn verifies_one_authoritative_revision_and_preserved_lifecycle_state() {
         assert!(verify_revision_creation(
             &project_with_two_revisions(),
@@ -649,6 +885,53 @@ mod tests {
             &before,
             &after,
             &expected_revision(),
+        ));
+    }
+
+    #[test]
+    fn verifies_only_selected_approval_and_pointer_change() {
+        assert!(verify_revision_approval(
+            &project_with_two_revisions(),
+            &project_after_revision_approval(2),
+            &expected_approval(2),
+        ));
+    }
+
+    #[test]
+    fn verifies_historical_reapproval_without_changing_other_records() {
+        let mut before = project_with_two_revisions();
+        before.approved_revision = Some(2);
+        before.revisions[1].approved_by = Some("Earlier Reviewer".into());
+        before.revisions[1].approved_at = Some("2026-07-17T19:00:00Z".into());
+        let mut after = before.clone();
+        after.approved_revision = Some(1);
+        after.revisions[0].approved_by = Some("Client".into());
+        after.revisions[0].approved_at = Some("2026-07-18T13:00:00Z".into());
+
+        assert!(verify_revision_approval(
+            &before,
+            &after,
+            &expected_approval(1),
+        ));
+    }
+
+    #[test]
+    fn rejects_approval_reconciliation_when_unselected_history_or_delivery_changes() {
+        let before = project_with_two_revisions();
+        let mut changed_history = project_after_revision_approval(2);
+        changed_history.revisions[0].description = "Changed".into();
+        assert!(!verify_revision_approval(
+            &before,
+            &changed_history,
+            &expected_approval(2),
+        ));
+
+        let mut changed_delivery = project_after_revision_approval(2);
+        changed_delivery.delivered_revision = Some(1);
+        assert!(!verify_revision_approval(
+            &before,
+            &changed_delivery,
+            &expected_approval(2),
         ));
     }
 }
