@@ -160,7 +160,12 @@ fn project_task(
     deadline: Option<String>,
 ) -> DerivedTask {
     DerivedTask {
-        id: format!("project:{}:{}:{}", client.client_id, project.project_id, priority_rank(priority)),
+        id: format!(
+            "project:{}:{}:{}",
+            client.client_id,
+            project.project_id,
+            priority_rank(priority)
+        ),
         priority,
         title: title.into(),
         reason: reason.into(),
@@ -318,22 +323,14 @@ mod tests {
         );
         assert_eq!(tasks[0].priority, TaskPriority::Recovery);
         assert_eq!(tasks[1].priority, TaskPriority::Overdue);
-        assert!(
-            !tasks
-                .iter()
-                .any(|task| task.project_id.as_deref() == Some("aligned"))
-        );
+        assert!(!tasks
+            .iter()
+            .any(|task| task.project_id.as_deref() == Some("aligned")));
     }
 
     #[test]
     fn sorts_activity_newest_first() {
-        let events = derive_activity(&[client(vec![project(
-            "project",
-            None,
-            1,
-            Some(1),
-            None,
-        )])]);
+        let events = derive_activity(&[client(vec![project("project", None, 1, Some(1), None)])]);
         assert!(events.windows(2).all(|pair| {
             timestamp_key(&pair[0].timestamp) >= timestamp_key(&pair[1].timestamp)
         }));

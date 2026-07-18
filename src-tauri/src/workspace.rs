@@ -48,7 +48,10 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
                 let problem = failure.into_issue(root, &studio_path, DiscoveryScope::Studio, None);
                 return build_snapshot(
                     workspace_path,
-                    WorkspaceStatus::Invalid, None, Vec::new(), vec![problem],
+                    WorkspaceStatus::Invalid,
+                    None,
+                    Vec::new(),
+                    vec![problem],
                 );
             }
         };
@@ -67,7 +70,10 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
             let problem = failure.into_issue(root, &clients_path, DiscoveryScope::Workspace, None);
             return build_snapshot(
                 workspace_path,
-                WorkspaceStatus::Invalid, Some(studio), Vec::new(), vec![problem],
+                WorkspaceStatus::Invalid,
+                Some(studio),
+                Vec::new(),
+                vec![problem],
             );
         }
     };
@@ -244,13 +250,7 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
         WorkspaceStatus::Healthy
     };
 
-    build_snapshot(
-        workspace_path,
-        status,
-        Some(studio),
-        clients,
-        issues,
-    )
+    build_snapshot(workspace_path, status, Some(studio), clients, issues)
 }
 
 fn build_snapshot(
