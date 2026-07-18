@@ -664,8 +664,7 @@ mod tests {
             root.join("Clients/client/Projects/project/00_Admin/project-manifest.json");
         let mut manifest: Value =
             serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
-        manifest["revisions"][0]["approval"]["approved_at"] =
-            Value::from("2026-07-18T14:00:00Z");
+        manifest["revisions"][0]["approval"]["approved_at"] = Value::from("2026-07-18T14:00:00Z");
         manifest["revisions"][0]["approval"]["approved_by"] = Value::from("JL");
         fs::write(
             &manifest_path,
