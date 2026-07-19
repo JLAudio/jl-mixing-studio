@@ -59,8 +59,17 @@ pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
     let studio = StudioSummary {
         studio_id: studio_document.studio_id,
         studio_name: studio_document.studio_name,
+        root_path: studio_document.root_path,
         schema_version: studio_document.metadata.schema_version,
         created_with: studio_document.metadata.created_with,
+        created_at: studio_document.metadata.created_at,
+        mix_engineer: studio_document.defaults.mix_engineer,
+        sample_rate: studio_document.defaults.audio.sample_rate,
+        bit_depth: studio_document.defaults.audio.bit_depth,
+        file_format: studio_document.defaults.audio.file_format,
+        delivery_method: studio_document.defaults.delivery.method,
+        requested_deliverables: studio_document.defaults.delivery.requested_deliverables,
+        change_directory_after_create: studio_document.cli.change_directory_after_create,
     };
 
     let clients_path = root.join("Clients");
