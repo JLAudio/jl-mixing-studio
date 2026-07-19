@@ -393,6 +393,10 @@ The Studio route reads validated `studio.json` data and displays studio identity
 
 Studio displays selectable, copyable paths and may open only internally resolved workspace, studio, client, project, intake, revisions, and delivery directories in the operating-system file browser. The frontend supplies a location kind and stable client/project identities, never an arbitrary path or executable. Rust re-discovers the workspace, resolves validated identities, canonicalizes the existing directory, and requires it to remain within the canonical workspace root before invoking the platform folder opener. This scope is tracked in [Issue #32](https://github.com/JLAudio/jl-mixing-studio/issues/32) and supersedes Issue #27.
 
+### 24.3 Reports, Files, and Metadata
+
+The global Reports route indexes validated delivery manifests and links back to stable project identities. Project Reports combines the authoritative intake report and validated delivery manifest; Files lists only file records already present in those supported reports; Metadata displays the schema-validated project summary. These views do not crawl project directories, invent modification timestamps, parse unsupported documents, or create a second metadata source. This scope is tracked in [Issue #33](https://github.com/JLAudio/jl-mixing-studio/issues/33).
+
 ## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.
