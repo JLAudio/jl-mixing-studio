@@ -7,12 +7,12 @@ mod workspace;
 use models::{
     ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientOperationCode,
     ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest, DeliveryOperationCode,
-    DeliveryOperationResult, IntakeOperationCode, IntakeOperationResult, IntakeRequest,
-    ProjectCreationRequest, ProjectOperationCode, ProjectOperationResult, ProjectSummary,
-    RevisionApprovalRequest, RevisionApprovalSummary, RevisionCreationRequest,
-    RevisionCreationSummary, RevisionOperationCode, RevisionOperationResult, StudioCreationRequest,
-    StudioOperationCode, StudioOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot,
-    WorkspaceStatus,
+    DeliveryOperationResult, FolderLocation, FolderRequest, FolderResult, IntakeOperationCode,
+    IntakeOperationResult, IntakeRequest, ProjectCreationRequest, ProjectOperationCode,
+    ProjectOperationResult, ProjectSummary, RevisionApprovalRequest, RevisionApprovalSummary,
+    RevisionCreationRequest, RevisionCreationSummary, RevisionOperationCode,
+    RevisionOperationResult, StudioCreationRequest, StudioOperationCode, StudioOperationResult,
+    SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
 };
 use std::path::PathBuf;
 use tauri::Manager;
@@ -66,6 +66,77 @@ fn discover_default_workspace(app: tauri::AppHandle) -> Result<WorkspaceSnapshot
     Ok(workspace::discover_workspace_at(
         &home.join("Music").join("Mixes"),
     ))
+}
+
+#[tauri::command]
+fn resolve_folder(app: tauri::AppHandle, request: FolderRequest) -> Result<FolderResult, String> {
+    let home = resolve_home(&app)?;
+    let root = home.join("Music").join("Mixes");
+    let snapshot = workspace::discover_workspace_at(&root);
+    if !matches!(
+        snapshot.status,
+        WorkspaceStatus::Healthy | WorkspaceStatus::Empty | WorkspaceStatus::Partial
+    ) {
+        return Err("Resolve workspace issues before opening folders".into());
+    }
+    let project_path = || {
+        let client_id = request.client_id.as_deref()?;
+        let project_id = request.project_id.as_deref()?;
+        validated_project_directory(&root, &snapshot, client_id, project_id)
+    };
+    let path = match request.location {
+        FolderLocation::Workspace => root.clone(),
+        FolderLocation::Studio => root.join("Studio"),
+        FolderLocation::Client => workspace::find_validated_client_path(
+            &root,
+            request.client_id.as_deref().unwrap_or_default(),
+        )
+        .ok_or("The client folder could not be resolved safely")?,
+        FolderLocation::Project => {
+            project_path().ok_or("The project folder could not be resolved safely")?
+        }
+        FolderLocation::Intake => project_path()
+            .ok_or("The project folder could not be resolved safely")?
+            .join("01_Intake"),
+        FolderLocation::Revisions => project_path()
+            .ok_or("The project folder could not be resolved safely")?
+            .join("04_Revisions"),
+        FolderLocation::Delivery => project_path()
+            .ok_or("The project folder could not be resolved safely")?
+            .join("05_Final_Delivery"),
+    };
+    let canonical = path
+        .canonicalize()
+        .map_err(|_| "The requested folder is unavailable")?;
+    let canonical_root = root
+        .canonicalize()
+        .map_err(|_| "The workspace folder is unavailable")?;
+    if !canonical.is_dir() || !canonical.starts_with(&canonical_root) {
+        return Err("The requested folder could not be resolved safely".into());
+    }
+    Ok(FolderResult {
+        path: canonical.to_string_lossy().into_owned(),
+    })
+}
+
+#[tauri::command]
+fn open_folder(app: tauri::AppHandle, request: FolderRequest) -> Result<FolderResult, String> {
+    let result = resolve_folder(app, request)?;
+    let mut command = if cfg!(target_os = "macos") {
+        std::process::Command::new("open")
+    } else if cfg!(target_os = "windows") {
+        std::process::Command::new("explorer.exe")
+    } else {
+        std::process::Command::new("xdg-open")
+    };
+    let status = command
+        .arg(&result.path)
+        .status()
+        .map_err(|_| "The operating-system folder window could not be opened")?;
+    if !status.success() {
+        return Err("The operating-system folder window could not be opened".into());
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -925,10 +996,13 @@ fn workspace_allows_delivery_creation(status: WorkspaceStatus) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             get_jl_mixing_version,
             discover_default_workspace,
+            resolve_folder,
+            open_folder,
             preflight_studio_creation,
             create_studio,
             preflight_client_creation,

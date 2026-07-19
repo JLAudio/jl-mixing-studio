@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import App from "./App";
 import type {
   ApprovalOperationResult,
@@ -16,7 +17,9 @@ import type {
 } from "./types";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
+vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
 const mockedInvoke = vi.mocked(invoke);
+const mockedWriteText = vi.mocked(writeText);
 
 afterEach(cleanup);
 
@@ -253,6 +256,7 @@ const respondWith = (
 describe("JL Mixing Studio", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
+    mockedWriteText.mockReset();
     respondWith(healthyWorkspace());
   });
 
@@ -382,7 +386,43 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText("48 kHz / 24-bit / WAV")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Intake" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Revisions" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Open folder — Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Open folder" })).toBeEnabled();
+  });
+
+  it("resolves and opens only the validated project folder", async () => {
+    const path = "/Users/engineer/Music/Mixes/Clients/acme/Projects/blue-sky";
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "resolve_folder" || command === "open_folder") return Promise.resolve({ path });
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    expect(await screen.findByText(path)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+    await waitFor(() => expect(mockedInvoke).toHaveBeenCalledWith("open_folder", { request: { location: "project", clientId: "acme", projectId: "blue-sky" } }));
+    expect(await screen.findByText("Folder opened.")).toBeInTheDocument();
+  });
+
+  it("copies only the freshly resolved validated project folder", async () => {
+    const path = "/Users/engineer/Music/Mixes/Clients/acme/Projects/blue-sky";
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "resolve_folder") return Promise.resolve({ path });
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy path" }));
+
+    await waitFor(() => expect(mockedWriteText).toHaveBeenCalledWith(path));
+    expect(await screen.findByText("Path copied.")).toBeInTheDocument();
   });
 
   it("opens authoritative revision history and selects an older approved revision", async () => {
