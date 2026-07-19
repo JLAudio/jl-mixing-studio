@@ -409,6 +409,10 @@ For a validated existing package, Studio resolves only the fixed `05_Final_Deliv
 
 Studio may add only the released `--zip` and `--overwrite` flags to the fixed `create-delivery` command. Every request runs `--dry-run` first and verifies the reported replacement mode, ZIP choice, project identity, revisions, method, and selected path set. Default mode is allowed only without an existing package; overwrite is allowed only with a correlated delivery manifest and delivered pointer. A successful overwrite must preserve the pre-existing Delivery Notes bytes, keep project history unchanged, reconcile the new manifest and delivered pointer, and verify a requested fixed-name ZIP is a regular non-symlink file. Changed path sets remain an Automation rejection rather than silently escalating to clean replacement. This scope is tracked in [Issue #36](https://github.com/JLAudio/jl-mixing-studio/issues/36).
 
+### 24.7 Destructive clean replacement
+
+Clean replacement may invoke only released `create-delivery --clean`, optionally with `--zip`, after an independently successful dry run. Studio must parse and validate every safe relative path under Automation's `Would delete from 05_Final_Delivery/` heading, display the complete inventory, explain that notes and unrelated content are removed, and require the exact typed phrase `CLEAN <project-id>`. Confirmation carries the previewed inventory back to Rust; immediately before execution Rust enumerates the fixed delivery directory without following symlinks and rejects any stale or changed inventory. After success, Studio reconciles project history, the delivered pointer, manifest paths, recreated notes, optional ZIP, and absence of previewed entries that were not intentionally recreated. It never retries an uncertain clean result or silently escalates from overwrite. This scope is tracked in [Issue #37](https://github.com/JLAudio/jl-mixing-studio/issues/37).
+
 ## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.
