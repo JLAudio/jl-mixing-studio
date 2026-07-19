@@ -32,6 +32,9 @@ import type {
   RevisionCreationSummary,
   RevisionOperationResult,
   RevisionSummary,
+  StudioCreationRequest,
+  StudioCreationSummary,
+  StudioOperationResult,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -156,6 +159,22 @@ type DeliveryWorkflowState =
     }
   | { status: "uncertain"; message: string };
 
+type StudioWorkflowState =
+  | { status: "closed" }
+  | { status: "editing"; error?: string }
+  | { status: "preflighting" }
+  | { status: "confirming"; request: StudioCreationRequest; preview: StudioCreationSummary }
+  | { status: "creating"; request: StudioCreationRequest; preview: StudioCreationSummary }
+  | { status: "uncertain"; message: string };
+
+interface StudioFormValues {
+  studioName: string;
+  mixEngineer: string;
+  sampleRate: string;
+  bitDepth: string;
+  fileFormat: string;
+}
+
 type PrimaryRoute =
   | "dashboard"
   | "studio"
@@ -233,7 +252,7 @@ const routes: RouteDefinition[] = [
   },
 ];
 
-type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "clients" | "projects" | "tasks" | "activity">;
+type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "studio" | "clients" | "projects" | "tasks" | "activity">;
 
 const plannedRouteContent: Record<PlannedRouteId, {
   status: string;
@@ -241,15 +260,6 @@ const plannedRouteContent: Record<PlannedRouteId, {
   tableColumns?: string[];
   routeNote?: string;
 }> = {
-  studio: {
-    status: "Studio details are planned",
-    sections: [
-      { title: "Studio identity", detail: "Validated studio name and workspace configuration" },
-      { title: "Installed tools", detail: "Restricted, allowlisted compatibility checks" },
-      { title: "Audio defaults", detail: "Read-only sample rate, bit depth, and file format" },
-      { title: "Storage & statistics", detail: "Requires approved diagnostics before activation" },
-    ],
-  },
   reports: {
     status: "Report browsing is planned",
     sections: [
@@ -281,6 +291,14 @@ const emptyProjectForm: ProjectFormValues = {
   clientId: "",
   projectName: "",
   artist: "",
+};
+
+const emptyStudioForm: StudioFormValues = {
+  studioName: "",
+  mixEngineer: "",
+  sampleRate: "48000",
+  bitDepth: "24",
+  fileFormat: "WAV",
 };
 
 const emptyRevisionForm: RevisionFormValues = { description: "" };
@@ -1342,6 +1360,56 @@ function IntakeDialog({
   );
 }
 
+function StudioRoute({ workspace, version, loading, setupAvailable, setupHelp, onSetup, onRefresh }: {
+  workspace: ResourceState<WorkspaceSnapshot>;
+  version: ResourceState<VersionCheck>;
+  loading: boolean;
+  setupAvailable: boolean;
+  setupHelp: string;
+  onSetup: () => void;
+  onRefresh: () => void;
+}) {
+  if (workspace.status === "loading") return <section className="state-panel"><h2>Reading studio workspace…</h2></section>;
+  if (workspace.status === "error") return <section className="state-panel error"><h2>Studio workspace unavailable</h2><p>{workspace.message}</p><button type="button" onClick={onRefresh}>Try again</button></section>;
+  const snapshot = workspace.value;
+  if (!snapshot.studio) {
+    const unavailable = snapshot.status === "unavailable";
+    return <section className="planned-route" aria-labelledby="studio-state-heading">
+      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? "Not configured" : "Recovery required"}</span><h2 id="studio-state-heading">{unavailable ? "Create the default studio workspace" : "Studio configuration is not readable"}</h2><p>{unavailable ? "Use the guided JL Mixing Automation v1.2.0 workflow to create ~/Music/Mixes." : "Review the validated discovery issues below before changing the workspace."}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">New studio</button></div>
+      <p id="studio-setup-help" className="action-help">{setupHelp}</p>
+      {snapshot.issues.length > 0 && <RouteIssues snapshot={snapshot} />}
+    </section>;
+  }
+  const studio = snapshot.studio;
+  return <section className="planned-route" aria-labelledby="studio-details-heading">
+    <div className="panel-heading"><div><p className="kicker">Validated studio</p><h2 id="studio-details-heading">{studio.studioName}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>Refresh</button></div>
+    <div className="planned-section-grid">
+      <article className="planned-section"><h3>Identity</h3><dl className="confirmation-list"><div><dt>Studio ID</dt><dd><code>{studio.studioId}</code></dd></div><div><dt>Mix engineer</dt><dd>{studio.mixEngineer || "Not set"}</dd></div><div><dt>Created</dt><dd>{studio.createdAt}</dd></div></dl></article>
+      <article className="planned-section"><h3>Audio defaults</h3><dl className="confirmation-list"><div><dt>Sample rate</dt><dd>{studio.sampleRate.toLocaleString()} Hz</dd></div><div><dt>Bit depth</dt><dd>{studio.bitDepth}-bit</dd></div><div><dt>Format</dt><dd>{studio.fileFormat}</dd></div></dl></article>
+      <article className="planned-section"><h3>Delivery defaults</h3><dl className="confirmation-list"><div><dt>Method</dt><dd>{studio.deliveryMethod}</dd></div><div><dt>Deliverables</dt><dd>{studio.requestedDeliverables.join(", ") || "None"}</dd></div></dl></article>
+      <article className="planned-section"><h3>Workspace & tools</h3><dl className="confirmation-list"><div><dt>Workspace</dt><dd><code>{snapshot.workspacePath}</code></dd></div><div><dt>Configured root</dt><dd><code>{studio.rootPath}</code></dd></div><div><dt>Schema</dt><dd>{studio.schemaVersion}</dd></div><div><dt>Created with</dt><dd>{studio.createdWith}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div></dl></article>
+    </div>
+    {snapshot.issues.length > 0 && <RouteIssues snapshot={snapshot} />}
+  </section>;
+}
+
+function StudioDialog({ state, values, onChange, onPreflight, onConfirm, onBack, onClose }: {
+  state: Exclude<StudioWorkflowState, { status: "closed" }>;
+  values: StudioFormValues;
+  onChange: (values: StudioFormValues) => void;
+  onPreflight: (event: FormEvent<HTMLFormElement>) => void;
+  onConfirm: () => void;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const pending = state.status === "preflighting" || state.status === "creating";
+  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="studio-dialog-title"><p className="kicker">Guided setup</p><h2 id="studio-dialog-title">{state.status === "confirming" || state.status === "creating" ? "Confirm new studio" : state.status === "uncertain" ? "Creation needs verification" : "New studio"}</h2>
+    {(state.status === "editing" || state.status === "preflighting") && <form onSubmit={onPreflight} noValidate><p className="dialog-intro">Creates the default workspace at <code>~/Music/Mixes</code>. No custom path or command options are accepted.</p>{state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}<label>Studio name<input aria-label="Studio name" value={values.studioName} onChange={(e) => onChange({...values, studioName:e.target.value})} required disabled={pending}/></label><label>Mix engineer <span>(optional)</span><input aria-label="Mix engineer" value={values.mixEngineer} onChange={(e) => onChange({...values, mixEngineer:e.target.value})} disabled={pending}/></label><label>Sample rate<select aria-label="Sample rate" value={values.sampleRate} onChange={(e) => onChange({...values, sampleRate:e.target.value})} disabled={pending}>{[44100,48000,88200,96000,176400,192000].map(v=><option key={v} value={v}>{v.toLocaleString()} Hz</option>)}</select></label><label>Bit depth<select aria-label="Bit depth" value={values.bitDepth} onChange={(e) => onChange({...values, bitDepth:e.target.value})} disabled={pending}>{[16,24,32].map(v=><option key={v} value={v}>{v}-bit</option>)}</select></label><label>File format<select aria-label="File format" value={values.fileFormat} onChange={(e) => onChange({...values, fileFormat:e.target.value})} disabled={pending}><option>WAV</option><option>AIFF</option></select></label><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending}>{pending ? "Checking…" : "Review studio"}</button></div></form>}
+    {(state.status === "confirming" || state.status === "creating") && <div><p className="dialog-intro">Preflight passed without changing the filesystem. Confirm to create the default workspace.</p><dl className="confirmation-list"><div><dt>Studio</dt><dd>{state.preview.studioName}</dd></div><div><dt>Engineer</dt><dd>{state.preview.mixEngineer ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{state.preview.sampleRate.toLocaleString()} Hz · {state.preview.bitDepth}-bit {state.preview.fileFormat}</dd></div><div><dt>Location</dt><dd><code>~/Music/Mixes</code></dd></div></dl><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button type="button" onClick={onConfirm} disabled={pending}>{pending ? "Creating…" : "Create studio"}</button></div></div>}
+    {state.status === "uncertain" && <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not submit again automatically. Close and refresh the authoritative workspace.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>}
+  </section></div>;
+}
+
 function PlannedRoute({
   route,
 }: {
@@ -1709,6 +1777,9 @@ export default function App() {
   const [routeNotice, setRouteNotice] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<ResourceState<WorkspaceSnapshot>>({ status: "loading" });
   const [version, setVersion] = useState<ResourceState<VersionCheck>>({ status: "loading" });
+  const [studioWorkflow, setStudioWorkflow] = useState<StudioWorkflowState>({ status: "closed" });
+  const [studioForm, setStudioForm] = useState<StudioFormValues>(emptyStudioForm);
+  const [studioNotice, setStudioNotice] = useState<string | null>(null);
   const [clientWorkflow, setClientWorkflow] = useState<ClientWorkflowState>({ status: "closed" });
   const [clientForm, setClientForm] = useState<ClientFormValues>(emptyClientForm);
   const [projectWorkflow, setProjectWorkflow] = useState<ProjectWorkflowState>({ status: "closed" });
@@ -1825,6 +1896,58 @@ export default function App() {
     workspace.value.status === "healthy" &&
     version.status === "ready" &&
     version.value.deliveryCreationSupported;
+  const studioCreationAvailable =
+    workspace.status === "ready" &&
+    workspace.value.status === "unavailable" &&
+    version.status === "ready" &&
+    version.value.studioCreationSupported;
+  const studioCreationHelp = (() => {
+    if (workspace.status !== "ready" || version.status !== "ready") return "Workspace and automation checks must finish first.";
+    if (workspace.value.status !== "unavailable") return workspace.value.studio ? "The validated studio workspace already exists." : "Resolve the existing workspace issue before setup.";
+    if (!version.value.studioCreationSupported) return version.value.message;
+    return "Preview and confirm creation of the default ~/Music/Mixes workspace.";
+  })();
+
+  const openStudioWorkflow = () => {
+    if (!studioCreationAvailable) return;
+    setStudioNotice(null);
+    setStudioForm(emptyStudioForm);
+    setStudioWorkflow({ status: "editing" });
+  };
+  const closeStudioWorkflow = () => {
+    if (studioWorkflow.status === "preflighting" || studioWorkflow.status === "creating") return;
+    setStudioWorkflow({ status: "closed" });
+  };
+  const preflightStudio = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (studioWorkflow.status !== "editing") return;
+    const request: StudioCreationRequest = { studioName: studioForm.studioName.trim(), mixEngineer: studioForm.mixEngineer.trim() || null, sampleRate: Number(studioForm.sampleRate), bitDepth: Number(studioForm.bitDepth), fileFormat: studioForm.fileFormat };
+    if (!request.studioName) { setStudioWorkflow({ status: "editing", error: "Studio name is required." }); return; }
+    setStudioWorkflow({ status: "preflighting" });
+    invoke<StudioOperationResult>("preflight_studio_creation", { request }).then((result) => {
+      if (result.ok && result.code === "ready" && result.studio) setStudioWorkflow({ status: "confirming", request, preview: result.studio });
+      else setStudioWorkflow({ status: "editing", error: result.message });
+    }).catch((error: unknown) => setStudioWorkflow({ status: "editing", error: safeError(error, "Studio preflight could not be completed.") }));
+  };
+  const confirmStudioCreation = () => {
+    if (studioWorkflow.status !== "confirming") return;
+    const { request, preview } = studioWorkflow;
+    setStudioWorkflow({ status: "creating", request, preview });
+    invoke<StudioOperationResult>("create_studio", { request }).then(async (result) => {
+      if (!result.ok || result.code !== "created") {
+        if (result.code === "uncertain") setStudioWorkflow({ status: "uncertain", message: result.message });
+        else setStudioWorkflow({ status: "editing", error: result.message });
+        return;
+      }
+      try {
+        const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
+        setWorkspace({ status: "ready", value: refreshed });
+        if (!refreshed.studio || refreshed.studio.studioName !== preview.studioName) { setStudioWorkflow({ status: "uncertain", message: "Creation succeeded, but the refreshed studio did not match the confirmed preview. Do not retry automatically." }); return; }
+        setStudioNotice(`${refreshed.studio.studioName} was created and verified.`);
+        setStudioWorkflow({ status: "closed" });
+      } catch (error: unknown) { setStudioWorkflow({ status: "uncertain", message: safeError(error, "Creation succeeded, but the workspace could not be refreshed. Do not retry automatically.") }); }
+    }).catch((error: unknown) => setStudioWorkflow({ status: "uncertain", message: safeError(error, "The studio-creation result could not be confirmed. Do not retry automatically.") }));
+  };
 
   const clientCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
@@ -2519,6 +2642,7 @@ export default function App() {
       <main className="main-content" id="main-content">
         <RouteHeader route={activeRouteDefinition} />
         {routeNotice && <section className="notice warning" role="status"><strong>Selection changed</strong><span>{routeNotice}</span></section>}
+        {studioNotice && <section className="notice success" role="status"><strong>Studio created</strong><span>{studioNotice}</span></section>}
         {creationNotice && (
           <section className="notice success" role="status">
             <strong>Client created</strong>
@@ -2561,6 +2685,7 @@ export default function App() {
             onOpenProject={openDerivedProject}
           />
         )}
+        {activeRoute === "studio" && <StudioRoute workspace={workspace} version={version} loading={loading} setupAvailable={studioCreationAvailable} setupHelp={studioCreationHelp} onSetup={openStudioWorkflow} onRefresh={refresh} />}
         {activeRoute === "tasks" && <TasksRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
         {activeRoute === "activity" && <ActivityRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
         {activeRoute === "clients" && (resolvedClient ? (
@@ -2665,10 +2790,12 @@ export default function App() {
             }}
           />
         ) : null}
-        {activeRoute !== "dashboard" && activeRoute !== "clients" && activeRoute !== "projects" && activeRoute !== "tasks" && activeRoute !== "activity" && (
+        {activeRoute !== "dashboard" && activeRoute !== "studio" && activeRoute !== "clients" && activeRoute !== "projects" && activeRoute !== "tasks" && activeRoute !== "activity" && (
           <PlannedRoute route={activeRoute} />
         )}
       </main>
+
+      {studioWorkflow.status !== "closed" && <StudioDialog state={studioWorkflow} values={studioForm} onChange={setStudioForm} onPreflight={preflightStudio} onConfirm={confirmStudioCreation} onBack={() => setStudioWorkflow({ status: "editing" })} onClose={closeStudioWorkflow} />}
 
       {clientWorkflow.status !== "closed" && (
         <ClientDialog
