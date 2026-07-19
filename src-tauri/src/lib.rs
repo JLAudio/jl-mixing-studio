@@ -85,7 +85,7 @@ fn resolve_folder(app: tauri::AppHandle, request: FolderRequest) -> Result<Folde
         validated_project_directory(&root, &snapshot, client_id, project_id)
     };
     let path = match request.location {
-        FolderLocation::Workspace => root,
+        FolderLocation::Workspace => root.clone(),
         FolderLocation::Studio => root.join("Studio"),
         FolderLocation::Client => workspace::find_validated_client_path(
             &root,
