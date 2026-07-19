@@ -94,7 +94,7 @@ interface ProjectFormValues {
   artist: string;
 }
 
-type ProjectView = "overview" | "intake" | "revisions" | "delivery";
+type ProjectView = "overview" | "intake" | "revisions" | "delivery" | "reports" | "files" | "metadata";
 
 type IntakeWorkflowState =
   | { status: "closed" }
@@ -255,7 +255,7 @@ const routes: RouteDefinition[] = [
   },
 ];
 
-type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "studio" | "clients" | "projects" | "tasks" | "activity">;
+type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "studio" | "clients" | "projects" | "tasks" | "reports" | "activity">;
 
 const plannedRouteContent: Record<PlannedRouteId, {
   status: string;
@@ -263,15 +263,6 @@ const plannedRouteContent: Record<PlannedRouteId, {
   tableColumns?: string[];
   routeNote?: string;
 }> = {
-  reports: {
-    status: "Report browsing is planned",
-    sections: [
-      { title: "Validation", detail: "Non-destructive intake validation reports" },
-      { title: "Delivery", detail: "Generated delivery manifests and checksums" },
-      { title: "Project context", detail: "Report type, project, and persisted update information" },
-    ],
-    tableColumns: ["Report", "Type", "Project", "Updated"],
-  },
   settings: {
     status: "Settings changes are planned",
     sections: [
@@ -860,25 +851,15 @@ function ProjectsRoute({
 
 function ProjectWorkflowTabs({
   active,
-  onOverview,
-  onIntake,
-  onRevisions,
-  onDelivery,
+  onSelect,
 }: {
   active: ProjectView;
-  onOverview: () => void;
-  onIntake: () => void;
-  onRevisions: () => void;
-  onDelivery: () => void;
+  onSelect: (view: ProjectView) => void;
 }) {
-  const planned = ["Reports", "Files", "Metadata"];
+  const tabs: Array<[ProjectView, string]> = [["overview", "Overview"], ["intake", "Intake"], ["revisions", "Revisions"], ["delivery", "Delivery"], ["reports", "Reports"], ["files", "Files"], ["metadata", "Metadata"]];
   return (
     <div className="workflow-tabs" aria-label="Project workflow">
-      {active === "overview" ? <span aria-current="page">Overview</span> : <button type="button" onClick={onOverview}>Overview</button>}
-      {active === "intake" ? <span aria-current="page">Intake</span> : <button type="button" onClick={onIntake}>Intake</button>}
-      {active === "revisions" ? <span aria-current="page">Revisions</span> : <button type="button" onClick={onRevisions}>Revisions</button>}
-      {active === "delivery" ? <span aria-current="page">Delivery</span> : <button type="button" onClick={onDelivery}>Delivery</button>}
-      {planned.map((tab) => <button key={tab} type="button" disabled>{tab}<small>Planned</small></button>)}
+      {tabs.map(([view, label]) => active === view ? <span key={view} aria-current="page">{label}</span> : <button key={view} type="button" onClick={() => onSelect(view)}>{label}</button>)}
     </div>
   );
 }
@@ -892,7 +873,7 @@ function ProjectOverview({
   onRefresh,
   onIntake,
   onRevisions,
-  onDelivery,
+  onSelectView,
   onNewRevision,
   revisionCreationAvailable,
   revisionCreationHelp,
@@ -906,7 +887,7 @@ function ProjectOverview({
   onRefresh: () => void;
   onIntake: () => void;
   onRevisions: () => void;
-  onDelivery: () => void;
+  onSelectView: (view: ProjectView) => void;
   onNewRevision: () => void;
   revisionCreationAvailable: boolean;
   revisionCreationHelp: string;
@@ -919,7 +900,7 @@ function ProjectOverview({
         {fromClient && <><button type="button" onClick={onClient}>{client.clientName}</button><span aria-hidden="true">/</span></>}
         <span aria-current="page">{project.projectName}</span>
       </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="overview" onOverview={() => undefined} onIntake={onIntake} onRevisions={onRevisions} onDelivery={onDelivery} />
+      <ProjectWorkflowTabs active="overview" onSelect={onSelectView} />
       <section className="detail-summary project-revisions" aria-label="Project revision state">
         <article><span>Current</span><strong>{revisionLabel(project.currentRevision)}</strong></article>
         <article><span>Approved</span><strong>{revisionLabel(project.approvedRevision)}</strong></article>
@@ -993,10 +974,9 @@ function IntakeView({
   validationHelp,
   loading,
   onOverview,
-  onRevisions,
-  onDelivery,
   onPreview,
   onRefresh,
+  onSelectView,
 }: {
   client: ClientSummary;
   project: ProjectSummary;
@@ -1006,16 +986,15 @@ function IntakeView({
   validationHelp: string;
   loading: boolean;
   onOverview: () => void;
-  onRevisions: () => void;
-  onDelivery: () => void;
   onPreview: () => void;
   onRefresh: () => void;
+  onSelectView: (view: ProjectView) => void;
 }) {
   const result = reportState.status === "ready" ? reportState.value : null;
   return (
     <>
       <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Intake</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="intake" onOverview={onOverview} onIntake={() => undefined} onRevisions={onRevisions} onDelivery={onDelivery} />
+      <ProjectWorkflowTabs active="intake" onSelect={onSelectView} />
       <section className="directory-toolbar intake-toolbar" aria-labelledby="intake-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="intake-heading">Intake validation</h2></div>
         <button type="button" onClick={onPreview} disabled={!validationAvailable || loading}>Preview validation</button>
@@ -1055,11 +1034,10 @@ function RevisionsView({
   approvalAvailable,
   approvalHelp,
   onOverview,
-  onIntake,
-  onDelivery,
   onRefresh,
   onNewRevision,
   onApprove,
+  onSelectView,
 }: {
   client: ClientSummary;
   project: ProjectSummary;
@@ -1070,11 +1048,10 @@ function RevisionsView({
   approvalAvailable: boolean;
   approvalHelp: string;
   onOverview: () => void;
-  onIntake: () => void;
-  onDelivery: () => void;
   onRefresh: () => void;
   onNewRevision: () => void;
   onApprove: (revision: RevisionSummary) => void;
+  onSelectView: (view: ProjectView) => void;
 }) {
   const revisions = [...project.revisions].sort((left, right) => right.number - left.number);
   const [selectedNumber, setSelectedNumber] = useState(project.currentRevision);
@@ -1084,7 +1061,7 @@ function RevisionsView({
   return (
     <>
       <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Revisions</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <ProjectWorkflowTabs active="revisions" onOverview={onOverview} onIntake={onIntake} onRevisions={() => undefined} onDelivery={onDelivery} />
+      <ProjectWorkflowTabs active="revisions" onSelect={onSelectView} />
       <section className="directory-toolbar revision-toolbar" aria-labelledby="revisions-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="revisions-heading">Revision history</h2></div>
         <div className="directory-actions"><button type="button" onClick={onNewRevision} disabled={!creationAvailable || loading}>New revision</button><button type="button" onClick={() => { if (selected) onApprove(selected); }} disabled={!selected || !approvalAvailable || selected.number === project.approvedRevision || loading}>Approve revision</button></div>
@@ -1123,7 +1100,33 @@ function RevisionsView({
   );
 }
 
-function DeliveryView({ clientId, project, loading, actionError, creationAvailable, creationHelp, onOverview, onIntake, onRevisions, onCreate, onRefresh }: {
+function ProjectArtifactsView({ active, client, project, onSelectView }: { active: "reports" | "files" | "metadata"; client: ClientSummary; project: ProjectSummary; onSelectView: (view: ProjectView) => void }) {
+  const [report, setReport] = useState<IntakeOperationResult | null>(null);
+  useEffect(() => {
+    let current = true;
+    void invoke<IntakeOperationResult>("get_intake_report", { request: { clientId: client.clientId, projectId: project.projectId } })
+      .then((result) => { if (current) setReport(result); })
+      .catch(() => { if (current) setReport(null); });
+    return () => { current = false; };
+  }, [client.clientId, project.projectId]);
+  const intake = report?.ok ? report.report : null;
+  return <>
+    <ProjectWorkflowTabs active={active} onSelect={onSelectView} />
+    <section className="directory-toolbar"><div><p className="kicker">{client.clientName}</p><h2>{active === "reports" ? "Project reports" : active === "files" ? "Authoritative files" : "Project metadata"}</h2></div></section>
+    {active === "reports" && <div className="project-detail-grid"><section className="panel"><h3>Intake validation report</h3><p>{intake ? `${intake.filesDiscovered} files · ${intake.blockingErrors} blocking errors · ${intake.warnings} warnings` : "No readable intake report is recorded."}</p>{intake && <code>{intake.source}</code>}</section><section className="panel"><h3>Delivery manifest</h3><p>{project.delivery ? `Revision ${project.delivery.revision} · ${project.delivery.files.length} files · ${project.delivery.method}` : "No validated delivery manifest is recorded."}</p>{project.delivery && <code>05_Final_Delivery/delivery-manifest.json</code>}</section></div>}
+    {active === "files" && <section className="panel"><div className="table-scroll"><table><thead><tr><th>File</th><th>Source</th><th>Details</th></tr></thead><tbody>{intake?.inventory.map((file) => <tr key={`intake-${file.file}`}><td><code>{file.file}</code></td><td>Intake report</td><td>{file.technicalDetails}</td></tr>)}{project.delivery?.files.map((file) => <tr key={`delivery-${file.path}`}><td><code>{file.path}</code></td><td>Delivery manifest</td><td>{file.deliverableType.replace(/_/g, " ")} · {file.sizeBytes.toLocaleString()} bytes</td></tr>)}{!intake?.inventory.length && !project.delivery?.files.length && <tr><td colSpan={3}>No files are recorded by supported authoritative reports.</td></tr>}</tbody></table></div></section>}
+    {active === "metadata" && <section className="panel"><dl className="metadata-list"><div><dt>Client ID</dt><dd><code>{client.clientId}</code></dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Project</dt><dd>{project.projectName}</dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Created</dt><dd>{project.createdAt}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate} Hz · {project.bitDepth}-bit {project.fileFormat}</dd></div><div><dt>Delivery method</dt><dd>{project.deliveryMethod}</dd></div><div><dt>Current / approved / delivered</dt><dd>{project.currentRevision} / {project.approvedRevision ?? "—"} / {project.deliveredRevision ?? "—"}</dd></div></dl></section>}
+    <FolderControl location="project" clientId={client.clientId} projectId={project.projectId} />
+  </>;
+}
+
+function ReportsRoute({ workspace, onOpenProject }: { workspace: ResourceState<WorkspaceSnapshot>; onOpenProject: (clientId: string, projectId: string) => void }) {
+  if (workspace.status !== "ready") return <section className="empty-state"><h2>Loading reports</h2></section>;
+  const deliveries = workspace.value.clients.flatMap((client) => client.projects.filter((project) => project.delivery).map((project) => ({ client, project })));
+  return <section className="panel"><div className="panel-heading"><div><p className="kicker">Validated report index</p><h2>Reports</h2></div></div><p>Delivery manifests are indexed from validated workspace state. Intake reports remain available from each project's Reports tab.</p><div className="table-scroll"><table><thead><tr><th>Report</th><th>Project</th><th>Updated</th></tr></thead><tbody>{deliveries.map(({ client, project }) => <tr key={`${client.clientId}-${project.projectId}`}><td>Delivery manifest</td><td><button className="table-link" type="button" onClick={() => onOpenProject(client.clientId, project.projectId)}>{project.projectName}</button></td><td>{project.delivery!.createdAt}</td></tr>)}{deliveries.length === 0 && <tr><td colSpan={3}>No validated delivery reports are recorded.</td></tr>}</tbody></table></div></section>;
+}
+
+function DeliveryView({ clientId, project, loading, actionError, creationAvailable, creationHelp, onOverview, onCreate, onRefresh, onSelectView }: {
   clientId: string;
   project: ProjectSummary;
   loading: boolean;
@@ -1131,10 +1134,9 @@ function DeliveryView({ clientId, project, loading, actionError, creationAvailab
   creationAvailable: boolean;
   creationHelp: string;
   onOverview: () => void;
-  onIntake: () => void;
-  onRevisions: () => void;
   onCreate: () => void;
   onRefresh: () => void;
+  onSelectView: (view: ProjectView) => void;
 }) {
   const delivery = project.delivery;
   const totalBytes = delivery?.files.reduce((total, file) => total + file.sizeBytes, 0) ?? 0;
@@ -1147,7 +1149,7 @@ function DeliveryView({ clientId, project, loading, actionError, creationAvailab
         : { title: "Replacement review required", detail: `The existing package represents Revision ${project.deliveredRevision}; approved Revision ${project.approvedRevision} requires an explicit replacement workflow.` };
   return <>
     <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Delivery</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-    <ProjectWorkflowTabs active="delivery" onOverview={onOverview} onIntake={onIntake} onRevisions={onRevisions} onDelivery={() => undefined} />
+    <ProjectWorkflowTabs active="delivery" onSelect={onSelectView} />
     <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : "Create delivery"}</button></section>
     <p className="action-help">{creationHelp}</p>
     <FolderControl location="delivery" clientId={clientId} projectId={project.projectId} label="Open delivery folder" />
@@ -2279,9 +2281,10 @@ export default function App() {
     setIntakeActionError(null);
   };
 
-  const openDelivery = () => {
-    if (!resolvedProject) return;
-    setProjectView("delivery");
+  const selectProjectView = (view: ProjectView) => {
+    if (view === "intake") { openIntake(); return; }
+    if (view === "revisions") { openRevisions(); return; }
+    setProjectView(view);
     setIntakeWorkflow({ status: "closed" });
     setRevisionWorkflow({ status: "closed" });
     setApprovalWorkflow({ status: "closed" });
@@ -2713,6 +2716,7 @@ export default function App() {
         {activeRoute === "studio" && <StudioRoute workspace={workspace} version={version} loading={loading} setupAvailable={studioCreationAvailable} setupHelp={studioCreationHelp} onSetup={openStudioWorkflow} onRefresh={refresh} />}
         {activeRoute === "tasks" && <TasksRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
         {activeRoute === "activity" && <ActivityRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
+        {activeRoute === "reports" && <ReportsRoute workspace={workspace} onOpenProject={(clientId, projectId) => { openDerivedProject(clientId, projectId); setProjectView("reports"); }} />}
         {activeRoute === "clients" && (resolvedClient ? (
           <ClientDetails
             client={resolvedClient}
@@ -2740,8 +2744,10 @@ export default function App() {
             clientCreationHelp={clientCreationHelp}
           />
         ))}
-        {activeRoute === "projects" && resolvedProject && selectedProject && projectView === "delivery" ? (
-          <DeliveryView clientId={resolvedProjectClient?.clientId ?? ""} project={resolvedProject} loading={loading || deliveryWorkflow.status === "preflighting" || deliveryWorkflow.status === "creating"} actionError={deliveryActionError} creationAvailable={deliveryCreationAvailable} creationHelp={deliveryCreationHelp} onOverview={() => setProjectView("overview")} onIntake={openIntake} onRevisions={openRevisions} onCreate={openDeliveryWorkflow} onRefresh={refresh} />
+        {activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && (projectView === "reports" || projectView === "files" || projectView === "metadata") ? (
+          <ProjectArtifactsView active={projectView} client={resolvedProjectClient} project={resolvedProject} onSelectView={selectProjectView} />
+        ) : activeRoute === "projects" && resolvedProject && selectedProject && projectView === "delivery" ? (
+          <DeliveryView clientId={resolvedProjectClient?.clientId ?? ""} project={resolvedProject} loading={loading || deliveryWorkflow.status === "preflighting" || deliveryWorkflow.status === "creating"} actionError={deliveryActionError} creationAvailable={deliveryCreationAvailable} creationHelp={deliveryCreationHelp} onOverview={() => setProjectView("overview")} onCreate={openDeliveryWorkflow} onRefresh={refresh} onSelectView={selectProjectView} />
         ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "revisions" ? (
           <RevisionsView
             client={resolvedProjectClient}
@@ -2753,11 +2759,10 @@ export default function App() {
             approvalAvailable={revisionApprovalAvailable}
             approvalHelp={revisionApprovalHelp}
             onOverview={() => setProjectView("overview")}
-            onIntake={openIntake}
-            onDelivery={openDelivery}
             onRefresh={refresh}
             onNewRevision={openRevisionWorkflow}
             onApprove={openApprovalWorkflow}
+            onSelectView={selectProjectView}
           />
         ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "intake" ? (
           <IntakeView
@@ -2769,13 +2774,12 @@ export default function App() {
             validationHelp={intakeValidationHelp}
             loading={loading || intakeWorkflow.status === "preflighting"}
             onOverview={() => { setProjectView("overview"); setIntakeWorkflow({ status: "closed" }); setIntakeActionError(null); }}
-            onRevisions={openRevisions}
-            onDelivery={openDelivery}
             onPreview={preflightIntake}
             onRefresh={() => {
               refresh();
               loadIntakeReport({ clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId });
             }}
+            onSelectView={selectProjectView}
           />
         ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject ? (
           <ProjectOverview
@@ -2793,11 +2797,11 @@ export default function App() {
             onRefresh={refresh}
             onIntake={openIntake}
             onRevisions={openRevisions}
-            onDelivery={openDelivery}
             onNewRevision={openRevisionWorkflow}
             revisionCreationAvailable={revisionCreationAvailable}
             revisionCreationHelp={revisionCreationHelp}
             loading={loading}
+            onSelectView={selectProjectView}
           />
         ) : activeRoute === "projects" ? (
           <ProjectsRoute
@@ -2815,7 +2819,7 @@ export default function App() {
             }}
           />
         ) : null}
-        {activeRoute !== "dashboard" && activeRoute !== "studio" && activeRoute !== "clients" && activeRoute !== "projects" && activeRoute !== "tasks" && activeRoute !== "activity" && (
+        {activeRoute !== "dashboard" && activeRoute !== "studio" && activeRoute !== "clients" && activeRoute !== "projects" && activeRoute !== "tasks" && activeRoute !== "reports" && activeRoute !== "activity" && (
           <PlannedRoute route={activeRoute} />
         )}
       </main>
