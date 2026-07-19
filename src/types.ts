@@ -52,6 +52,8 @@ export interface StudioOperationResult {
 export interface DeliveryCreationRequest {
   clientId: string;
   projectId: string;
+  replacementMode: "default" | "overwrite";
+  createZip: boolean;
 }
 
 export interface PlannedDeliveryFile {
@@ -73,6 +75,8 @@ export interface DeliveryCreationPreview {
   approvedRevision: number;
   deliveredRevision: number | null;
   deliveryMethod: string;
+  replacementMode: "default" | "overwrite";
+  createZip: boolean;
   selected: PlannedDeliveryFile[];
   excluded: ExcludedDeliveryFile[];
 }
