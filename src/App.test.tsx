@@ -572,6 +572,50 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText(/replacement requires a separate reviewed workflow/i)).toBeInTheDocument();
   });
 
+  it("edits and verifies the fixed Delivery Notes document", async () => {
+    const workspace = healthyWorkspace();
+    const project = workspace.clients[0].projects[0];
+    project.deliveredRevision = 1;
+    project.delivery = {
+      documentId: "f5a3d96c-5d1a-4d0f-9712-cfc4f070d065",
+      createdWith: "jl-mixing 1.2.0",
+      createdAt: "2026-07-18T13:00:00Z",
+      method: "Download",
+      revision: 1,
+      revisionId: project.revisions[0].revisionId,
+      description: project.revisions[0].description,
+      approvedAt: project.revisions[0].approvedAt!,
+      approvedBy: project.revisions[0].approvedBy!,
+      files: [{ path: "Blue Sky Main Mix.wav", deliverableType: "main_mix", sizeBytes: 1200, sha256: "0".repeat(64) }],
+    };
+    mockedInvoke.mockImplementation((command, args) => {
+      if (command === "discover_default_workspace") return Promise.resolve(workspace);
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "resolve_folder") return Promise.resolve({ path: "/Users/engineer/Music/Mixes/Clients/acme/Projects/blue-sky/05_Final_Delivery" });
+      if (command === "get_delivery_notes") return Promise.resolve({ content: "# Delivery\n\nOriginal notes.\n", maxBytes: 65536 });
+      if (command === "update_delivery_notes") {
+        const request = (args as { request: { content: string } }).request;
+        return Promise.resolve({ content: request.content, maxBytes: 65536 });
+      }
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+
+    const editor = await screen.findByRole("textbox", { name: "Delivery Notes Markdown content" });
+    fireEvent.change(editor, { target: { value: "# Delivery\n\nUpdated handoff.\n" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Delivery Notes" }));
+
+    expect(await screen.findByText("Delivery Notes saved and verified.")).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("update_delivery_notes", {
+      request: { clientId: "acme", projectId: "blue-sky", content: "# Delivery\n\nUpdated handoff.\n" },
+    });
+  });
+
   it("creates the first delivery and refreshes the authoritative package", async () => {
     const before = healthyWorkspace();
     const after = healthyWorkspace();
