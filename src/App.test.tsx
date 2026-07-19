@@ -403,6 +403,44 @@ describe("JL Mixing Studio", () => {
     expect(await screen.findByText("Folder opened.")).toBeInTheDocument();
   });
 
+  it("activates project Reports, Files, and Metadata from authoritative records", async () => {
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakePreview);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(within(screen.getByLabelText("Project workflow")).getByRole("button", { name: "Reports" }));
+    expect(await screen.findByRole("heading", { name: "Project reports" })).toBeInTheDocument();
+    expect(screen.getByText(/2 files · 0 blocking errors/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Files" }));
+    expect(screen.getByRole("heading", { name: "Authoritative files" })).toBeInTheDocument();
+    expect(screen.getByText("one/song.wav")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Metadata" }));
+    expect(screen.getByRole("heading", { name: "Project metadata" })).toBeInTheDocument();
+    expect(screen.getByText("48000 Hz · 24-bit WAV")).toBeInTheDocument();
+  });
+
+  it("activates the global validated delivery report index", async () => {
+    const snapshot = healthyWorkspace();
+    snapshot.clients[0].projects[0].delivery = {
+      documentId: "delivery-1", createdWith: "jl-mixing 1.2.0", createdAt: "2026-07-18T12:00:00Z",
+      method: "digital", revision: 1, revisionId: "revision-1", description: "Approved",
+      approvedAt: "2026-07-18T11:00:00Z", approvedBy: "Engineer", files: [],
+    };
+    respondWith(snapshot);
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Reports" }));
+    expect(screen.getByRole("heading", { name: "Reports", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("Delivery manifest")).toBeInTheDocument();
+    expect(screen.queryByText(/report browsing is planned/i)).not.toBeInTheDocument();
+  });
+
   it("opens authoritative revision history and selects an older approved revision", async () => {
     render(<App />);
     await screen.findByText("JL Mix Studio");
