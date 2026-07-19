@@ -379,7 +379,13 @@ The scope and acceptance criteria are tracked in [Issue #25](https://github.com/
 
 This milestone activates one read-only derivation layer shared by Dashboard priorities, Tasks, and Activity. It preserves schema-validated client/project creation timestamps and project deadlines; derives recovery, overdue, delivery, upcoming-deadline, and revision-review tasks in the approved deterministic order; and reconstructs activity only from persisted client, project, revision, approval, and delivery timestamps. Refresh rebuilds every item without a database, cache, completion flag, event log, process execution, or workspace mutation. Activity is explicitly a derived persisted-event feed, not a complete audit log. The scope is tracked in [Issue #28](https://github.com/JLAudio/jl-mixing-studio/issues/28).
 
-## 24. Future decisions requiring approval
+## 24. Approved JL Mixing Studio 1.0 scope boundary
+
+Dashboard Quick Actions shall expose the existing guided New Client and New Project workflows. Intake validation remains project-scoped and shall not appear as a Dashboard quick action.
+
+JL Mixing Studio 1.0 may use only the released JL Mixing Automation v1.2.0 command and metadata contracts. Features that require changes to the Automation v1.2.0 codebase are outside Studio 1.0. Not every existing Automation option must be exposed. Guided `new-studio`, editable Delivery Notes, delivery ZIP/overwrite, and destructive clean replacement are required Studio 1.0 workflows; clean replacement requires a dry-run deletion preview, explicit destructive confirmation, validated internal path resolution, exact post-operation reconciliation, and no automatic retry after an uncertain result.
+
+## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.
 - Long-term minimum macOS version.

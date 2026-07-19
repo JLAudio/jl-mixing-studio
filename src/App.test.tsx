@@ -270,8 +270,19 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByLabelText("Global search")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText("Awaiting review").nextElementSibling).toHaveTextContent("1");
     expect(screen.getByText("Ready to deliver").nextElementSibling).toHaveTextContent("1");
-    expect(screen.getByRole("button", { name: "New project Planned" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Validate intake Planned" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "New project" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: /validate intake/i })).not.toBeInTheDocument();
+  });
+
+  it("launches guided project creation from the Dashboard", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+
+    expect(screen.getByRole("heading", { name: "New project" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Client")).toBeEnabled();
+    expect(screen.getByLabelText("Client")).toHaveFocus();
   });
 
   it("shows derived priorities and persisted activity on Dashboard", async () => {
