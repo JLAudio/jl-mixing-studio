@@ -106,6 +106,7 @@ const deliveryPreviewResult: DeliveryOperationResult = {
       { sourceName: "Blue Sky Stems.wav", deliverableType: "stems", path: "Stems/Blue Sky Stems.wav" },
     ],
     excluded: [{ name: "Revision_Notes.md", reason: "revision notes" }],
+    deletions: [],
   },
 };
 
@@ -538,7 +539,7 @@ describe("JL Mixing Studio", () => {
     expect(within(dialog).getAllByText("Blue Sky Main Mix.wav")).toHaveLength(2);
     expect(within(dialog).getByText("Stems/Blue Sky Stems.wav")).toBeInTheDocument();
     expect(within(dialog).getByText(/Revision_Notes.md \(revision notes\)/)).toBeInTheDocument();
-    expect(within(dialog).getByText(/clean replacement and filters are not enabled/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/custom filters are not enabled/i)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
 
     expect(screen.queryByRole("dialog", { name: "Confirm delivery package" })).not.toBeInTheDocument();
@@ -666,7 +667,77 @@ describe("JL Mixing Studio", () => {
 
     expect(await screen.findByText(/Revision 1 was packaged and verified with 2 delivered files/)).toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("preflight_delivery_creation", {
-      request: { clientId: "acme", projectId: "blue-sky", replacementMode: "overwrite", createZip: true },
+      request: { clientId: "acme", projectId: "blue-sky", replacementMode: "overwrite", createZip: true, confirmedDeletions: [] },
+    });
+  });
+
+  it("requires exact typed confirmation for the clean deletion preview", async () => {
+    const workspace = healthyWorkspace();
+    const project = workspace.clients[0].projects[0];
+    project.deliveredRevision = 1;
+    project.delivery = {
+      documentId: "f5a3d96c-5d1a-4d0f-9712-cfc4f070d065",
+      createdWith: "jl-mixing 1.2.0",
+      createdAt: "2026-07-18T13:00:00Z",
+      method: "Download",
+      revision: 1,
+      revisionId: project.revisions[0].revisionId,
+      description: project.revisions[0].description,
+      approvedAt: project.revisions[0].approvedAt!,
+      approvedBy: project.revisions[0].approvedBy!,
+      files: [{ path: "Blue Sky Main Mix.wav", deliverableType: "main_mix", sizeBytes: 1200, sha256: "0".repeat(64) }],
+    };
+    const deletions = ["Blue Sky Main Mix.wav", "Delivery_Notes.md", "client-reference.pdf", "delivery-manifest.json"];
+    const preview: DeliveryOperationResult = {
+      ...deliveryPreviewResult,
+      delivery: {
+        ...deliveryPreviewResult.delivery!,
+        deliveredRevision: 1,
+        replacementMode: "clean",
+        createZip: true,
+        selected: [deliveryPreviewResult.delivery!.selected[0]],
+        deletions,
+      },
+    };
+    const created: DeliveryOperationResult = { ...preview, code: "created", message: "Delivery package created successfully." };
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(workspace);
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "get_intake_report") return Promise.resolve(intakeNotRun);
+      if (command === "resolve_folder") return Promise.resolve({ path: "/Users/engineer/Music/Mixes/Clients/acme/Projects/blue-sky/05_Final_Delivery" });
+      if (command === "get_delivery_notes") return Promise.resolve({ content: "Fresh template\n", maxBytes: 65536 });
+      if (command === "preflight_delivery_creation") return Promise.resolve(preview);
+      if (command === "create_delivery") return Promise.resolve(created);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rebuild delivery" }));
+    const options = await screen.findByRole("dialog", { name: "Rebuild delivery package" });
+    fireEvent.click(within(options).getByRole("radio", { name: /clean replacement/i }));
+    expect(within(options).getByText(/every file, folder, edited note, ZIP/i)).toBeInTheDocument();
+    fireEvent.click(within(options).getByRole("button", { name: "Preview package" }));
+
+    const confirmation = await screen.findByRole("dialog", { name: "Confirm delivery package" });
+    expect(within(confirmation).getByText("client-reference.pdf")).toBeInTheDocument();
+    const cleanButton = within(confirmation).getByRole("button", { name: "Clean and rebuild delivery" });
+    expect(cleanButton).toBeDisabled();
+    fireEvent.change(within(confirmation).getByRole("textbox", { name: "Clean replacement confirmation" }), { target: { value: "CLEAN blue-sky" } });
+    expect(cleanButton).toBeEnabled();
+    fireEvent.click(cleanButton);
+
+    expect(await screen.findByText(/Revision 1 was packaged and verified with 1 delivered file/)).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("create_delivery", {
+      request: {
+        clientId: "acme",
+        projectId: "blue-sky",
+        replacementMode: "clean",
+        createZip: true,
+        confirmedDeletions: deletions,
+      },
     });
   });
 

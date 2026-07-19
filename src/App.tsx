@@ -334,6 +334,8 @@ const sameDeliveryPlan = (
   left.deliveryMethod === right.deliveryMethod &&
   left.replacementMode === right.replacementMode &&
   left.createZip === right.createZip &&
+  left.deletions.length === right.deletions.length &&
+  left.deletions.every((path, index) => path === right.deletions[index]) &&
   left.selected.length === right.selected.length &&
   left.selected.every((file, index) => {
     const candidate = right.selected[index];
@@ -1208,10 +1210,13 @@ function DeliveryOptionsDialog({ request, projectName, onChange, onPreview, onCl
   onClose: () => void;
 }) {
   const replacing = request.replacementMode === "overwrite";
-  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">Guided delivery</p><h2 id="delivery-options-title">{replacing ? "Rebuild delivery package" : "Create delivery package"}</h2><p className="dialog-intro">Choose the supported package output for <strong>{projectName}</strong>. Studio will preview the exact Automation plan before making changes.</p>
-    <dl className="confirmation-list"><div><dt>Replacement mode</dt><dd>{replacing ? "Overwrite — same delivered path set only" : "None — first package"}</dd></div><div><dt>Delivery Notes</dt><dd>{replacing ? "Preserved" : "Created from the Automation template"}</dd></div></dl>
+  const cleaning = request.replacementMode === "clean";
+  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">Guided delivery</p><h2 id="delivery-options-title">{request.replacementMode === "default" ? "Create delivery package" : "Rebuild delivery package"}</h2><p className="dialog-intro">Choose the supported package output for <strong>{projectName}</strong>. Studio will preview the exact Automation plan before making changes.</p>
+    {request.replacementMode !== "default" && <fieldset className="delivery-mode"><legend>Replacement mode</legend><label><input type="radio" name="delivery-mode" checked={replacing} onChange={() => onChange({ ...request, replacementMode: "overwrite", confirmedDeletions: [] })} /><span><strong>Same-path overwrite</strong><small>Preserves Delivery Notes and unrelated files; rejects a changed delivered path set.</small></span></label><label><input type="radio" name="delivery-mode" checked={cleaning} onChange={() => onChange({ ...request, replacementMode: "clean", confirmedDeletions: [] })} /><span><strong>Clean replacement</strong><small>Deletes every existing item in 05_Final_Delivery before rebuilding it.</small></span></label></fieldset>}
+    <dl className="confirmation-list"><div><dt>Replacement mode</dt><dd>{cleaning ? "Clean — delete all existing contents" : replacing ? "Overwrite — same delivered path set only" : "None — first package"}</dd></div><div><dt>Delivery Notes</dt><dd>{cleaning ? "Deleted and recreated from template" : replacing ? "Preserved" : "Created from the Automation template"}</dd></div></dl>
     <label className="setting-row"><span><strong>Create delivery ZIP</strong><small>Create the fixed <code>{request.projectId}-delivery.zip</code> archive. Rebuilding includes the current edited Delivery Notes.</small></span><input type="checkbox" checked={request.createZip} onChange={(event) => onChange({ ...request, createZip: event.target.checked })} /></label>
     {replacing && <div className="notice warning" role="status"><strong>Non-destructive replacement</strong><span>Automation will replace only the same manifest-recorded delivery paths and preserve Delivery Notes and unrelated package files. A changed path set is rejected.</span></div>}
+    {cleaning && <div className="form-error" role="alert"><strong>Destructive replacement.</strong> Every file, folder, edited note, ZIP, and unrelated item currently inside 05_Final_Delivery will be deleted. The next screen lists the exact deletion preview.</div>}
     <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button type="button" onClick={onPreview}>Preview package</button></div>
   </section></div>;
 }
@@ -1227,6 +1232,8 @@ function DeliveryDialog({
 }) {
   const pending = state.status === "creating";
   const confirmButton = useRef<HTMLButtonElement>(null);
+  const [cleanConfirmation, setCleanConfirmation] = useState("");
+  const cleanPhrase = state.status === "uncertain" ? "" : `CLEAN ${state.preview.projectId}`;
   useEffect(() => {
     if (state.status === "confirming") confirmButton.current?.focus();
   }, [state.status]);
@@ -1246,13 +1253,14 @@ function DeliveryDialog({
             <div><dt>Current revision</dt><dd>Revision {state.preview.currentRevision}</dd></div>
             <div><dt>Delivery method</dt><dd>{state.preview.deliveryMethod}</dd></div>
             <div><dt>Files</dt><dd>{state.preview.selected.length}</dd></div>
-            <div><dt>Replacement mode</dt><dd>{state.preview.replacementMode === "overwrite" ? "Overwrite — same path set" : "None — first package"}</dd></div>
+            <div><dt>Replacement mode</dt><dd>{state.preview.replacementMode === "clean" ? "Clean — delete all existing contents" : state.preview.replacementMode === "overwrite" ? "Overwrite — same path set" : "None — first package"}</dd></div>
             <div><dt>ZIP</dt><dd>{state.preview.createZip ? `${state.preview.projectId}-delivery.zip` : "Not created"}</dd></div>
           </dl>
           <div className="table-scroll"><table><thead><tr><th>Source</th><th>Type</th><th>Destination</th></tr></thead><tbody>{state.preview.selected.map((file) => <tr key={`${file.sourceName}:${file.path}`}><td>{file.sourceName}</td><td>{file.deliverableType.replace(/_/g, " ")}</td><td><code>{file.path}</code></td></tr>)}</tbody></table></div>
           {state.preview.excluded.length > 0 && <section className="route-note"><strong>Excluded by Automation defaults</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
-          <div className="notice warning" role="status"><strong>Workspace change</strong><span>This {state.preview.replacementMode === "overwrite" ? "rebuilds" : "creates"} files in 05_Final_Delivery and sets state.delivered_revision to Revision {state.preview.approvedRevision}.{state.preview.replacementMode === "overwrite" ? " Edited Delivery Notes and unrelated files are preserved." : ""} Clean replacement and filters are not enabled.</span></div>
-          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Creating…" : state.preview.replacementMode === "overwrite" ? "Rebuild delivery" : "Create delivery"}</button></div>
+          {state.preview.replacementMode === "clean" && <section className="panel"><h3>Every existing item Automation will delete</h3><ul className="plain-list">{state.preview.deletions.map((path) => <li key={path}><code>{path}</code></li>)}</ul><label className="field"><span>Type <strong>{cleanPhrase}</strong> to authorize this destructive replacement</span><input aria-label="Clean replacement confirmation" value={cleanConfirmation} onChange={(event) => setCleanConfirmation(event.target.value)} autoComplete="off" /></label></section>}
+          <div className="notice warning" role="status"><strong>Workspace change</strong><span>This {state.preview.replacementMode === "clean" ? "deletes every previewed item and rebuilds" : state.preview.replacementMode === "overwrite" ? "rebuilds" : "creates"} files in 05_Final_Delivery and sets state.delivered_revision to Revision {state.preview.approvedRevision}.{state.preview.replacementMode === "overwrite" ? " Edited Delivery Notes and unrelated files are preserved." : state.preview.replacementMode === "clean" ? " Delivery Notes are recreated from the Automation template." : ""} Custom filters are not enabled.</span></div>
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending || (state.preview.replacementMode === "clean" && cleanConfirmation !== cleanPhrase)}>{pending ? "Creating…" : state.preview.replacementMode === "clean" ? "Clean and rebuild delivery" : state.preview.replacementMode === "overwrite" ? "Rebuild delivery" : "Create delivery"}</button></div>
         </>}
       </section>
     </div>
@@ -2313,6 +2321,7 @@ export default function App() {
       projectId: resolvedProject.projectId,
       replacementMode: resolvedProject.delivery ? "overwrite" : "default",
       createZip: resolvedProject.delivery !== null,
+      confirmedDeletions: [],
     };
     setDeliveryNotice(null);
     setDeliveryActionError(null);
@@ -2360,8 +2369,12 @@ export default function App() {
   const confirmDelivery = () => {
     if (deliveryWorkflow.status !== "confirming") return;
     const { request, preview } = deliveryWorkflow;
-    setDeliveryWorkflow({ status: "creating", request, preview });
-    invoke<DeliveryOperationResult>("create_delivery", { request })
+    const executionRequest: DeliveryCreationRequest = {
+      ...request,
+      confirmedDeletions: preview.replacementMode === "clean" ? preview.deletions : [],
+    };
+    setDeliveryWorkflow({ status: "creating", request: executionRequest, preview });
+    invoke<DeliveryOperationResult>("create_delivery", { request: executionRequest })
       .then(async (result) => {
         if (!result.ok || result.code !== "created" || !result.delivery) {
           if (result.code === "uncertain") setDeliveryWorkflow({ status: "uncertain", message: result.message });

@@ -108,6 +108,13 @@ h3 { margin: 0; font-size: 1rem; }
 .setting-row > span { display: grid; gap: 5px; }
 .setting-row small { color: var(--muted); line-height: 1.4; }
 .setting-row input { width: 20px; height: 20px; accent-color: var(--blue); }
+.delivery-mode { display: grid; gap: 10px; margin: 18px 0; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.delivery-mode label { display: flex; gap: 10px; align-items: flex-start; }
+.delivery-mode input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--blue); }
+.delivery-mode span { display: grid; gap: 3px; }
+.delivery-mode small { color: var(--muted); }
+.plain-list { max-height: 220px; overflow: auto; margin: 12px 0 18px; padding-left: 24px; }
+.plain-list li + li { margin-top: 5px; }
 .compact-layout .main-content { padding-top: 24px; }
 .compact-layout .panel, .compact-layout .directory-toolbar { padding: 16px; }
 .reduce-motion, .reduce-motion * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
