@@ -122,6 +122,7 @@ pub struct DeliveryCreationRequest {
     pub project_id: String,
     pub replacement_mode: DeliveryReplacementMode,
     pub create_zip: bool,
+    pub confirmed_deletions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
@@ -129,6 +130,7 @@ pub struct DeliveryCreationRequest {
 pub enum DeliveryReplacementMode {
     Default,
     Overwrite,
+    Clean,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -160,6 +162,7 @@ pub struct DeliveryCreationPreview {
     pub create_zip: bool,
     pub selected: Vec<PlannedDeliveryFile>,
     pub excluded: Vec<ExcludedDeliveryFile>,
+    pub deletions: Vec<String>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
