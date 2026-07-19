@@ -8,12 +8,12 @@ use models::{
     ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientOperationCode,
     ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest, DeliveryNotesDocument,
     DeliveryNotesRequest, DeliveryNotesUpdateRequest, DeliveryOperationCode,
-    DeliveryOperationResult, FolderLocation, FolderRequest, FolderResult, IntakeOperationCode,
-    IntakeOperationResult, IntakeRequest, ProjectCreationRequest, ProjectOperationCode,
-    ProjectOperationResult, ProjectSummary, RevisionApprovalRequest, RevisionApprovalSummary,
-    RevisionCreationRequest, RevisionCreationSummary, RevisionOperationCode,
-    RevisionOperationResult, StudioCreationRequest, StudioOperationCode, StudioOperationResult,
-    SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
+    DeliveryOperationResult, DeliveryReplacementMode, FolderLocation, FolderRequest, FolderResult,
+    IntakeOperationCode, IntakeOperationResult, IntakeRequest, ProjectCreationRequest,
+    ProjectOperationCode, ProjectOperationResult, ProjectSummary, RevisionApprovalRequest,
+    RevisionApprovalSummary, RevisionCreationRequest, RevisionCreationSummary,
+    RevisionOperationCode, RevisionOperationResult, StudioCreationRequest, StudioOperationCode,
+    StudioOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
 };
 use std::path::PathBuf;
 use std::{fs, io::Write};
@@ -999,11 +999,24 @@ fn run_delivery_operation(
             "Approve a revision before creating a delivery",
         );
     };
-    if before.delivered_revision.is_some() || before.delivery.is_some() {
-        return cli::blocked_delivery_operation(
-            DeliveryOperationCode::AlreadyDelivered,
-            "This project already has a delivery package; replacement requires a separate reviewed workflow",
-        );
+    match request.replacement_mode {
+        DeliveryReplacementMode::Default
+            if before.delivered_revision.is_some() || before.delivery.is_some() =>
+        {
+            return cli::blocked_delivery_operation(
+                DeliveryOperationCode::AlreadyDelivered,
+                "This project already has a delivery package; select the overwrite workflow",
+            );
+        }
+        DeliveryReplacementMode::Overwrite
+            if before.delivered_revision.is_none() || before.delivery.is_none() =>
+        {
+            return cli::blocked_delivery_operation(
+                DeliveryOperationCode::ProjectUnavailable,
+                "Overwrite requires a validated existing delivery package",
+            );
+        }
+        _ => {}
     }
     let Some(project_directory) =
         validated_project_directory(&workspace_path, &snapshot, &client_id, &project_id)
@@ -1014,6 +1027,11 @@ fn run_delivery_operation(
         );
     };
 
+    let replacement_mode = request.replacement_mode;
+    let create_zip = request.create_zip;
+    let prior_notes = matches!(replacement_mode, DeliveryReplacementMode::Overwrite)
+        .then(|| fs::read(project_directory.join("05_Final_Delivery/Delivery_Notes.md")).ok())
+        .flatten();
     let result = operation(&home, &project_directory, request);
     if result.ok {
         let Some(preview) = result.delivery.as_ref() else {
@@ -1026,7 +1044,11 @@ fn run_delivery_operation(
                 )
             };
         };
-        let expected_delivered = verify_after_creation.then_some(approved_revision);
+        let expected_delivered = if verify_after_creation {
+            Some(approved_revision)
+        } else {
+            before.delivered_revision
+        };
         if preview.client_id != client_id
             || preview.project_id != project_id
             || preview.project_name != before.project_name
@@ -1034,6 +1056,8 @@ fn run_delivery_operation(
             || preview.approved_revision != approved_revision
             || preview.delivered_revision != expected_delivered
             || preview.delivery_method != before.delivery_method
+            || preview.replacement_mode != replacement_mode
+            || preview.create_zip != create_zip
         {
             return if verify_after_creation {
                 uncertain_delivery_result()
@@ -1055,10 +1079,46 @@ fn run_delivery_operation(
     let Some(after) = find_project_summary(&refreshed, &client_id, &project_id) else {
         return uncertain_delivery_result();
     };
-    if !verify_delivery_creation(&before, after, expected) {
+    if !verify_delivery_creation(&before, after, expected)
+        || !verify_delivery_artifacts(
+            &project_directory,
+            &project_id,
+            create_zip,
+            prior_notes.as_deref(),
+        )
+    {
         return uncertain_delivery_result();
     }
     result
+}
+
+fn verify_delivery_artifacts(
+    project_directory: &std::path::Path,
+    project_id: &str,
+    create_zip: bool,
+    prior_notes: Option<&[u8]>,
+) -> bool {
+    let delivery = project_directory.join("05_Final_Delivery");
+    let notes = delivery.join("Delivery_Notes.md");
+    let Ok(notes_metadata) = fs::symlink_metadata(&notes) else {
+        return false;
+    };
+    if !notes_metadata.is_file() || notes_metadata.file_type().is_symlink() {
+        return false;
+    }
+    if prior_notes.is_some_and(|expected| fs::read(&notes).ok().as_deref() != Some(expected)) {
+        return false;
+    }
+    if create_zip {
+        let zip = delivery.join(format!("{project_id}-delivery.zip"));
+        let Ok(zip_metadata) = fs::symlink_metadata(zip) else {
+            return false;
+        };
+        if !zip_metadata.is_file() || zip_metadata.file_type().is_symlink() {
+            return false;
+        }
+    }
+    true
 }
 
 fn verify_delivery_creation(
@@ -1278,6 +1338,8 @@ mod tests {
             approved_revision: 1,
             delivered_revision: Some(1),
             delivery_method: "Download".into(),
+            replacement_mode: crate::models::DeliveryReplacementMode::Default,
+            create_zip: false,
             selected: vec![PlannedDeliveryFile {
                 source_name: "Blue Sky Main Mix.wav".into(),
                 deliverable_type: "main_mix".into(),
@@ -1533,5 +1595,27 @@ mod tests {
         assert!(read_delivery_notes(&notes)
             .expect_err("oversized notes must fail")
             .contains("editor limit"));
+    }
+
+    #[test]
+    fn verifies_requested_zip_and_preserved_overwrite_notes() {
+        let directory = tempdir().expect("temporary directory");
+        let delivery = directory.path().join("05_Final_Delivery");
+        fs::create_dir(&delivery).expect("delivery directory");
+        fs::write(delivery.join("Delivery_Notes.md"), "Edited notes\n").expect("notes");
+        fs::write(delivery.join("blue-sky-delivery.zip"), "zip").expect("zip");
+
+        assert!(verify_delivery_artifacts(
+            directory.path(),
+            "blue-sky",
+            true,
+            Some(b"Edited notes\n"),
+        ));
+        assert!(!verify_delivery_artifacts(
+            directory.path(),
+            "blue-sky",
+            true,
+            Some(b"Different notes\n"),
+        ));
     }
 }
