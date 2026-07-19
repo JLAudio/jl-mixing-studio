@@ -16,6 +16,10 @@ export type FolderLocation = "workspace" | "studio" | "client" | "project" | "in
 export interface FolderRequest { location: FolderLocation; clientId: string | null; projectId: string | null; }
 export interface FolderResult { path: string; }
 
+export interface DeliveryNotesRequest { clientId: string; projectId: string; }
+export interface DeliveryNotesUpdateRequest extends DeliveryNotesRequest { content: string; }
+export interface DeliveryNotesDocument { content: string; maxBytes: number; }
+
 export interface StudioCreationRequest {
   studioName: string;
   mixEngineer: string | null;
