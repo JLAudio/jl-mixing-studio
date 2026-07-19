@@ -16,6 +16,9 @@ import type {
   ClientSummary,
   DeliveryCreationPreview,
   DeliveryCreationRequest,
+  DeliveryNotesDocument,
+  DeliveryNotesRequest,
+  DeliveryNotesUpdateRequest,
   DeliveryOperationResult,
   DerivedTask,
   DiscoveryIssue,
@@ -1128,6 +1131,40 @@ function DeliveryView({ clientId, project, loading, actionError, creationAvailab
   onSelectView: (view: ProjectView) => void;
 }) {
   const delivery = project.delivery;
+  const deliveryDocumentId = delivery?.documentId;
+  const [notes, setNotes] = useState<ResourceState<DeliveryNotesDocument>>({ status: "loading" });
+  const [notesDraft, setNotesDraft] = useState("");
+  const [notesSaving, setNotesSaving] = useState(false);
+  const [notesMessage, setNotesMessage] = useState<string | null>(null);
+  useEffect(() => {
+    if (!deliveryDocumentId) return;
+    setNotes({ status: "loading" });
+    setNotesMessage(null);
+    const request: DeliveryNotesRequest = { clientId, projectId: project.projectId };
+    void invoke<DeliveryNotesDocument>("get_delivery_notes", { request })
+      .then((document) => {
+        setNotes({ status: "ready", value: document });
+        setNotesDraft(document.content);
+      })
+      .catch((error: unknown) => setNotes({
+        status: "error",
+        message: safeError(error, "Delivery Notes could not be read."),
+      }));
+  }, [clientId, project.projectId, deliveryDocumentId]);
+  const saveNotes = () => {
+    if (notes.status !== "ready" || notesSaving || notesDraft === notes.value.content) return;
+    setNotesSaving(true);
+    setNotesMessage(null);
+    const request: DeliveryNotesUpdateRequest = { clientId, projectId: project.projectId, content: notesDraft };
+    void invoke<DeliveryNotesDocument>("update_delivery_notes", { request })
+      .then((document) => {
+        setNotes({ status: "ready", value: document });
+        setNotesDraft(document.content);
+        setNotesMessage("Delivery Notes saved and verified.");
+      })
+      .catch((error: unknown) => setNotesMessage(safeError(error, "Delivery Notes could not be saved.")))
+      .finally(() => setNotesSaving(false));
+  };
   const totalBytes = delivery?.files.reduce((total, file) => total + file.sizeBytes, 0) ?? 0;
   const readiness = project.approvedRevision === null
     ? { title: "Approval required", detail: "Approve a revision before creating a delivery package." }
@@ -1149,6 +1186,12 @@ function DeliveryView({ clientId, project, loading, actionError, creationAvailab
         <div><dt>Created</dt><dd><time dateTime={delivery.createdAt}>{formatRevisionTimestamp(delivery.createdAt)}</time></dd></div><div><dt>Method</dt><dd>{delivery.method}</dd></div><div><dt>Approved by</dt><dd>{delivery.approvedBy}</dd></div><div><dt>Files</dt><dd>{delivery.files.length}</dd></div><div><dt>Total bytes</dt><dd>{totalBytes.toLocaleString()}</dd></div><div><dt>Document ID</dt><dd><code>{delivery.documentId}</code></dd></div>
       </dl></section>
       <section className="panel"><div className="panel-heading"><div><p className="kicker">Recorded checksums</p><h2>{delivery.files.length} delivered {delivery.files.length === 1 ? "file" : "files"}</h2></div></div><div className="table-scroll"><table><thead><tr><th>Path</th><th>Type</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>{delivery.files.map((file) => <tr key={file.path}><td><code>{file.path}</code></td><td>{file.deliverableType.replace(/_/g, " ")}</td><td>{file.sizeBytes.toLocaleString()}</td><td><code>{file.sha256}</code></td></tr>)}</tbody></table></div></section>
+      <section className="panel"><div className="panel-heading"><div><p className="kicker">Package document</p><h2>Delivery Notes</h2></div>{notes.status === "ready" && <span>{new TextEncoder().encode(notesDraft).length.toLocaleString()} / {notes.value.maxBytes.toLocaleString()} bytes</span>}</div>
+        {notes.status === "loading" && <p>Reading <code>Delivery_Notes.md</code>…</p>}
+        {notes.status === "error" && <div className="form-error" role="alert">{notes.message}</div>}
+        {notes.status === "ready" && <><label className="field"><span>Markdown content</span><textarea aria-label="Delivery Notes Markdown content" rows={12} value={notesDraft} onChange={(event) => { setNotesDraft(event.target.value); setNotesMessage(null); }} /></label><div className="dialog-actions"><button type="button" onClick={saveNotes} disabled={notesSaving || notesDraft === notes.value.content || new TextEncoder().encode(notesDraft).length > notes.value.maxBytes}>{notesSaving ? "Saving…" : "Save Delivery Notes"}</button></div></>}
+        {notesMessage && <p role="status">{notesMessage}</p>}
+      </section>
       <aside className="route-note"><strong>Manifest record</strong><span>Checksums are the values recorded and verified by JL Mixing Automation when this package was created. Studio did not re-hash delivery files.</span></aside>
     </>}
   </>;

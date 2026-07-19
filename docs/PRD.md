@@ -401,6 +401,10 @@ The global Reports route indexes validated delivery manifests and links back to 
 
 Settings may persist only local JL Mixing Studio presentation preferences. Studio 1.0 includes compact layout and reduced motion plus read-only workspace and Automation diagnostics. Settings must not edit `studio.json`, clients, projects, Automation defaults, executable locations, or workspace paths. This scope is tracked in [Issue #34](https://github.com/JLAudio/jl-mixing-studio/issues/34).
 
+### 24.5 Editable Delivery Notes
+
+For a validated existing package, Studio resolves only the fixed `05_Final_Delivery/Delivery_Notes.md` path beneath the selected validated project. It rejects missing, non-file, symlinked, non-UTF-8, and oversized documents; accepts at most 64 KiB of UTF-8 Markdown; saves through a same-directory temporary file; and verifies the exact content after replacement. The editor does not alter the delivery manifest, project metadata, or JL Mixing Automation. This scope is tracked in [Issue #35](https://github.com/JLAudio/jl-mixing-studio/issues/35).
+
 ## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.
