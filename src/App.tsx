@@ -178,6 +178,15 @@ interface StudioFormValues {
   fileFormat: string;
 }
 
+interface AppPreferences { compactLayout: boolean; reduceMotion: boolean; }
+const defaultPreferences: AppPreferences = { compactLayout: false, reduceMotion: false };
+const loadPreferences = (): AppPreferences => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("jl-mixing-studio.preferences") ?? "null") as Partial<AppPreferences> | null;
+    return { compactLayout: parsed?.compactLayout === true, reduceMotion: parsed?.reduceMotion === true };
+  } catch { return defaultPreferences; }
+};
+
 type PrimaryRoute =
   | "dashboard"
   | "studio"
@@ -254,26 +263,6 @@ const routes: RouteDefinition[] = [
     description: "Application preferences kept separate from project metadata.",
   },
 ];
-
-type PlannedRouteId = Exclude<PrimaryRoute, "dashboard" | "studio" | "clients" | "projects" | "tasks" | "reports" | "activity">;
-
-const plannedRouteContent: Record<PlannedRouteId, {
-  status: string;
-  sections: { title: string; detail: string }[];
-  tableColumns?: string[];
-  routeNote?: string;
-}> = {
-  settings: {
-    status: "Settings changes are planned",
-    sections: [
-      { title: "Studio & workspace", detail: "Approved configuration distinct from application preferences" },
-      { title: "Integrations", detail: "Detected JL Mixing Automation compatibility" },
-      { title: "Audio & delivery", detail: "Supported defaults from authoritative studio configuration" },
-      { title: "Appearance & advanced", detail: "Local application preferences after separate review" },
-    ],
-    routeNote: "Opening Settings does not mutate studio, client, project, or application state.",
-  },
-};
 
 const emptyClientForm: ClientFormValues = {
   clientId: "",
@@ -1437,52 +1426,16 @@ function StudioDialog({ state, values, onChange, onPreflight, onConfirm, onBack,
   </section></div>;
 }
 
-function PlannedRoute({
-  route,
-}: {
-  route: PlannedRouteId;
-}) {
-  const content = plannedRouteContent[route];
-  const routeLabel = routes.find((item) => item.id === route)?.label ?? route;
-
-  return (
-    <section className="planned-route" aria-labelledby="planned-route-heading">
-      <div className="planned-banner">
-        <div>
-          <span className="planned-pill">Planned</span>
-          <h2 id="planned-route-heading">{content.status}</h2>
-          <p>This composition reserves the approved product structure without implying unsupported data or actions.</p>
-        </div>
-      </div>
-
-      {content.tableColumns && (
-        <div className="collection-preview">
-          <div className="context-search" aria-label={`${routeLabel} search`} aria-disabled="true">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-            <span>Search {routeLabel.toLowerCase()}</span><span className="planned-pill">Planned</span>
-          </div>
-          <div className="table-scroll">
-            <table>
-              <thead><tr>{content.tableColumns.map((column) => <th key={column} scope="col">{column}</th>)}</tr></thead>
-              <tbody><tr><td colSpan={content.tableColumns.length}>Validated {routeLabel.toLowerCase()} data will appear here after its focused milestone.</td></tr></tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      <div className="planned-section-grid">
-        {content.sections.map((section) => (
-          <article className="planned-section" key={section.title}>
-            <span className="section-icon" aria-hidden="true" />
-            <h3>{section.title}</h3>
-            <p>{section.detail}</p>
-            <span className="unavailable-label">Unavailable in this milestone</span>
-          </article>
-        ))}
-      </div>
-      {content.routeNote && <aside className="route-note"><strong>Route rule</strong><span>{content.routeNote}</span></aside>}
-    </section>
-  );
+function SettingsRoute({ preferences, onChange, workspace, version }: { preferences: AppPreferences; onChange: (value: AppPreferences) => void; workspace: ResourceState<WorkspaceSnapshot>; version: ResourceState<VersionCheck> }) {
+  const update = (value: AppPreferences) => {
+    localStorage.setItem("jl-mixing-studio.preferences", JSON.stringify(value));
+    onChange(value);
+  };
+  return <section className="planned-route" aria-labelledby="settings-heading"><div className="panel-heading"><div><p className="kicker">Studio-owned preferences</p><h2 id="settings-heading">Settings</h2></div></div>
+    <div className="project-detail-grid"><section className="panel"><h3>Appearance</h3><label className="setting-row"><span><strong>Compact layout</strong><small>Reduce spacing in the application shell and data panels.</small></span><input type="checkbox" checked={preferences.compactLayout} onChange={(event) => update({...preferences, compactLayout:event.target.checked})} /></label><label className="setting-row"><span><strong>Reduce motion</strong><small>Disable interface scrolling and transition animation.</small></span><input type="checkbox" checked={preferences.reduceMotion} onChange={(event) => update({...preferences, reduceMotion:event.target.checked})} /></label></section>
+      <section className="panel"><h3>Read-only diagnostics</h3><dl className="metadata-list"><div><dt>Workspace</dt><dd>{workspace.status === "ready" ? <code>{workspace.value.workspacePath}</code> : workspace.status}</dd></div><div><dt>Workspace status</dt><dd>{workspace.status === "ready" ? workspace.value.status : "Unavailable"}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div><div><dt>Supported contract</dt><dd>JL Mixing Automation 1.2.0</dd></div></dl></section></div>
+    <aside className="route-note"><strong>Settings boundary</strong><span>These preferences are local to JL Mixing Studio. They do not edit <code>studio.json</code>, client or project metadata, delivery defaults, or JL Mixing Automation.</span></aside>
+  </section>;
 }
 
 interface ClientDialogProps {
@@ -1794,6 +1747,7 @@ function ProjectDialog({
 }
 
 export default function App() {
+  const [preferences, setPreferences] = useState<AppPreferences>(loadPreferences);
   const [activeRoute, setActiveRoute] = useState<PrimaryRoute>("dashboard");
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<{
@@ -2665,7 +2619,7 @@ export default function App() {
       : baseRouteDefinition;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${preferences.compactLayout ? " compact-layout" : ""}${preferences.reduceMotion ? " reduce-motion" : ""}`}>
       <Sidebar activeRoute={activeRoute} onNavigate={navigate} workspace={workspace} />
       <main className="main-content" id="main-content">
         <RouteHeader route={activeRouteDefinition} />
@@ -2717,6 +2671,7 @@ export default function App() {
         {activeRoute === "tasks" && <TasksRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
         {activeRoute === "activity" && <ActivityRoute workspace={workspace} loading={loading} onRefresh={refresh} onOpenProject={openDerivedProject} />}
         {activeRoute === "reports" && <ReportsRoute workspace={workspace} onOpenProject={(clientId, projectId) => { openDerivedProject(clientId, projectId); setProjectView("reports"); }} />}
+        {activeRoute === "settings" && <SettingsRoute preferences={preferences} onChange={setPreferences} workspace={workspace} version={version} />}
         {activeRoute === "clients" && (resolvedClient ? (
           <ClientDetails
             client={resolvedClient}
@@ -2819,9 +2774,6 @@ export default function App() {
             }}
           />
         ) : null}
-        {activeRoute !== "dashboard" && activeRoute !== "studio" && activeRoute !== "clients" && activeRoute !== "projects" && activeRoute !== "tasks" && activeRoute !== "reports" && activeRoute !== "activity" && (
-          <PlannedRoute route={activeRoute} />
-        )}
       </main>
 
       {studioWorkflow.status !== "closed" && <StudioDialog state={studioWorkflow} values={studioForm} onChange={setStudioForm} onPreflight={preflightStudio} onConfirm={confirmStudioCreation} onBack={() => setStudioWorkflow({ status: "editing" })} onClose={closeStudioWorkflow} />}
