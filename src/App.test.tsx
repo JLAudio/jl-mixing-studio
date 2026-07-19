@@ -253,7 +253,25 @@ const respondWith = (
 describe("JL Mixing Studio", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
+    localStorage.clear();
     respondWith(healthyWorkspace());
+  });
+
+  it("activates local Studio settings without mutating workspace metadata", async () => {
+    const { unmount } = render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("heading", { name: "Settings", level: 1 })).toBeInTheDocument();
+    const compact = screen.getByRole("checkbox", { name: /compact layout/i });
+    fireEvent.click(compact);
+    expect(compact).toBeChecked();
+    expect(document.querySelector(".app-shell")).toHaveClass("compact-layout");
+    expect(localStorage.getItem("jl-mixing-studio.preferences")).toContain('"compactLayout":true');
+    expect(mockedInvoke.mock.calls.some(([command]) => /setting|update|write/.test(String(command)))).toBe(false);
+    unmount();
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    expect(document.querySelector(".app-shell")).toHaveClass("compact-layout");
   });
 
   it("shows a healthy workspace without duplicating client and project details", async () => {

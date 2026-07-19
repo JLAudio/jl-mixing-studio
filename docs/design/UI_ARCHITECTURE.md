@@ -58,11 +58,11 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview, Intake entry, and guided New Revision; remaining lifecycle actions Planned |
 | Intake | Run and present non-destructive source validation with an authoritative managed-report update | Implemented |
 | Revisions | Present authoritative revision history and approved revision actions | Implemented history, guided New Revision, and guided approval |
-| Delivery | Present delivery readiness and approved delivery actions | Implemented authoritative readiness and package inspection; creation remains Planned |
-| Tasks | Derive actionable work from authoritative project state | Approved derivation rules; future milestone |
-| Reports | Present generated reports without duplicating their state | Future milestone |
-| Activity Log | Present the supported activity that can be reconstructed from authoritative timestamps | Approved derived source; future milestone |
-| Settings | Separate application preferences from approved studio configuration changes | Future milestone |
+| Delivery | Present delivery readiness and approved delivery actions | Implemented authoritative readiness and package inspection; replacement options remain Planned |
+| Tasks | Derive actionable work from authoritative project state | Implemented from validated workspace state |
+| Reports | Present generated reports without duplicating their state | Implemented from validated intake and delivery reports |
+| Activity Log | Present the supported activity that can be reconstructed from authoritative timestamps | Implemented from validated workspace timestamps |
+| Settings | Separate application preferences from approved studio configuration changes | Implemented local appearance preferences and read-only diagnostics; workspace and Automation configuration remain read-only |
 
 ## Screen-content preservation
 
@@ -80,7 +80,7 @@ The revised wireframe retains the useful information density and operational str
 - **Tasks:** derived category counts, project-specific reason, and recommended action.
 - **Reports:** report type, project, update context, search, and filters.
 - **Activity Log:** event filters, search, timestamp, event, project, and persisted-result context.
-- **Settings:** section navigation and representative studio, workspace, integration, validation, audio, delivery, appearance, and advanced fields.
+- **Settings:** local compact-layout and reduced-motion preferences plus read-only workspace and Automation diagnostics.
 
 Visible content does not authorize functionality. Any action or diagnostic without an approved source or command mapping must remain disabled and labeled **Planned** or **Unavailable**.
 
