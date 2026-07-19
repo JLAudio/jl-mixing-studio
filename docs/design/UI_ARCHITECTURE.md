@@ -69,6 +69,7 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 The revised wireframe retains the useful information density and operational structure of the original concept while correcting unsupported assumptions:
 
 - **Dashboard:** greeting/context, four workflow summary cards, Today’s Work, Studio Health, Quick Actions, and Recent Activity. Its primary purpose is to answer **“What do I need to work on today?”**
+- **Dashboard Quick Actions:** New Client and New Project enter their existing guided workflows. Intake validation stays within a selected project and is not duplicated on the Dashboard.
 - **Studio:** studio identity, workspace, installed tools, audio defaults, storage, statistics, and recent studio activity.
 - **Clients and Client Details:** searchable client directory, validated client defaults, project list, and the route into a selected project.
 - **Projects:** search, client and workflow filters, sortable project table, revision/delivery context, and project selection.

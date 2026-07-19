@@ -505,8 +505,11 @@ function Dashboard({
   loading,
   clientCreationAvailable,
   clientCreationHelp,
+  projectCreationAvailable,
+  projectCreationHelp,
   onRefresh,
   onNewClient,
+  onNewProject,
   onTasks,
   onActivity,
   onOpenProject,
@@ -517,8 +520,11 @@ function Dashboard({
   loading: boolean;
   clientCreationAvailable: boolean;
   clientCreationHelp: string;
+  projectCreationAvailable: boolean;
+  projectCreationHelp: string;
   onRefresh: () => void;
   onNewClient: () => void;
+  onNewProject: () => void;
   onTasks: () => void;
   onActivity: () => void;
   onOpenProject: (clientId: string, projectId: string) => void;
@@ -594,9 +600,8 @@ function Dashboard({
           <div className="panel-heading"><div><p className="kicker">Quick actions</p><h2 id="actions-heading">Start safely</h2></div></div>
           <div className="action-grid">
             <button type="button" onClick={onNewClient} disabled={!clientCreationAvailable} aria-describedby="new-client-help">New client</button>
+            <button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} title={projectCreationHelp}>New project</button>
             <button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh workspace"}</button>
-            <button type="button" className="planned-action" disabled>New project <span>Planned</span></button>
-            <button type="button" className="planned-action" disabled>Validate intake <span>Planned</span></button>
           </div>
           <p id="new-client-help" className="action-help">{clientCreationHelp}</p>
         </section>
@@ -2546,8 +2551,11 @@ export default function App() {
             loading={loading}
             clientCreationAvailable={clientCreationAvailable}
             clientCreationHelp={clientCreationHelp}
+            projectCreationAvailable={projectCreationAvailable}
+            projectCreationHelp={projectCreationHelp}
             onRefresh={refresh}
             onNewClient={openClientWorkflow}
+            onNewProject={() => openProjectWorkflow(null, false)}
             onTasks={() => navigate("tasks")}
             onActivity={() => navigate("activity")}
             onOpenProject={openDerivedProject}
