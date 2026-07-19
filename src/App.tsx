@@ -152,7 +152,8 @@ interface ApprovalFormValues {
 
 type DeliveryWorkflowState =
   | { status: "closed" }
-  | { status: "preflighting" }
+  | { status: "options"; request: DeliveryCreationRequest }
+  | { status: "preflighting"; request: DeliveryCreationRequest }
   | {
       status: "confirming";
       request: DeliveryCreationRequest;
@@ -331,6 +332,8 @@ const sameDeliveryPlan = (
   left.currentRevision === right.currentRevision &&
   left.approvedRevision === right.approvedRevision &&
   left.deliveryMethod === right.deliveryMethod &&
+  left.replacementMode === right.replacementMode &&
+  left.createZip === right.createZip &&
   left.selected.length === right.selected.length &&
   left.selected.every((file, index) => {
     const candidate = right.selected[index];
@@ -1176,7 +1179,7 @@ function DeliveryView({ clientId, project, loading, actionError, creationAvailab
   return <>
     <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Delivery</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
     <ProjectWorkflowTabs active="delivery" onSelect={onSelectView} />
-    <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : "Create delivery"}</button></section>
+    <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : delivery ? "Rebuild delivery" : "Create delivery"}</button></section>
     <p className="action-help">{creationHelp}</p>
     <FolderControl location="delivery" clientId={clientId} projectId={project.projectId} label="Open delivery folder" />
     {actionError && <div className="form-error" role="alert">{actionError}</div>}
@@ -1197,12 +1200,28 @@ function DeliveryView({ clientId, project, loading, actionError, creationAvailab
   </>;
 }
 
+function DeliveryOptionsDialog({ request, projectName, onChange, onPreview, onClose }: {
+  request: DeliveryCreationRequest;
+  projectName: string;
+  onChange: (request: DeliveryCreationRequest) => void;
+  onPreview: () => void;
+  onClose: () => void;
+}) {
+  const replacing = request.replacementMode === "overwrite";
+  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">Guided delivery</p><h2 id="delivery-options-title">{replacing ? "Rebuild delivery package" : "Create delivery package"}</h2><p className="dialog-intro">Choose the supported package output for <strong>{projectName}</strong>. Studio will preview the exact Automation plan before making changes.</p>
+    <dl className="confirmation-list"><div><dt>Replacement mode</dt><dd>{replacing ? "Overwrite — same delivered path set only" : "None — first package"}</dd></div><div><dt>Delivery Notes</dt><dd>{replacing ? "Preserved" : "Created from the Automation template"}</dd></div></dl>
+    <label className="setting-row"><span><strong>Create delivery ZIP</strong><small>Create the fixed <code>{request.projectId}-delivery.zip</code> archive. Rebuilding includes the current edited Delivery Notes.</small></span><input type="checkbox" checked={request.createZip} onChange={(event) => onChange({ ...request, createZip: event.target.checked })} /></label>
+    {replacing && <div className="notice warning" role="status"><strong>Non-destructive replacement</strong><span>Automation will replace only the same manifest-recorded delivery paths and preserve Delivery Notes and unrelated package files. A changed path set is rejected.</span></div>}
+    <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button type="button" onClick={onPreview}>Preview package</button></div>
+  </section></div>;
+}
+
 function DeliveryDialog({
   state,
   onConfirm,
   onClose,
 }: {
-  state: Exclude<DeliveryWorkflowState, { status: "closed" } | { status: "preflighting" }>;
+  state: Exclude<DeliveryWorkflowState, { status: "closed" } | { status: "options" } | { status: "preflighting" }>;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -1214,26 +1233,26 @@ function DeliveryDialog({
   return (
     <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
       <section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-dialog-title">
-        <p className="kicker">Guided first delivery</p>
+        <p className="kicker">Guided delivery</p>
         <h2 id="delivery-dialog-title">{state.status === "uncertain" ? "Delivery needs verification" : "Confirm delivery package"}</h2>
         {state.status === "uncertain" ? <>
           <div className="form-error" role="alert">{state.message}</div>
           <p className="dialog-intro">Do not submit the request again automatically. Close this message and refresh the authoritative delivery state.</p>
           <div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div>
         </> : <>
-          <p className="dialog-intro">Create the first final-delivery package for <strong>{state.preview.projectName}</strong>. Automation will verify every copied file with SHA-256 and update the delivered pointer transactionally.</p>
+          <p className="dialog-intro">{state.preview.replacementMode === "overwrite" ? "Rebuild" : "Create"} the final-delivery package for <strong>{state.preview.projectName}</strong>. Automation will verify every copied file with SHA-256 and update the delivered pointer transactionally.</p>
           <dl className="confirmation-list">
             <div><dt>Approved revision</dt><dd>Revision {state.preview.approvedRevision}</dd></div>
             <div><dt>Current revision</dt><dd>Revision {state.preview.currentRevision}</dd></div>
             <div><dt>Delivery method</dt><dd>{state.preview.deliveryMethod}</dd></div>
             <div><dt>Files</dt><dd>{state.preview.selected.length}</dd></div>
-            <div><dt>Replacement mode</dt><dd>None — first package only</dd></div>
-            <div><dt>ZIP</dt><dd>Not created</dd></div>
+            <div><dt>Replacement mode</dt><dd>{state.preview.replacementMode === "overwrite" ? "Overwrite — same path set" : "None — first package"}</dd></div>
+            <div><dt>ZIP</dt><dd>{state.preview.createZip ? `${state.preview.projectId}-delivery.zip` : "Not created"}</dd></div>
           </dl>
           <div className="table-scroll"><table><thead><tr><th>Source</th><th>Type</th><th>Destination</th></tr></thead><tbody>{state.preview.selected.map((file) => <tr key={`${file.sourceName}:${file.path}`}><td>{file.sourceName}</td><td>{file.deliverableType.replace(/_/g, " ")}</td><td><code>{file.path}</code></td></tr>)}</tbody></table></div>
           {state.preview.excluded.length > 0 && <section className="route-note"><strong>Excluded by Automation defaults</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
-          <div className="notice warning" role="status"><strong>Workspace change</strong><span>This creates files in 05_Final_Delivery and changes state.delivered_revision from none to Revision {state.preview.approvedRevision}. Overwrite, clean replacement, filters, and ZIP are not enabled.</span></div>
-          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Creating…" : "Create delivery"}</button></div>
+          <div className="notice warning" role="status"><strong>Workspace change</strong><span>This {state.preview.replacementMode === "overwrite" ? "rebuilds" : "creates"} files in 05_Final_Delivery and sets state.delivered_revision to Revision {state.preview.approvedRevision}.{state.preview.replacementMode === "overwrite" ? " Edited Delivery Notes and unrelated files are preserved." : ""} Clean replacement and filters are not enabled.</span></div>
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Creating…" : state.preview.replacementMode === "overwrite" ? "Rebuild delivery" : "Create delivery"}</button></div>
         </>}
       </section>
     </div>
@@ -2292,10 +2311,18 @@ export default function App() {
     const request: DeliveryCreationRequest = {
       clientId: resolvedProjectClient.clientId,
       projectId: resolvedProject.projectId,
+      replacementMode: resolvedProject.delivery ? "overwrite" : "default",
+      createZip: resolvedProject.delivery !== null,
     };
     setDeliveryNotice(null);
     setDeliveryActionError(null);
-    setDeliveryWorkflow({ status: "preflighting" });
+    setDeliveryWorkflow({ status: "options", request });
+  };
+
+  const preflightDelivery = () => {
+    if (deliveryWorkflow.status !== "options" || !resolvedProject) return;
+    const { request } = deliveryWorkflow;
+    setDeliveryWorkflow({ status: "preflighting", request });
     invoke<DeliveryOperationResult>("preflight_delivery_creation", { request })
       .then((result) => {
         if (
@@ -2307,8 +2334,10 @@ export default function App() {
           result.delivery.projectName === resolvedProject.projectName &&
           result.delivery.currentRevision === resolvedProject.currentRevision &&
           result.delivery.approvedRevision === resolvedProject.approvedRevision &&
-          result.delivery.deliveredRevision === null &&
+          result.delivery.deliveredRevision === resolvedProject.deliveredRevision &&
           result.delivery.deliveryMethod === resolvedProject.deliveryMethod &&
+          result.delivery.replacementMode === request.replacementMode &&
+          result.delivery.createZip === request.createZip &&
           result.delivery.selected.length > 0
         ) {
           setDeliveryWorkflow({ status: "confirming", request, preview: result.delivery });
@@ -2631,16 +2660,16 @@ export default function App() {
     deliveryCreationSupported &&
     resolvedProject !== null &&
     resolvedProject.approvedRevision !== null &&
-    resolvedProject.deliveredRevision === null &&
-    resolvedProject.delivery === null;
+    ((resolvedProject.deliveredRevision === null && resolvedProject.delivery === null) ||
+      (resolvedProject.deliveredRevision !== null && resolvedProject.delivery !== null));
   const deliveryCreationHelp = (() => {
     if (!resolvedProject) return "Select a project before creating a delivery.";
     if (workspace.status !== "ready" || version.status !== "ready") return "Workspace and automation checks must finish first.";
     if (workspace.value.status !== "healthy") return "Delivery history remains readable, but workspace issues must be resolved before creating a package.";
     if (!version.value.deliveryCreationSupported) return version.value.message;
     if (resolvedProject.approvedRevision === null) return "Approve a revision before creating the first delivery package.";
-    if (resolvedProject.deliveredRevision !== null || resolvedProject.delivery !== null) return "The existing package remains read-only; replacement requires a separate reviewed workflow.";
-    return "Preview and confirm the first package using Automation defaults with mandatory SHA-256 verification.";
+    if (resolvedProject.deliveredRevision !== null && resolvedProject.delivery !== null) return "Preview a same-path overwrite that preserves edited Delivery Notes and unrelated package files; optionally rebuild the ZIP.";
+    return "Preview and confirm the first package using Automation defaults with mandatory SHA-256 verification and optional ZIP output.";
   })();
   const baseRouteDefinition = routes.find((route) => route.id === activeRoute) ?? routes[0];
   const activeRouteDefinition: RouteDefinition = resolvedProject
@@ -2894,7 +2923,16 @@ export default function App() {
           onClose={closeApprovalWorkflow}
         />
       )}
-      {deliveryWorkflow.status !== "closed" && deliveryWorkflow.status !== "preflighting" && (
+      {deliveryWorkflow.status === "options" && resolvedProject && (
+        <DeliveryOptionsDialog
+          request={deliveryWorkflow.request}
+          projectName={resolvedProject.projectName}
+          onChange={(request) => setDeliveryWorkflow({ status: "options", request })}
+          onPreview={preflightDelivery}
+          onClose={closeDeliveryWorkflow}
+        />
+      )}
+      {deliveryWorkflow.status !== "closed" && deliveryWorkflow.status !== "options" && deliveryWorkflow.status !== "preflighting" && (
         <DeliveryDialog
           state={deliveryWorkflow}
           onConfirm={confirmDelivery}
