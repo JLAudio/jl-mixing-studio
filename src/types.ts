@@ -12,6 +12,10 @@ export interface VersionCheck {
   message: string;
 }
 
+export type FolderLocation = "workspace" | "studio" | "client" | "project" | "intake" | "revisions" | "delivery";
+export interface FolderRequest { location: FolderLocation; clientId: string | null; projectId: string | null; }
+export interface FolderResult { path: string; }
+
 export interface StudioCreationRequest {
   studioName: string;
   mixEngineer: string | null;
