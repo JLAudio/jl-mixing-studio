@@ -385,6 +385,10 @@ Dashboard Quick Actions shall expose the existing guided New Client and New Proj
 
 JL Mixing Studio 1.0 may use only the released JL Mixing Automation v1.2.0 command and metadata contracts. Features that require changes to the Automation v1.2.0 codebase are outside Studio 1.0. Not every existing Automation option must be exposed. Guided `new-studio`, editable Delivery Notes, delivery ZIP/overwrite, and destructive clean replacement are required Studio 1.0 workflows; clean replacement requires a dry-run deletion preview, explicit destructive confirmation, validated internal path resolution, exact post-operation reconciliation, and no automatic retry after an uncertain result.
 
+### 24.1 Studio overview and guided setup
+
+The Studio route reads validated `studio.json` data and displays studio identity, configured root, creation provenance, engineer, audio defaults, delivery defaults, default requested deliverables, directory-change setting, and detected Automation compatibility. When the fixed `~/Music/Mixes` workspace is absent, Studio may invoke only Automation v1.2.0 `new-studio` with name, optional engineer, supported sample rate, bit depth, and WAV/AIFF format. Preflight adds `--dry-run`; confirmation adds `--no-default-cd`. The application accepts no custom root, executable, or arguments and must re-discover and reconcile the created studio before reporting success. Existing, partial, or invalid workspaces block setup; uncertain results are never retried automatically. This scope is tracked in [Issue #31](https://github.com/JLAudio/jl-mixing-studio/issues/31).
+
 ## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.
