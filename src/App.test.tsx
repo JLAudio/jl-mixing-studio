@@ -10,6 +10,7 @@ import type {
   IntakeReport,
   ProjectOperationResult,
   RevisionOperationResult,
+  StudioOperationResult,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -22,6 +23,7 @@ afterEach(cleanup);
 const version: VersionCheck = {
   available: true,
   supported: true,
+  studioCreationSupported: true,
   clientCreationSupported: true,
   projectCreationSupported: true,
   intakeValidationSupported: true,
@@ -177,8 +179,17 @@ const healthyWorkspace = (projectName = "Blue Sky"): WorkspaceSnapshot => ({
   studio: {
     studioId: "jl-studio",
     studioName: "JL Mix Studio",
+    rootPath: "/Users/engineer/Music/Mixes",
     schemaVersion: "1.1.0",
     createdWith: "jl-mixing 1.2.0",
+    createdAt: "2026-07-14T12:00:00Z",
+    mixEngineer: "JL Engineer",
+    sampleRate: 48000,
+    bitDepth: 24,
+    fileFormat: "WAV",
+    deliveryMethod: "digital",
+    requestedDeliverables: ["master", "instrumental"],
+    changeDirectoryAfterCreate: false,
   },
   counts: { clients: 1, projects: 1, issues: 0 },
   clients: [{
@@ -1225,6 +1236,53 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText(/run new-studio/i)).toBeInTheDocument();
   });
 
+  it("shows validated studio identity, defaults, and workspace path", async () => {
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Studio" }));
+    expect(screen.getByRole("heading", { name: "JL Mix Studio" })).toBeInTheDocument();
+    expect(screen.getByText("JL Engineer")).toBeInTheDocument();
+    expect(screen.getByText("48,000 Hz")).toBeInTheDocument();
+    expect(screen.getAllByText("/Users/engineer/Music/Mixes")).toHaveLength(2);
+    expect(screen.queryByText(/studio details are planned/i)).not.toBeInTheDocument();
+  });
+
+  it("preflights and creates the default studio workspace once", async () => {
+    const unavailable: WorkspaceSnapshot = {
+      workspacePath: "/Users/engineer/Music/Mixes", status: "unavailable", studio: null,
+      counts: { clients: 0, projects: 0, issues: 1 }, clients: [], tasks: [], activity: [],
+      issues: [{ scope: "workspace", code: "notFound", displayName: null, relativePath: null, message: "Workspace not found", recovery: "Create it with guided setup." }],
+    };
+    const requestSummary = { studioName: "New Studio", mixEngineer: "Engineer", sampleRate: 48000, bitDepth: 24, fileFormat: "WAV" };
+    const preflight: StudioOperationResult = { ok: true, code: "ready", message: "Ready", studio: requestSummary };
+    const created: StudioOperationResult = { ok: true, code: "created", message: "Created", studio: requestSummary };
+    const refreshed = healthyWorkspace();
+    refreshed.status = "empty";
+    refreshed.clients = [];
+    refreshed.counts = { clients: 0, projects: 0, issues: 0 };
+    refreshed.studio!.studioName = "New Studio";
+    let discoveryCalls = 0;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(discoveryCalls++ === 0 ? unavailable : refreshed);
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "preflight_studio_creation") return Promise.resolve(preflight);
+      if (command === "create_studio") return Promise.resolve(created);
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByRole("heading", { name: "Workspace not found" });
+    fireEvent.click(screen.getByRole("button", { name: "Studio" }));
+    fireEvent.click(screen.getByRole("button", { name: "New studio" }));
+    fireEvent.change(screen.getByLabelText("Studio name"), { target: { value: " New Studio " } });
+    fireEvent.change(screen.getByLabelText("Mix engineer"), { target: { value: " Engineer " } });
+    fireEvent.click(screen.getByRole("button", { name: "Review studio" }));
+    expect(await screen.findByRole("heading", { name: "Confirm new studio" })).toBeInTheDocument();
+    expect(mockedInvoke).toHaveBeenCalledWith("preflight_studio_creation", { request: requestSummary });
+    fireEvent.click(screen.getByRole("button", { name: "Create studio" }));
+    expect(await screen.findByText("New Studio was created and verified.")).toBeInTheDocument();
+    expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_studio")).toHaveLength(1);
+  });
+
   it("distinguishes a valid empty workspace", async () => {
     const empty = healthyWorkspace();
     empty.status = "empty";
@@ -1265,6 +1323,7 @@ describe("JL Mixing Studio", () => {
     respondWith(healthyWorkspace(), {
       available: false,
       supported: false,
+      studioCreationSupported: false,
       clientCreationSupported: false,
         projectCreationSupported: false,
         intakeValidationSupported: false,
@@ -1526,6 +1585,7 @@ describe("JL Mixing Studio", () => {
     respondWith(healthyWorkspace(), {
       available: true,
       supported: false,
+      studioCreationSupported: false,
       clientCreationSupported: false,
         projectCreationSupported: false,
         intakeValidationSupported: false,
