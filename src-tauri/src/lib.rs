@@ -1008,12 +1008,12 @@ fn run_delivery_operation(
                 "This project already has a delivery package; select the overwrite workflow",
             );
         }
-        DeliveryReplacementMode::Overwrite
+        DeliveryReplacementMode::Overwrite | DeliveryReplacementMode::Clean
             if before.delivered_revision.is_none() || before.delivery.is_none() =>
         {
             return cli::blocked_delivery_operation(
                 DeliveryOperationCode::ProjectUnavailable,
-                "Overwrite requires a validated existing delivery package",
+                "Delivery replacement requires a validated existing package",
             );
         }
         _ => {}
@@ -1026,6 +1026,41 @@ fn run_delivery_operation(
             "The selected project directory could not be resolved safely",
         );
     };
+
+    if matches!(request.replacement_mode, DeliveryReplacementMode::Clean) {
+        if !verify_after_creation && !request.confirmed_deletions.is_empty() {
+            return cli::blocked_delivery_operation(
+                DeliveryOperationCode::InvalidInput,
+                "Clean preview cannot include a prior deletion confirmation",
+            );
+        }
+        if verify_after_creation {
+            if request.confirmed_deletions.is_empty() {
+                return cli::blocked_delivery_operation(
+                    DeliveryOperationCode::InvalidInput,
+                    "Confirm the clean deletion preview before replacement",
+                );
+            }
+            let current_deletions = match list_delivery_entries(&project_directory) {
+                Ok(entries) => entries,
+                Err(message) => {
+                    return cli::blocked_delivery_operation(
+                        DeliveryOperationCode::Rejected,
+                        &message,
+                    )
+                }
+            };
+            let expected: std::collections::BTreeSet<_> =
+                request.confirmed_deletions.iter().cloned().collect();
+            let current: std::collections::BTreeSet<_> = current_deletions.into_iter().collect();
+            if current != expected {
+                return cli::blocked_delivery_operation(
+                    DeliveryOperationCode::Rejected,
+                    "Delivery contents changed after preview; review a new clean-deletion plan",
+                );
+            }
+        }
+    }
 
     let replacement_mode = request.replacement_mode;
     let create_zip = request.create_zip;
@@ -1083,7 +1118,7 @@ fn run_delivery_operation(
         || !verify_delivery_artifacts(
             &project_directory,
             &project_id,
-            create_zip,
+            expected,
             prior_notes.as_deref(),
         )
     {
@@ -1095,7 +1130,7 @@ fn run_delivery_operation(
 fn verify_delivery_artifacts(
     project_directory: &std::path::Path,
     project_id: &str,
-    create_zip: bool,
+    expected: &DeliveryCreationPreview,
     prior_notes: Option<&[u8]>,
 ) -> bool {
     let delivery = project_directory.join("05_Final_Delivery");
@@ -1109,7 +1144,7 @@ fn verify_delivery_artifacts(
     if prior_notes.is_some_and(|expected| fs::read(&notes).ok().as_deref() != Some(expected)) {
         return false;
     }
-    if create_zip {
+    if expected.create_zip {
         let zip = delivery.join(format!("{project_id}-delivery.zip"));
         let Ok(zip_metadata) = fs::symlink_metadata(zip) else {
             return false;
@@ -1118,7 +1153,80 @@ fn verify_delivery_artifacts(
             return false;
         }
     }
+    if matches!(expected.replacement_mode, DeliveryReplacementMode::Clean) {
+        let mut recreated = std::collections::BTreeSet::from([
+            "Delivery_Notes.md".to_owned(),
+            "delivery-manifest.json".to_owned(),
+        ]);
+        if expected.create_zip {
+            recreated.insert(format!("{project_id}-delivery.zip"));
+        }
+        for file in &expected.selected {
+            recreated.insert(file.path.clone());
+            let mut parent = std::path::Path::new(&file.path).parent();
+            while let Some(path) = parent {
+                if path.as_os_str().is_empty() {
+                    break;
+                }
+                let Some(relative) = path.to_str() else {
+                    return false;
+                };
+                recreated.insert(format!("{relative}/"));
+                parent = path.parent();
+            }
+        }
+        for deletion in &expected.deletions {
+            if !recreated.contains(deletion)
+                && fs::symlink_metadata(delivery.join(deletion.trim_end_matches('/'))).is_ok()
+            {
+                return false;
+            }
+        }
+    }
     true
+}
+
+fn list_delivery_entries(project_directory: &std::path::Path) -> Result<Vec<String>, String> {
+    fn visit(
+        root: &std::path::Path,
+        directory: &std::path::Path,
+        entries: &mut Vec<String>,
+    ) -> Result<(), String> {
+        let children = fs::read_dir(directory)
+            .map_err(|_| "The delivery deletion inventory could not be read")?;
+        for child in children {
+            let child = child.map_err(|_| "The delivery deletion inventory could not be read")?;
+            let path = child.path();
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|_| "The delivery deletion inventory could not be inspected")?;
+            let relative = path
+                .strip_prefix(root)
+                .ok()
+                .and_then(std::path::Path::to_str)
+                .ok_or("The delivery deletion inventory contains an unsupported path")?
+                .replace(std::path::MAIN_SEPARATOR, "/");
+            if metadata.is_dir() && !metadata.file_type().is_symlink() {
+                entries.push(format!("{relative}/"));
+                visit(root, &path, entries)?;
+            } else {
+                entries.push(relative);
+            }
+            if entries.len() > 10_000 {
+                return Err("The delivery deletion inventory is too large".into());
+            }
+        }
+        Ok(())
+    }
+
+    let root = project_directory.join("05_Final_Delivery");
+    let mut entries = Vec::new();
+    visit(&root, &root, &mut entries)?;
+    entries.sort_by(|left, right| {
+        left.to_ascii_lowercase()
+            .cmp(&right.to_ascii_lowercase())
+            .then_with(|| left.cmp(right))
+    });
+    Ok(entries)
 }
 
 fn verify_delivery_creation(
@@ -1346,6 +1454,7 @@ mod tests {
                 path: "Blue Sky Main Mix.wav".into(),
             }],
             excluded: Vec::new(),
+            deletions: Vec::new(),
         }
     }
 
@@ -1604,18 +1713,67 @@ mod tests {
         fs::create_dir(&delivery).expect("delivery directory");
         fs::write(delivery.join("Delivery_Notes.md"), "Edited notes\n").expect("notes");
         fs::write(delivery.join("blue-sky-delivery.zip"), "zip").expect("zip");
+        let mut expected = expected_delivery();
+        expected.replacement_mode = DeliveryReplacementMode::Overwrite;
+        expected.create_zip = true;
 
         assert!(verify_delivery_artifacts(
             directory.path(),
             "blue-sky",
-            true,
+            &expected,
             Some(b"Edited notes\n"),
         ));
         assert!(!verify_delivery_artifacts(
             directory.path(),
             "blue-sky",
-            true,
+            &expected,
             Some(b"Different notes\n"),
+        ));
+    }
+
+    #[test]
+    fn lists_clean_deletions_with_nested_relative_paths() {
+        let directory = tempdir().expect("temporary directory");
+        let delivery = directory.path().join("05_Final_Delivery");
+        fs::create_dir_all(delivery.join("Stems")).expect("delivery directory");
+        fs::write(delivery.join("Delivery_Notes.md"), "Notes\n").expect("notes");
+        fs::write(delivery.join("Stems/Drums.wav"), "audio").expect("stem");
+
+        assert_eq!(
+            list_delivery_entries(directory.path()).expect("deletion inventory"),
+            vec!["Delivery_Notes.md", "Stems/", "Stems/Drums.wav"]
+        );
+    }
+
+    #[test]
+    fn clean_artifact_verification_rejects_unpreviewed_survivors() {
+        let directory = tempdir().expect("temporary directory");
+        let delivery = directory.path().join("05_Final_Delivery");
+        fs::create_dir(&delivery).expect("delivery directory");
+        fs::write(delivery.join("Delivery_Notes.md"), "Fresh template\n").expect("notes");
+        fs::write(delivery.join("delivery-manifest.json"), "{}").expect("manifest");
+        fs::write(delivery.join("Blue Sky Main Mix.wav"), "new audio").expect("audio");
+        let mut expected = expected_delivery();
+        expected.replacement_mode = DeliveryReplacementMode::Clean;
+        expected.deletions = vec![
+            "Blue Sky Main Mix.wav".into(),
+            "Delivery_Notes.md".into(),
+            "delivery-manifest.json".into(),
+            "untracked.txt".into(),
+        ];
+
+        assert!(verify_delivery_artifacts(
+            directory.path(),
+            "blue-sky",
+            &expected,
+            None,
+        ));
+        fs::write(delivery.join("untracked.txt"), "survivor").expect("untracked file");
+        assert!(!verify_delivery_artifacts(
+            directory.path(),
+            "blue-sky",
+            &expected,
+            None,
         ));
     }
 }
