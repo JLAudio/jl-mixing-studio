@@ -12,11 +12,13 @@ use crate::models::{
     IntakeOperationResult, IntakeRequest, PlannedDeliveryFile, ProjectCreationRequest,
     ProjectCreationSummary, ProjectOperationCode, ProjectOperationResult, RevisionApprovalRequest,
     RevisionApprovalSummary, RevisionCreationRequest, RevisionCreationSummary,
-    RevisionOperationCode, RevisionOperationResult, VersionCheck,
+    RevisionOperationCode, RevisionOperationResult, StudioCreationRequest, StudioCreationSummary,
+    StudioOperationCode, StudioOperationResult, VersionCheck,
 };
 use crate::{intake, intake::IntakeReportError};
 
 const CLIENT_EXECUTABLE: &str = "new-client";
+const STUDIO_EXECUTABLE: &str = "new-studio";
 const PROJECT_EXECUTABLE: &str = "new-mix";
 const INTAKE_EXECUTABLE: &str = "validate-intake";
 const REVISION_EXECUTABLE: &str = "new-revision";
@@ -29,6 +31,22 @@ const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
 
 pub fn check_jl_mixing_version(home: &Path) -> VersionCheck {
     check_version_with_runner(home, &SystemProcessRunner)
+}
+
+pub fn preflight_studio_creation(
+    home: &Path,
+    request: StudioCreationRequest,
+) -> StudioOperationResult {
+    run_studio_operation(
+        home,
+        request,
+        StudioOperation::Preflight,
+        &SystemProcessRunner,
+    )
+}
+
+pub fn create_studio(home: &Path, request: StudioCreationRequest) -> StudioOperationResult {
+    run_studio_operation(home, request, StudioOperation::Create, &SystemProcessRunner)
 }
 
 pub fn preflight_client_creation(
@@ -218,6 +236,15 @@ pub fn blocked_client_operation(code: ClientOperationCode, message: &str) -> Cli
     }
 }
 
+pub fn blocked_studio_operation(code: StudioOperationCode, message: &str) -> StudioOperationResult {
+    StudioOperationResult {
+        ok: false,
+        code,
+        message: message.to_owned(),
+        studio: None,
+    }
+}
+
 pub fn blocked_project_operation(
     code: ProjectOperationCode,
     message: &str,
@@ -323,6 +350,12 @@ enum ClientOperation {
 }
 
 #[derive(Clone, Copy)]
+enum StudioOperation {
+    Preflight,
+    Create,
+}
+
+#[derive(Clone, Copy)]
 enum ProjectOperation {
     Preflight,
     Create,
@@ -406,6 +439,71 @@ fn run_client_operation<R: ProcessRunner>(
         Err(_) => blocked_client_operation(
             ClientOperationCode::Failed,
             "The JL Mixing Automation new-client command could not be started",
+        ),
+    }
+}
+
+fn run_studio_operation<R: ProcessRunner>(
+    home: &Path,
+    request: StudioCreationRequest,
+    operation: StudioOperation,
+    runner: &R,
+) -> StudioOperationResult {
+    let studio = match normalize_studio_request(request) {
+        Ok(studio) => studio,
+        Err(message) => {
+            return blocked_studio_operation(StudioOperationCode::InvalidInput, &message)
+        }
+    };
+    let version = check_version_with_runner(home, runner);
+    if !version.available {
+        return blocked_studio_operation(
+            StudioOperationCode::AutomationUnavailable,
+            &version.message,
+        );
+    }
+    if !version.supported {
+        return blocked_studio_operation(StudioOperationCode::UnsupportedVersion, &version.message);
+    }
+    let Some(executable) = resolve_command(home, STUDIO_EXECUTABLE) else {
+        return blocked_studio_operation(
+            StudioOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation new-studio command was not found",
+        );
+    };
+    let arguments = studio_arguments(&studio, operation);
+    match runner.run(&executable, &arguments, Some(home)) {
+        Ok(output) if output.success => StudioOperationResult {
+            ok: true,
+            code: match operation {
+                StudioOperation::Preflight => StudioOperationCode::Ready,
+                StudioOperation::Create => StudioOperationCode::Created,
+            },
+            message: match operation {
+                StudioOperation::Preflight => "Preflight passed. No changes were made.",
+                StudioOperation::Create => "Studio workspace created successfully.",
+            }
+            .to_owned(),
+            studio: Some(studio),
+        },
+        Ok(output) => rejected_studio_operation(output, studio),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_studio_operation(
+            StudioOperationCode::AutomationUnavailable,
+            "The JL Mixing Automation new-studio command was not found",
+        ),
+        Err(_) => blocked_studio_operation(
+            match operation {
+                StudioOperation::Preflight => StudioOperationCode::Failed,
+                StudioOperation::Create => StudioOperationCode::Uncertain,
+            },
+            match operation {
+                StudioOperation::Preflight => {
+                    "The JL Mixing Automation new-studio command could not be started"
+                }
+                StudioOperation::Create => {
+                    "The studio creation result could not be confirmed. The operation may have completed; do not retry automatically."
+                }
+            },
         ),
     }
 }
@@ -996,6 +1094,43 @@ fn normalize_request(request: ClientCreationRequest) -> Result<ClientCreationSum
     })
 }
 
+fn normalize_studio_request(
+    request: StudioCreationRequest,
+) -> Result<StudioCreationSummary, String> {
+    let studio_name = request.studio_name.trim().to_owned();
+    let mix_engineer = request
+        .mix_engineer
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let file_format = request.file_format.trim().to_ascii_uppercase();
+    if studio_name.is_empty() {
+        return Err("Studio name is required".into());
+    }
+    if studio_name.chars().any(char::is_control)
+        || mix_engineer
+            .as_ref()
+            .is_some_and(|value| value.chars().any(char::is_control))
+    {
+        return Err("Studio identity cannot contain control characters".into());
+    }
+    if ![44_100, 48_000, 88_200, 96_000, 176_400, 192_000].contains(&request.sample_rate) {
+        return Err("Select a supported sample rate".into());
+    }
+    if ![16, 24, 32].contains(&request.bit_depth) {
+        return Err("Select a supported bit depth".into());
+    }
+    if !matches!(file_format.as_str(), "WAV" | "AIFF") {
+        return Err("Select WAV or AIFF as the file format".into());
+    }
+    Ok(StudioCreationSummary {
+        studio_name,
+        mix_engineer,
+        sample_rate: request.sample_rate,
+        bit_depth: request.bit_depth,
+        file_format,
+    })
+}
+
 fn normalize_project_request(
     request: ProjectCreationRequest,
 ) -> Result<ProjectCreationRequest, String> {
@@ -1129,6 +1264,30 @@ fn client_arguments(client: &ClientCreationSummary, operation: ClientOperation) 
         ClientOperation::Preflight => arguments.push("--dry-run".into()),
         ClientOperation::Create => arguments.push("--no-cd".into()),
     }
+    arguments
+}
+
+fn studio_arguments(studio: &StudioCreationSummary, operation: StudioOperation) -> Vec<String> {
+    let mut arguments = vec!["--name".into(), studio.studio_name.clone()];
+    if let Some(engineer) = &studio.mix_engineer {
+        arguments.push("--engineer".into());
+        arguments.push(engineer.clone());
+    }
+    arguments.extend([
+        "--sample-rate".into(),
+        studio.sample_rate.to_string(),
+        "--bit-depth".into(),
+        studio.bit_depth.to_string(),
+        "--file-format".into(),
+        studio.file_format.clone(),
+    ]);
+    arguments.push(
+        match operation {
+            StudioOperation::Preflight => "--dry-run",
+            StudioOperation::Create => "--no-default-cd",
+        }
+        .into(),
+    );
     arguments
 }
 
@@ -1405,6 +1564,24 @@ fn rejected_operation(
     }
 }
 
+fn rejected_studio_operation(
+    output: ProcessResult,
+    studio: StudioCreationSummary,
+) -> StudioOperationResult {
+    let fallback = format!(
+        "JL Mixing Automation rejected the studio request with exit code {}",
+        output
+            .exit_code
+            .map_or_else(|| "unknown".into(), |code| code.to_string())
+    );
+    StudioOperationResult {
+        ok: false,
+        code: StudioOperationCode::Rejected,
+        message: bounded_process_message(&output.stderr, &output.stdout, &fallback),
+        studio: Some(studio),
+    }
+}
+
 fn rejected_project_operation(output: ProcessResult) -> ProjectOperationResult {
     let fallback = format!(
         "JL Mixing Automation rejected the project request with exit code {}",
@@ -1516,6 +1693,7 @@ fn evaluate_version(version: &str) -> VersionCheck {
     VersionCheck {
         available: true,
         supported,
+        studio_creation_supported: supported && !cfg!(target_os = "windows"),
         client_creation_supported: supported && !cfg!(target_os = "windows"),
         project_creation_supported: supported && !cfg!(target_os = "windows"),
         intake_validation_supported: supported && !cfg!(target_os = "windows"),
@@ -1537,6 +1715,7 @@ fn unavailable_version(message: &str) -> VersionCheck {
     VersionCheck {
         available: false,
         supported: false,
+        studio_creation_supported: false,
         client_creation_supported: false,
         project_creation_supported: false,
         intake_validation_supported: false,
@@ -1663,6 +1842,16 @@ mod tests {
             client_id: "acme-records".into(),
             client_name: " Acme Records ".into(),
             default_artist: artist.map(str::to_owned),
+        }
+    }
+
+    fn studio_request() -> StudioCreationRequest {
+        StudioCreationRequest {
+            studio_name: " New Studio ".into(),
+            mix_engineer: Some(" Engineer ".into()),
+            sample_rate: 48_000,
+            bit_depth: 24,
+            file_format: "wav".into(),
         }
     }
 
@@ -1802,6 +1991,7 @@ mod tests {
         std::fs::create_dir_all(&bin).unwrap();
         std::fs::create_dir_all(&application).unwrap();
         std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(bin.join(STUDIO_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();
         std::fs::write(bin.join(DELIVERY_EXECUTABLE), "managed launcher").unwrap();
@@ -1816,6 +2006,10 @@ mod tests {
         let supported = evaluate_version("1.2.0");
         assert!(supported.available);
         assert!(supported.supported);
+        assert_eq!(
+            supported.studio_creation_supported,
+            !cfg!(target_os = "windows")
+        );
         assert!(supported.intake_validation_supported);
         assert!(supported.revision_creation_supported);
         assert!(supported.revision_approval_supported);
@@ -1825,6 +2019,77 @@ mod tests {
         assert!(future.available);
         assert!(!future.supported);
         assert!(future.message.contains("requires 1.2.0"));
+    }
+
+    #[test]
+    fn studio_preflight_uses_fixed_default_workspace_arguments() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("ready")]);
+        let result = run_studio_operation(
+            home.path(),
+            studio_request(),
+            StudioOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(result.code, StudioOperationCode::Ready);
+        assert_eq!(result.studio.unwrap().studio_name, "New Studio");
+        let invocation = &runner.invocations.borrow()[1];
+        assert_eq!(
+            invocation.executable,
+            home.path().join(".local/bin/new-studio")
+        );
+        assert_eq!(invocation.current_directory, Some(home.path().into()));
+        assert_eq!(
+            invocation.arguments,
+            vec![
+                "--name",
+                "New Studio",
+                "--engineer",
+                "Engineer",
+                "--sample-rate",
+                "48000",
+                "--bit-depth",
+                "24",
+                "--file-format",
+                "WAV",
+                "--dry-run",
+            ]
+        );
+    }
+
+    #[test]
+    fn confirmed_studio_creation_disables_directory_changes() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let runner = FakeRunner::new(vec![success("help"), success("created")]);
+        let result = run_studio_operation(
+            home.path(),
+            studio_request(),
+            StudioOperation::Create,
+            &runner,
+        );
+
+        assert_eq!(result.code, StudioOperationCode::Created);
+        assert_eq!(
+            runner.invocations.borrow()[1].arguments.last().unwrap(),
+            "--no-default-cd"
+        );
+    }
+
+    #[test]
+    fn invalid_studio_request_never_starts_a_process() {
+        let runner = FakeRunner::new(Vec::new());
+        let mut invalid = studio_request();
+        invalid.sample_rate = 12_345;
+        let result = run_studio_operation(
+            Path::new("/home/tester"),
+            invalid,
+            StudioOperation::Preflight,
+            &runner,
+        );
+        assert_eq!(result.code, StudioOperationCode::InvalidInput);
+        assert!(runner.invocations.borrow().is_empty());
     }
 
     #[test]

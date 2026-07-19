@@ -1,6 +1,7 @@
 export interface VersionCheck {
   available: boolean;
   supported: boolean;
+  studioCreationSupported: boolean;
   clientCreationSupported: boolean;
   projectCreationSupported: boolean;
   intakeValidationSupported: boolean;
@@ -9,6 +10,35 @@ export interface VersionCheck {
   deliveryCreationSupported: boolean;
   version: string | null;
   message: string;
+}
+
+export interface StudioCreationRequest {
+  studioName: string;
+  mixEngineer: string | null;
+  sampleRate: number;
+  bitDepth: number;
+  fileFormat: string;
+}
+
+export type StudioCreationSummary = StudioCreationRequest;
+
+export type StudioOperationCode =
+  | "ready"
+  | "created"
+  | "invalidInput"
+  | "automationUnavailable"
+  | "unsupportedVersion"
+  | "unsupportedPlatform"
+  | "workspaceBlocked"
+  | "rejected"
+  | "uncertain"
+  | "failed";
+
+export interface StudioOperationResult {
+  ok: boolean;
+  code: StudioOperationCode;
+  message: string;
+  studio: StudioCreationSummary | null;
 }
 
 export interface DeliveryCreationRequest {
@@ -270,8 +300,17 @@ export interface WorkspaceSnapshot {
 export interface StudioSummary {
   studioId: string;
   studioName: string;
+  rootPath: string;
   schemaVersion: string;
   createdWith: string;
+  createdAt: string;
+  mixEngineer: string;
+  sampleRate: number;
+  bitDepth: number;
+  fileFormat: string;
+  deliveryMethod: string;
+  requestedDeliverables: string[];
+  changeDirectoryAfterCreate: boolean;
 }
 
 export interface WorkspaceCounts {
