@@ -33,6 +33,28 @@ pub struct FolderResult {
     pub path: String,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliveryNotesRequest {
+    pub client_id: String,
+    pub project_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliveryNotesUpdateRequest {
+    pub client_id: String,
+    pub project_id: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct DeliveryNotesDocument {
+    pub content: String,
+    pub max_bytes: usize,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionCheck {
