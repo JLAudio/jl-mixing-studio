@@ -389,6 +389,10 @@ JL Mixing Studio 1.0 may use only the released JL Mixing Automation v1.2.0 comma
 
 The Studio route reads validated `studio.json` data and displays studio identity, configured root, creation provenance, engineer, audio defaults, delivery defaults, default requested deliverables, directory-change setting, and detected Automation compatibility. When the fixed `~/Music/Mixes` workspace is absent, Studio may invoke only Automation v1.2.0 `new-studio` with name, optional engineer, supported sample rate, bit depth, and WAV/AIFF format. Preflight adds `--dry-run`; confirmation adds `--no-default-cd`. The application accepts no custom root, executable, or arguments and must re-discover and reconcile the created studio before reporting success. Existing, partial, or invalid workspaces block setup; uncertain results are never retried automatically. This scope is tracked in [Issue #31](https://github.com/JLAudio/jl-mixing-studio/issues/31).
 
+### 24.2 Validated folder navigation
+
+Studio displays selectable, copyable paths and may open only internally resolved workspace, studio, client, project, intake, revisions, and delivery directories in the operating-system file browser. The frontend supplies a location kind and stable client/project identities, never an arbitrary path or executable. Rust re-discovers the workspace, resolves validated identities, canonicalizes the existing directory, and requires it to remain within the canonical workspace root before invoking the platform folder opener. This scope is tracked in [Issue #32](https://github.com/JLAudio/jl-mixing-studio/issues/32) and supersedes Issue #27.
+
 ## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.
