@@ -19,6 +19,9 @@ import type {
   DeliveryOperationResult,
   DerivedTask,
   DiscoveryIssue,
+  FolderLocation,
+  FolderRequest,
+  FolderResult,
   IntakeOperationResult,
   IntakeReport,
   IntakeRequest,
@@ -300,6 +303,22 @@ const emptyStudioForm: StudioFormValues = {
   bitDepth: "24",
   fileFormat: "WAV",
 };
+
+function FolderControl({ location, clientId = null, projectId = null, label = "Open folder" }: { location: FolderLocation; clientId?: string | null; projectId?: string | null; label?: string }) {
+  const [path, setPath] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const request: FolderRequest = { location, clientId, projectId };
+  const resolve = () => invoke<FolderResult>("resolve_folder", { request }).then((result) => { setPath(result.path); setMessage(null); return result; });
+  useEffect(() => {
+    const currentRequest: FolderRequest = { location, clientId, projectId };
+    void invoke<FolderResult>("resolve_folder", { request: currentRequest })
+      .then((result) => setPath(result.path))
+      .catch(() => setPath(null));
+  }, [location, clientId, projectId]);
+  const copy = () => resolve().then((result) => navigator.clipboard.writeText(result.path)).then(() => setMessage("Path copied.")).catch((error: unknown) => setMessage(safeError(error, "The path could not be copied.")));
+  const open = () => invoke<FolderResult>("open_folder", { request }).then((result) => { setPath(result.path); setMessage("Folder opened."); }).catch((error: unknown) => setMessage(safeError(error, "The folder could not be opened.")));
+  return <div className="folder-control"><code>{path ?? "Resolving folder…"}</code><div className="directory-actions"><button type="button" className="secondary" onClick={copy} disabled={!path}>Copy path</button><button type="button" onClick={open}>{label}</button></div>{message && <small role="status">{message}</small>}</div>;
+}
 
 const emptyRevisionForm: RevisionFormValues = { description: "" };
 const emptyApprovalForm: ApprovalFormValues = { approvedBy: "Client" };
@@ -915,7 +934,8 @@ function ProjectOverview({
         </section>
         <section className="panel" aria-labelledby="project-actions-heading">
           <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Workflow controls</h2></div></div>
-          <div className="action-stack"><button type="button" disabled>Open folder — Planned</button><button type="button" disabled>Open DAW — Planned</button><button type="button" onClick={onIntake}>Validate intake</button><button type="button" onClick={onNewRevision} disabled={!revisionCreationAvailable || loading}>New revision</button><button type="button" onClick={onRevisions}>View revisions</button></div>
+          <div className="action-stack"><button type="button" disabled>Open DAW — Planned</button><button type="button" onClick={onIntake}>Validate intake</button><button type="button" onClick={onNewRevision} disabled={!revisionCreationAvailable || loading}>New revision</button><button type="button" onClick={onRevisions}>View revisions</button></div>
+          <FolderControl location="project" clientId={client.clientId} projectId={project.projectId} />
           <p className="action-help">{revisionCreationHelp}</p>
         </section>
       </div>
@@ -1001,6 +1021,7 @@ function IntakeView({
         <button type="button" onClick={onPreview} disabled={!validationAvailable || loading}>Preview validation</button>
       </section>
       <p className="action-help directory-help">{validationHelp}</p>
+      <FolderControl location="intake" clientId={client.clientId} projectId={project.projectId} label="Open intake folder" />
       {actionError && <div className="notice error" role="alert">{actionError}</div>}
       {(reportState.status === "idle" || reportState.status === "loading") && <section className="empty-state"><h2>Loading intake report</h2><p>Reading the Automation-managed report from the validated project.</p></section>}
       {reportState.status === "error" && <section className="notice error" role="alert"><strong>Report unavailable</strong><span>{reportState.message}</span></section>}
@@ -1070,6 +1091,7 @@ function RevisionsView({
       </section>
       <p className="action-help directory-help">{creationHelp}</p>
       <p className="action-help directory-help">{selected?.number === project.approvedRevision ? "The selected revision is already approved." : approvalHelp}</p>
+      <FolderControl location="revisions" clientId={client.clientId} projectId={project.projectId} label="Open revisions folder" />
       {actionError && <div className="notice error" role="alert">{actionError}</div>}
       {revisions.length === 0 ? (
         <section className="empty-state"><h2>No revisions recorded</h2><p>The project manifest does not contain a revision yet.</p></section>
@@ -1101,7 +1123,8 @@ function RevisionsView({
   );
 }
 
-function DeliveryView({ project, loading, actionError, creationAvailable, creationHelp, onOverview, onIntake, onRevisions, onCreate, onRefresh }: {
+function DeliveryView({ clientId, project, loading, actionError, creationAvailable, creationHelp, onOverview, onIntake, onRevisions, onCreate, onRefresh }: {
+  clientId: string;
   project: ProjectSummary;
   loading: boolean;
   actionError: string | null;
@@ -1127,6 +1150,7 @@ function DeliveryView({ project, loading, actionError, creationAvailable, creati
     <ProjectWorkflowTabs active="delivery" onOverview={onOverview} onIntake={onIntake} onRevisions={onRevisions} onDelivery={() => undefined} />
     <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : "Create delivery"}</button></section>
     <p className="action-help">{creationHelp}</p>
+    <FolderControl location="delivery" clientId={clientId} projectId={project.projectId} label="Open delivery folder" />
     {actionError && <div className="form-error" role="alert">{actionError}</div>}
     <section className="notice" role="status"><strong>{readiness.title}</strong><span>{readiness.detail}</span></section>
     {!delivery ? <section className="empty-state"><h2>No delivery package recorded</h2><p>Studio found no validated delivery manifest for this project.</p></section> : <>
@@ -1389,6 +1413,7 @@ function StudioRoute({ workspace, version, loading, setupAvailable, setupHelp, o
       <article className="planned-section"><h3>Delivery defaults</h3><dl className="confirmation-list"><div><dt>Method</dt><dd>{studio.deliveryMethod}</dd></div><div><dt>Deliverables</dt><dd>{studio.requestedDeliverables.join(", ") || "None"}</dd></div></dl></article>
       <article className="planned-section"><h3>Workspace & tools</h3><dl className="confirmation-list"><div><dt>Workspace</dt><dd><code>{snapshot.workspacePath}</code></dd></div><div><dt>Configured root</dt><dd><code>{studio.rootPath}</code></dd></div><div><dt>Schema</dt><dd>{studio.schemaVersion}</dd></div><div><dt>Created with</dt><dd>{studio.createdWith}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div></dl></article>
     </div>
+    <FolderControl location="workspace" label="Open workspace" />
     {snapshot.issues.length > 0 && <RouteIssues snapshot={snapshot} />}
   </section>;
 }
@@ -2716,7 +2741,7 @@ export default function App() {
           />
         ))}
         {activeRoute === "projects" && resolvedProject && selectedProject && projectView === "delivery" ? (
-          <DeliveryView project={resolvedProject} loading={loading || deliveryWorkflow.status === "preflighting" || deliveryWorkflow.status === "creating"} actionError={deliveryActionError} creationAvailable={deliveryCreationAvailable} creationHelp={deliveryCreationHelp} onOverview={() => setProjectView("overview")} onIntake={openIntake} onRevisions={openRevisions} onCreate={openDeliveryWorkflow} onRefresh={refresh} />
+          <DeliveryView clientId={resolvedProjectClient?.clientId ?? ""} project={resolvedProject} loading={loading || deliveryWorkflow.status === "preflighting" || deliveryWorkflow.status === "creating"} actionError={deliveryActionError} creationAvailable={deliveryCreationAvailable} creationHelp={deliveryCreationHelp} onOverview={() => setProjectView("overview")} onIntake={openIntake} onRevisions={openRevisions} onCreate={openDeliveryWorkflow} onRefresh={refresh} />
         ) : activeRoute === "projects" && resolvedProjectClient && resolvedProject && selectedProject && projectView === "revisions" ? (
           <RevisionsView
             client={resolvedProjectClient}
