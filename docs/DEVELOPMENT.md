@@ -212,7 +212,7 @@ Record the results on the guided-first-delivery pull request. Keep or manually a
 
 - Automation detection reads only the fixed `VERSION` metadata associated with the resolved `new-client` launcher and executes only its fixed `--help` health check.
 - Only the fixed default workspace can be discovered; arbitrary workspace selection is not implemented.
-- Discovery remains read-only; only approved guided client creation, project creation, intake-report updates, revision creation, revision approval, and first-delivery creation mutate the workspace.
+- Discovery remains read-only. Guided studio setup is permitted only when the fixed default workspace is absent; it invokes `new-studio` with allowlisted identity/audio arguments plus `--dry-run` for preview or `--no-default-cd` for confirmation, then reconciles the validated `studio.json`. Existing, partial, and invalid workspaces block setup, and uncertain results are never retried automatically.
 - Client creation exposes only client ID, display name, and optional default artist; other values inherit studio defaults.
 - Project creation exposes only a validated client, project display name, and optional artist; Automation derives all other values and creates Revision 1.
 - Intake validation uses only Automation defaults; custom source, expected-format, and duplicate-check options are not exposed.
