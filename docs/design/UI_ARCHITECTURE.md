@@ -58,7 +58,7 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview, Intake entry, and guided New Revision; remaining lifecycle actions Planned |
 | Intake | Run and present non-destructive source validation with an authoritative managed-report update | Implemented |
 | Revisions | Present authoritative revision history and approved revision actions | Implemented history, guided New Revision, and guided approval |
-| Delivery | Present delivery readiness and approved delivery actions | Implemented authoritative readiness, package inspection, editable notes, optional ZIP, and same-path overwrite; destructive clean replacement remains separate |
+| Delivery | Present delivery readiness and approved delivery actions | Implemented authoritative readiness, package inspection, editable notes, optional ZIP, same-path overwrite, and explicitly confirmed clean replacement |
 | Tasks | Derive actionable work from authoritative project state | Implemented from validated workspace state |
 | Reports | Present generated reports without duplicating their state | Implemented from validated intake and delivery reports |
 | Activity Log | Present the supported activity that can be reconstructed from authoritative timestamps | Implemented from validated workspace timestamps |
