@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import type {
   ActivityEvent,
   ApprovalOperationResult,
@@ -315,7 +316,7 @@ function FolderControl({ location, clientId = null, projectId = null, label = "O
       .then((result) => setPath(result.path))
       .catch(() => setPath(null));
   }, [location, clientId, projectId]);
-  const copy = () => resolve().then((result) => navigator.clipboard.writeText(result.path)).then(() => setMessage("Path copied.")).catch((error: unknown) => setMessage(safeError(error, "The path could not be copied.")));
+  const copy = () => resolve().then((result) => writeText(result.path)).then(() => setMessage("Path copied.")).catch((error: unknown) => setMessage(safeError(error, "The path could not be copied.")));
   const open = () => invoke<FolderResult>("open_folder", { request }).then((result) => { setPath(result.path); setMessage("Folder opened."); }).catch((error: unknown) => setMessage(safeError(error, "The folder could not be opened.")));
   return <div className="folder-control"><code>{path ?? "Resolving folder…"}</code><div className="directory-actions"><button type="button" className="secondary" onClick={copy} disabled={!path}>Copy path</button><button type="button" onClick={open}>{label}</button></div>{message && <small role="status">{message}</small>}</div>;
 }
