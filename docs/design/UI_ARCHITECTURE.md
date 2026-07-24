@@ -54,7 +54,7 @@ Client modification is not implied by the Client Details screen. JL Mixing Autom
 | Studio | Display studio identity, configured defaults, workspace information, and approved diagnostics | Implemented read-only overview and guided default-workspace setup |
 | Clients | List clients and enter approved client workflows | Implemented directory and guided client creation |
 | Client Details | Present validated client defaults and the client's projects; enter a selected project | Implemented; guided project creation available; client editing unsupported |
-| Projects | Search, filter, and inspect projects using derived lifecycle state | Implemented directory and selection; search and filters remain Planned |
+| Projects | Search, filter, and inspect projects using derived lifecycle state | Implemented directory, selection, and project Reports, Files, and Metadata; search and filters remain Planned |
 | Project Overview | Present project identity, lifecycle state, revisions, and recommended next action as a project route with Projects active | Implemented authoritative overview, Intake entry, and guided New Revision; remaining lifecycle actions Planned |
 | Intake | Run and present non-destructive source validation with an authoritative managed-report update | Implemented |
 | Revisions | Present authoritative revision history and approved revision actions | Implemented history, guided New Revision, and guided approval |
