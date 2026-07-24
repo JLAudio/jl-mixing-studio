@@ -397,6 +397,10 @@ Studio displays selectable, copyable paths and may open only internally resolved
 
 The global Reports route indexes validated delivery manifests and links back to stable project identities. Project Reports combines the authoritative intake report and validated delivery manifest; Files lists only file records already present in those supported reports; Metadata displays the schema-validated project summary. These views do not crawl project directories, invent modification timestamps, parse unsupported documents, or create a second metadata source. This scope is tracked in [Issue #33](https://github.com/JLAudio/jl-mixing-studio/issues/33).
 
+### 24.4 Studio-owned Settings
+
+Settings may persist only local JL Mixing Studio presentation preferences. Studio 1.0 includes compact layout and reduced motion plus read-only workspace and Automation diagnostics. Settings must not edit `studio.json`, clients, projects, Automation defaults, executable locations, or workspace paths. This scope is tracked in [Issue #34](https://github.com/JLAudio/jl-mixing-studio/issues/34).
+
 ## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.
