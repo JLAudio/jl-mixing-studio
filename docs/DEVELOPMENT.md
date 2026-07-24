@@ -135,6 +135,8 @@ Revision approval resolves the same exact project identity and invokes only `app
 
 First-delivery creation resolves the same exact project identity and is available only when an approved revision exists without a delivered pointer or delivery manifest. Preview invokes only `create-delivery --dry-run` from the validated project directory; confirmation invokes `create-delivery` with no arguments. Studio exposes no project path, include/exclude patterns, working-prefix override, ZIP, overwrite, or clean replacement. After success, Rust re-discovers the workspace and requires the delivered pointer, validated manifest revision, file paths, and classifications to match the Automation plan while all pre-existing project metadata, pointers, and revision history remain unchanged.
 
+Delivery Notes editing is limited to the fixed `05_Final_Delivery/Delivery_Notes.md` file of a validated existing package. Rust rejects symlinks and paths outside the canonical delivery directory, limits UTF-8 content to 64 KiB, replaces through a same-directory temporary file, and verifies an exact read-back. It does not edit project or delivery manifests.
+
 Workspace discovery also derives ranked Tasks and Activity from validated recovery findings, deadlines, revision pointers, and supported persisted timestamps. Dashboard and full routes consume the same read-only collections; refresh writes no database, cache, task state, event log, or workspace file.
 
 ## Automated checks

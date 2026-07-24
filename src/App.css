@@ -17,10 +17,12 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--canvas); }
-button, input { font: inherit; }
+button, input, textarea { font: inherit; }
 button { min-height: 42px; border: 1px solid var(--blue); border-radius: 8px; background: var(--blue); color: #fff; padding: 9px 16px; font-weight: 750; cursor: pointer; }
 button:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
-button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid #f3a51f; outline-offset: 3px; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #f3a51f; outline-offset: 3px; }
+
+.field textarea { width: 100%; resize: vertical; border: 1px solid #c7d0dd; border-radius: 8px; background: #fff; color: #172033; padding: 12px; line-height: 1.5; }
 button:disabled { cursor: not-allowed; opacity: .62; }
 button.secondary { background: #fff; color: #31405a; border-color: #c6d0de; }
 button.secondary:hover:not(:disabled) { background: #f3f6fa; border-color: #9eabc0; }
