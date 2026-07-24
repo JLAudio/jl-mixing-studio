@@ -33,8 +33,8 @@ const version: VersionCheck = {
   revisionCreationSupported: true,
   revisionApprovalSupported: true,
   deliveryCreationSupported: true,
-  version: "1.2.0",
-  message: "JL Mixing Automation 1.2.0 detected",
+  version: "1.3.0",
+  message: "JL Mixing Automation 1.3.0 detected",
 };
 
 const preflightResult: ClientOperationResult = {
@@ -104,6 +104,7 @@ const deliveryPreviewResult: DeliveryOperationResult = {
     deliveryMethod: "Download",
     replacementMode: "default",
     createZip: false,
+    zipName: null,
     selected: [
       { sourceName: "Blue Sky Main Mix.wav", deliverableType: "main_mix", path: "Blue Sky Main Mix.wav" },
       { sourceName: "Blue Sky Stems.wav", deliverableType: "stems", path: "Stems/Blue Sky Stems.wav" },
@@ -289,7 +290,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.queryByText("Blue Sky")).not.toBeInTheDocument();
     expect(screen.queryByText("Revision 2")).not.toBeInTheDocument();
     expect(screen.queryByText("Revision 1")).not.toBeInTheDocument();
-    expect(screen.getByText("JL Mixing Automation 1.2.0 detected")).toBeInTheDocument();
+    expect(screen.getByText("JL Mixing Automation 1.3.0 detected")).toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("discover_default_workspace");
     expect(mockedInvoke).toHaveBeenCalledWith("get_jl_mixing_version");
   });
@@ -684,7 +685,7 @@ describe("JL Mixing Studio", () => {
       files: deliveryPreviewResult.delivery!.selected.map((file, index) => ({ path: file.path, deliverableType: file.deliverableType, sizeBytes: 1200 + index, sha256: String(index).repeat(64) })),
     };
     const preview: DeliveryOperationResult = { ...deliveryPreviewResult, delivery: { ...deliveryPreviewResult.delivery!, deliveredRevision: 1, replacementMode: "overwrite", createZip: true } };
-    const created: DeliveryOperationResult = { ...preview, code: "created", message: "Delivery package created successfully." };
+    const created: DeliveryOperationResult = { ...preview, code: "created", message: "Delivery package created successfully.", delivery: { ...preview.delivery!, zipName: "blue-sky-rev-01-20260724153045.zip" } };
     mockedInvoke.mockImplementation((command) => {
       if (command === "discover_default_workspace") return Promise.resolve(workspace);
       if (command === "get_jl_mixing_version") return Promise.resolve(version);
@@ -707,7 +708,7 @@ describe("JL Mixing Studio", () => {
     expect(within(options).getByText(/preserve Delivery Notes and unrelated package files/i)).toBeInTheDocument();
     fireEvent.click(within(options).getByRole("button", { name: "Preview package" }));
     const confirmation = await screen.findByRole("dialog", { name: "Confirm delivery package" });
-    expect(within(confirmation).getByText("blue-sky-delivery.zip")).toBeInTheDocument();
+    expect(within(confirmation).getByText("blue-sky-rev-01-YYYYMMDDHHMMSS.zip")).toBeInTheDocument();
     fireEvent.click(within(confirmation).getByRole("button", { name: "Rebuild delivery" }));
 
     expect(await screen.findByText(/Revision 1 was packaged and verified with 2 delivered files/)).toBeInTheDocument();
@@ -1881,13 +1882,13 @@ describe("JL Mixing Studio", () => {
       revisionCreationSupported: false,
       revisionApprovalSupported: false,
       deliveryCreationSupported: false,
-      version: "1.3.0",
-      message: "JL Mixing Automation 1.3.0 detected; guided creation requires 1.2.0",
+      version: "1.4.0",
+      message: "JL Mixing Automation 1.4.0 detected; guided creation requires 1.3.0",
     });
     render(<App />);
 
     expect(await screen.findByText("JL Mix Studio")).toBeInTheDocument();
-    expect(screen.getAllByText(/guided creation requires 1.2.0/i)).toHaveLength(2);
+    expect(screen.getAllByText(/guided creation requires 1.3.0/i)).toHaveLength(2);
     expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
 });

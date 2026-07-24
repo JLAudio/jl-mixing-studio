@@ -160,6 +160,7 @@ pub struct DeliveryCreationPreview {
     pub delivery_method: String,
     pub replacement_mode: DeliveryReplacementMode,
     pub create_zip: bool,
+    pub zip_name: Option<String>,
     pub selected: Vec<PlannedDeliveryFile>,
     pub excluded: Vec<ExcludedDeliveryFile>,
     pub deletions: Vec<String>,

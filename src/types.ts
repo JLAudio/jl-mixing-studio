@@ -78,6 +78,7 @@ export interface DeliveryCreationPreview {
   deliveryMethod: string;
   replacementMode: "default" | "overwrite" | "clean";
   createZip: boolean;
+  zipName: string | null;
   selected: PlannedDeliveryFile[];
   excluded: ExcludedDeliveryFile[];
   deletions: string[];

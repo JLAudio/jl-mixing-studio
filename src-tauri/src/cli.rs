@@ -25,7 +25,7 @@ const REVISION_EXECUTABLE: &str = "new-revision";
 const APPROVAL_EXECUTABLE: &str = "approve-mix";
 const DELIVERY_EXECUTABLE: &str = "create-delivery";
 const VERSION_FILE: &str = "VERSION";
-const SUPPORTED_VERSION: &str = "1.2.0";
+const SUPPORTED_VERSION: &str = "1.3.0";
 const MAX_VERSION_FILE_BYTES: usize = 64;
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
 
@@ -944,7 +944,7 @@ fn run_delivery_operation<R: ProcessRunner>(
     let arguments = delivery_arguments(&request, operation);
     match runner.run(&executable, &arguments, Some(project_directory)) {
         Ok(output) if output.success => {
-            let Some(delivery) = parse_delivery_output(&output.stdout, &request) else {
+            let Some(delivery) = parse_delivery_output(&output.stdout, &request, operation) else {
                 return blocked_delivery_operation(
                     match operation {
                         DeliveryOperation::Preflight => DeliveryOperationCode::Failed,
@@ -1477,6 +1477,7 @@ fn parse_approval_output(
 fn parse_delivery_output(
     stdout: &str,
     request: &DeliveryCreationRequest,
+    operation: DeliveryOperation,
 ) -> Option<DeliveryCreationPreview> {
     let field = |label: &str| {
         stdout.lines().find_map(|line| {
@@ -1505,6 +1506,17 @@ fn parse_delivery_output(
         "no" => false,
         _ => return None,
     };
+    let zip_name = match (create_zip, operation) {
+        (true, DeliveryOperation::Create) => {
+            let name = field("ZIP")?;
+            is_expected_delivery_zip_name(&name, &request.project_id, approved_revision)
+                .then_some(name)
+        }
+        _ => None,
+    };
+    if create_zip && matches!(operation, DeliveryOperation::Create) && zip_name.is_none() {
+        return None;
+    }
     if project_name.is_empty()
         || current_revision == 0
         || approved_revision == 0
@@ -1618,10 +1630,22 @@ fn parse_delivery_output(
         delivery_method,
         replacement_mode,
         create_zip,
+        zip_name,
         selected,
         excluded,
         deletions,
     })
+}
+
+fn is_expected_delivery_zip_name(value: &str, project_id: &str, revision: u32) -> bool {
+    let prefix = format!("{project_id}-rev-{revision:02}-");
+    let Some(timestamp) = value
+        .strip_prefix(&prefix)
+        .and_then(|name| name.strip_suffix(".zip"))
+    else {
+        return false;
+    };
+    timestamp.len() == 14 && timestamp.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 fn is_safe_delivery_relative_path(value: &str) -> bool {
@@ -2106,7 +2130,7 @@ mod tests {
 
     #[test]
     fn accepts_only_the_released_supported_version_for_creation() {
-        let supported = evaluate_version("1.2.0");
+        let supported = evaluate_version("1.3.0");
         assert!(supported.available);
         assert!(supported.supported);
         assert_eq!(
@@ -2118,10 +2142,10 @@ mod tests {
         assert!(supported.revision_approval_supported);
         assert!(supported.delivery_creation_supported);
 
-        let future = evaluate_version("1.3.0");
+        let future = evaluate_version("1.4.0");
         assert!(future.available);
         assert!(!future.supported);
-        assert!(future.message.contains("requires 1.2.0"));
+        assert!(future.message.contains("requires 1.3.0"));
     }
 
     #[test]
@@ -2821,6 +2845,33 @@ mod tests {
         assert_eq!(
             runner.invocations.borrow()[1].arguments,
             vec!["--overwrite", "--zip", "--dry-run"]
+        );
+    }
+
+    #[test]
+    fn created_zip_requires_the_exact_revisioned_utc_filename() {
+        let mut request = delivery_request();
+        request.create_zip = true;
+        let output = delivery_output(false)
+            .replace("Create ZIP:          no", "Create ZIP:          yes")
+            + "ZIP:                 blue-sky-rev-01-20260724153045.zip\n";
+
+        let parsed = parse_delivery_output(&output, &request, DeliveryOperation::Create)
+            .expect("timestamped ZIP result");
+        assert_eq!(
+            parsed.zip_name.as_deref(),
+            Some("blue-sky-rev-01-20260724153045.zip")
+        );
+
+        let legacy = output.replace(
+            "blue-sky-rev-01-20260724153045.zip",
+            "blue-sky-delivery.zip",
+        );
+        assert!(parse_delivery_output(&legacy, &request, DeliveryOperation::Create).is_none());
+
+        let wrong_revision = output.replace("-rev-01-", "-rev-02-");
+        assert!(
+            parse_delivery_output(&wrong_revision, &request, DeliveryOperation::Create).is_none()
         );
     }
 
