@@ -425,6 +425,29 @@ describe("JL Mixing Studio", () => {
     expect(await screen.findByText("Path copied.")).toBeInTheDocument();
   });
 
+  it("keeps long validated paths in a separate row above folder actions", async () => {
+    const path = `/Users/engineer/Music/Mixes/Clients/${"very-long-client-name-".repeat(6)}/Projects/blue-sky`;
+    mockedInvoke.mockImplementation((command) => {
+      if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
+      if (command === "get_jl_mixing_version") return Promise.resolve(version);
+      if (command === "resolve_folder") return Promise.resolve({ path });
+      return Promise.reject(new Error("Unexpected command"));
+    });
+    render(<App />);
+    await screen.findByText("JL Mix Studio");
+    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
+
+    const pathText = await screen.findByText(path);
+    const folderControl = pathText.closest(".folder-control");
+    const actions = folderControl?.querySelector(".directory-actions");
+
+    expect(folderControl).not.toBeNull();
+    expect(pathText.nextElementSibling).toBe(actions);
+    expect(actions).toContainElement(screen.getByRole("button", { name: "Copy path" }));
+    expect(actions).toContainElement(screen.getByRole("button", { name: "Open folder" }));
+  });
+
   it("opens authoritative revision history and selects an older approved revision", async () => {
     render(<App />);
     await screen.findByText("JL Mix Studio");
