@@ -57,6 +57,7 @@ The architecture spike, application shell, guided creation and intake workflows,
 12. Presents validated studio identity, defaults, paths, and tool compatibility, and guides creation of a missing default studio workspace.
 13. Shows copyable validated paths and opens workspace, project, intake, revision, and delivery folders in the operating-system file browser.
 14. Browses validated delivery reports and exposes project Reports, Files, and Metadata without scanning arbitrary files or duplicating project state.
+15. Stores compact-layout and reduced-motion preferences locally while keeping workspace and Automation settings read-only.
 
 Guided studio, client, project, intake, revision, approval, and first-delivery operations are controlled workflows. Studio setup is available only when `~/Music/Mixes` is absent; it previews the fixed `new-studio` request, exposes only identity and audio defaults, disables command-driven directory changes, and verifies the created metadata after confirmation. Each workflow uses a fixed JL Mixing Automation v1.2.0 command without a shell and reconciles authoritative state after success. Delivery replacement, ZIP generation, and custom filters remain Planned.
 
