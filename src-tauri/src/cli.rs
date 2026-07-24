@@ -1231,11 +1231,27 @@ fn normalize_delivery_request(
     if !is_valid_client_id(&client_id) || !is_valid_client_id(&project_id) {
         return Err("Select a valid project before creating a delivery".into());
     }
+    if !matches!(
+        request.replacement_mode,
+        crate::models::DeliveryReplacementMode::Clean
+    ) && !request.confirmed_deletions.is_empty()
+    {
+        return Err("Deletion confirmation is valid only for clean replacement".into());
+    }
+    let mut unique_deletions = std::collections::HashSet::new();
+    if request.confirmed_deletions.len() > 10_000
+        || request.confirmed_deletions.iter().any(|path| {
+            !is_safe_delivery_relative_path(path) || !unique_deletions.insert(path.clone())
+        })
+    {
+        return Err("The confirmed clean-deletion inventory is invalid".into());
+    }
     Ok(DeliveryCreationRequest {
         client_id,
         project_id,
         replacement_mode: request.replacement_mode,
         create_zip: request.create_zip,
+        confirmed_deletions: request.confirmed_deletions,
     })
 }
 
@@ -1344,6 +1360,12 @@ fn delivery_arguments(
         crate::models::DeliveryReplacementMode::Overwrite
     ) {
         arguments.push("--overwrite".into());
+    }
+    if matches!(
+        request.replacement_mode,
+        crate::models::DeliveryReplacementMode::Clean
+    ) {
+        arguments.push("--clean".into());
     }
     if request.create_zip {
         arguments.push("--zip".into());
@@ -1475,6 +1497,7 @@ fn parse_delivery_output(
     let replacement_mode = match field("Replacement mode")?.as_str() {
         "default" => crate::models::DeliveryReplacementMode::Default,
         "overwrite" => crate::models::DeliveryReplacementMode::Overwrite,
+        "clean" => crate::models::DeliveryReplacementMode::Clean,
         _ => return None,
     };
     let create_zip = match field("Create ZIP")?.as_str() {
@@ -1550,6 +1573,41 @@ fn parse_delivery_output(
         }
     }
 
+    let mut deletions = Vec::new();
+    let mut unique_deletions = std::collections::HashSet::new();
+    if let Some(deletions_start) = lines
+        .iter()
+        .position(|line| line.trim() == "Would delete from 05_Final_Delivery/:")
+        .map(|position| position + 1)
+    {
+        for line in lines.iter().skip(deletions_start) {
+            if line.trim().is_empty() {
+                break;
+            }
+            let path = line.trim();
+            if !is_safe_delivery_relative_path(path)
+                || deletions.len() >= 10_000
+                || !unique_deletions.insert(path.to_owned())
+            {
+                return None;
+            }
+            deletions.push(path.to_owned());
+        }
+    }
+    if matches!(
+        replacement_mode,
+        crate::models::DeliveryReplacementMode::Clean
+    ) {
+        if deletions.is_empty() {
+            deletions = request.confirmed_deletions.clone();
+        }
+        if deletions.is_empty() {
+            return None;
+        }
+    } else if !deletions.is_empty() || !request.confirmed_deletions.is_empty() {
+        return None;
+    }
+
     Some(DeliveryCreationPreview {
         client_id: request.client_id.clone(),
         project_id: request.project_id.clone(),
@@ -1562,7 +1620,19 @@ fn parse_delivery_output(
         create_zip,
         selected,
         excluded,
+        deletions,
     })
+}
+
+fn is_safe_delivery_relative_path(value: &str) -> bool {
+    let value = value.strip_suffix('/').unwrap_or(value);
+    !value.is_empty()
+        && value.len() <= 4_096
+        && !value.starts_with('/')
+        && !value.contains('\\')
+        && value
+            .split('/')
+            .all(|part| !part.is_empty() && part != "." && part != "..")
 }
 
 fn rejected_operation(
@@ -1950,6 +2020,7 @@ mod tests {
             project_id: "blue-sky".into(),
             replacement_mode: crate::models::DeliveryReplacementMode::Default,
             create_zip: false,
+            confirmed_deletions: Vec::new(),
         }
     }
 
@@ -2751,6 +2822,69 @@ mod tests {
             runner.invocations.borrow()[1].arguments,
             vec!["--overwrite", "--zip", "--dry-run"]
         );
+    }
+
+    #[test]
+    fn clean_preview_parses_exact_deletions_and_uses_the_clean_flag() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let output = delivery_output(true)
+            .replace("Delivered revision:  null", "Delivered revision:  1")
+            .replace("Replacement mode:    default", "Replacement mode:    clean")
+            .replace(
+                "\nWould create:\n",
+                "\nWarning: --clean will remove every existing item inside:\n  /fixed/project/05_Final_Delivery\n\nWould delete from 05_Final_Delivery/:\n  Delivery_Notes.md\n  client-reference.pdf\n  delivery-manifest.json\n\nWould create:\n",
+            );
+        let runner = FakeRunner::new(vec![success("help"), success(&output)]);
+        let mut request = delivery_request();
+        request.replacement_mode = crate::models::DeliveryReplacementMode::Clean;
+
+        let result = run_delivery_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            request,
+            DeliveryOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(
+            result.delivery.expect("clean preview").deletions,
+            vec![
+                "Delivery_Notes.md",
+                "client-reference.pdf",
+                "delivery-manifest.json"
+            ]
+        );
+        assert_eq!(
+            runner.invocations.borrow()[1].arguments,
+            vec!["--clean", "--dry-run"]
+        );
+    }
+
+    #[test]
+    fn confirmed_clean_uses_only_the_previously_validated_deletion_inventory() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let output = delivery_output(false)
+            .replace("Replacement mode:    default", "Replacement mode:    clean");
+        let runner = FakeRunner::new(vec![success("help"), success(&output)]);
+        let mut request = delivery_request();
+        request.replacement_mode = crate::models::DeliveryReplacementMode::Clean;
+        request.confirmed_deletions = vec!["Delivery_Notes.md".into()];
+
+        let result = run_delivery_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            request,
+            DeliveryOperation::Create,
+            &runner,
+        );
+
+        assert!(result.ok);
+        assert_eq!(
+            result.delivery.expect("clean result").deletions,
+            vec!["Delivery_Notes.md"]
+        );
+        assert_eq!(runner.invocations.borrow()[1].arguments, vec!["--clean"]);
     }
 
     #[test]
