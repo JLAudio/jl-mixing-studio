@@ -7,6 +7,32 @@ pub struct SystemInfo {
     pub architecture: String,
 }
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderRequest {
+    pub location: FolderLocation,
+    pub client_id: Option<String>,
+    pub project_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum FolderLocation {
+    Workspace,
+    Studio,
+    Client,
+    Project,
+    Intake,
+    Revisions,
+    Delivery,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FolderResult {
+    pub path: String,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionCheck {
