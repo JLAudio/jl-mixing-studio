@@ -405,6 +405,10 @@ Settings may persist only local JL Mixing Studio presentation preferences. Studi
 
 For a validated existing package, Studio resolves only the fixed `05_Final_Delivery/Delivery_Notes.md` path beneath the selected validated project. It rejects missing, non-file, symlinked, non-UTF-8, and oversized documents; accepts at most 64 KiB of UTF-8 Markdown; saves through a same-directory temporary file; and verifies the exact content after replacement. The editor does not alter the delivery manifest, project metadata, or JL Mixing Automation. This scope is tracked in [Issue #35](https://github.com/JLAudio/jl-mixing-studio/issues/35).
 
+### 24.6 Delivery ZIP and same-path overwrite
+
+Studio may add only the released `--zip` and `--overwrite` flags to the fixed `create-delivery` command. Every request runs `--dry-run` first and verifies the reported replacement mode, ZIP choice, project identity, revisions, method, and selected path set. Default mode is allowed only without an existing package; overwrite is allowed only with a correlated delivery manifest and delivered pointer. A successful overwrite must preserve the pre-existing Delivery Notes bytes, keep project history unchanged, reconcile the new manifest and delivered pointer, and verify a requested fixed-name ZIP is a regular non-symlink file. Changed path sets remain an Automation rejection rather than silently escalating to clean replacement. This scope is tracked in [Issue #36](https://github.com/JLAudio/jl-mixing-studio/issues/36).
+
 ## 25. Future decisions requiring approval
 
 - Minimum supported Windows version.

@@ -941,11 +941,7 @@ fn run_delivery_operation<R: ProcessRunner>(
             "The JL Mixing Automation create-delivery command was not found",
         );
     };
-    let arguments = if matches!(operation, DeliveryOperation::Preflight) {
-        vec!["--dry-run".to_owned()]
-    } else {
-        Vec::new()
-    };
+    let arguments = delivery_arguments(&request, operation);
     match runner.run(&executable, &arguments, Some(project_directory)) {
         Ok(output) if output.success => {
             let Some(delivery) = parse_delivery_output(&output.stdout, &request) else {
@@ -1238,6 +1234,8 @@ fn normalize_delivery_request(
     Ok(DeliveryCreationRequest {
         client_id,
         project_id,
+        replacement_mode: request.replacement_mode,
+        create_zip: request.create_zip,
     })
 }
 
@@ -1331,6 +1329,26 @@ fn approval_arguments(
         request.approved_by.clone(),
     ];
     if matches!(operation, ApprovalOperation::Preflight) {
+        arguments.push("--dry-run".into());
+    }
+    arguments
+}
+
+fn delivery_arguments(
+    request: &DeliveryCreationRequest,
+    operation: DeliveryOperation,
+) -> Vec<String> {
+    let mut arguments = Vec::new();
+    if matches!(
+        request.replacement_mode,
+        crate::models::DeliveryReplacementMode::Overwrite
+    ) {
+        arguments.push("--overwrite".into());
+    }
+    if request.create_zip {
+        arguments.push("--zip".into());
+    }
+    if matches!(operation, DeliveryOperation::Preflight) {
         arguments.push("--dry-run".into());
     }
     arguments
@@ -1454,12 +1472,22 @@ fn parse_delivery_output(
         Some(delivered_value.parse::<u32>().ok()?)
     };
     let delivery_method = field("Delivery method")?;
+    let replacement_mode = match field("Replacement mode")?.as_str() {
+        "default" => crate::models::DeliveryReplacementMode::Default,
+        "overwrite" => crate::models::DeliveryReplacementMode::Overwrite,
+        _ => return None,
+    };
+    let create_zip = match field("Create ZIP")?.as_str() {
+        "yes" => true,
+        "no" => false,
+        _ => return None,
+    };
     if project_name.is_empty()
         || current_revision == 0
         || approved_revision == 0
         || delivery_method.is_empty()
-        || field("Replacement mode")?.as_str() != "default"
-        || field("Create ZIP")?.as_str() != "no"
+        || replacement_mode != request.replacement_mode
+        || create_zip != request.create_zip
     {
         return None;
     }
@@ -1530,6 +1558,8 @@ fn parse_delivery_output(
         approved_revision,
         delivered_revision,
         delivery_method,
+        replacement_mode,
+        create_zip,
         selected,
         excluded,
     })
@@ -1918,6 +1948,8 @@ mod tests {
         DeliveryCreationRequest {
             client_id: "acme-records".into(),
             project_id: "blue-sky".into(),
+            replacement_mode: crate::models::DeliveryReplacementMode::Default,
+            create_zip: false,
         }
     }
 
@@ -2682,6 +2714,43 @@ mod tests {
         assert_eq!(result.code, DeliveryOperationCode::Created);
         assert_eq!(result.delivery.unwrap().delivered_revision, Some(1));
         assert!(runner.invocations.borrow()[1].arguments.is_empty());
+    }
+
+    #[test]
+    fn overwrite_zip_preflight_uses_only_fixed_release_flags() {
+        let home = installed_home(SUPPORTED_VERSION);
+        let output = delivery_output(true)
+            .replace("Delivered revision:  null", "Delivered revision:  1")
+            .replace(
+                "Replacement mode:    default",
+                "Replacement mode:    overwrite",
+            )
+            .replace("Create ZIP:          no", "Create ZIP:          yes");
+        let runner = FakeRunner::new(vec![success("help"), success(&output)]);
+        let mut request = delivery_request();
+        request.replacement_mode = crate::models::DeliveryReplacementMode::Overwrite;
+        request.create_zip = true;
+
+        let result = run_delivery_operation(
+            home.path(),
+            Path::new("/fixed/project"),
+            request,
+            DeliveryOperation::Preflight,
+            &runner,
+        );
+
+        assert!(result.ok);
+        let preview = result.delivery.expect("delivery preview");
+        assert_eq!(preview.delivered_revision, Some(1));
+        assert_eq!(
+            preview.replacement_mode,
+            crate::models::DeliveryReplacementMode::Overwrite
+        );
+        assert!(preview.create_zip);
+        assert_eq!(
+            runner.invocations.borrow()[1].arguments,
+            vec!["--overwrite", "--zip", "--dry-run"]
+        );
     }
 
     #[test]
