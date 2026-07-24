@@ -120,6 +120,15 @@ pub enum StudioOperationCode {
 pub struct DeliveryCreationRequest {
     pub client_id: String,
     pub project_id: String,
+    pub replacement_mode: DeliveryReplacementMode,
+    pub create_zip: bool,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum DeliveryReplacementMode {
+    Default,
+    Overwrite,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -147,6 +156,8 @@ pub struct DeliveryCreationPreview {
     pub approved_revision: u32,
     pub delivered_revision: Option<u32>,
     pub delivery_method: String,
+    pub replacement_mode: DeliveryReplacementMode,
+    pub create_zip: bool,
     pub selected: Vec<PlannedDeliveryFile>,
     pub excluded: Vec<ExcludedDeliveryFile>,
 }

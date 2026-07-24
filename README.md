@@ -59,8 +59,9 @@ The architecture spike, application shell, guided creation and intake workflows,
 14. Browses validated delivery reports and exposes project Reports, Files, and Metadata without scanning arbitrary files or duplicating project state.
 15. Stores compact-layout and reduced-motion preferences locally while keeping workspace and Automation settings read-only.
 16. Reads and safely replaces the fixed, package-owned `Delivery_Notes.md` file with an exact-save verification and a 64 KiB editor limit.
+17. Creates optional delivery ZIPs and performs same-path `--overwrite` rebuilds while preserving edited Delivery Notes and unrelated package content.
 
-Guided studio, client, project, intake, revision, approval, and first-delivery operations are controlled workflows. Studio setup is available only when `~/Music/Mixes` is absent; it previews the fixed `new-studio` request, exposes only identity and audio defaults, disables command-driven directory changes, and verifies the created metadata after confirmation. Each workflow uses a fixed JL Mixing Automation v1.2.0 command without a shell and reconciles authoritative state after success. Delivery replacement, ZIP generation, and custom filters remain Planned.
+Guided studio, client, project, intake, revision, approval, and delivery operations are controlled workflows. Studio setup is available only when `~/Music/Mixes` is absent; it previews the fixed `new-studio` request, exposes only identity and audio defaults, disables command-driven directory changes, and verifies the created metadata after confirmation. Each workflow uses a fixed JL Mixing Automation v1.2.0 command without a shell and reconciles authoritative state after success. Same-path overwrite and ZIP generation are supported; destructive clean replacement is handled separately, while custom filters remain Planned.
 
 Dashboard priorities, Tasks, and Activity are rebuilt on refresh from validated recovery findings, deadlines, revision pointers, and persisted timestamps. They create no hidden task state or audit database.
 
