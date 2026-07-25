@@ -18,12 +18,28 @@
 html { scroll-behavior: smooth; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--canvas); }
 button, input, textarea { font: inherit; }
-button { min-height: 42px; border: 1px solid var(--blue); border-radius: 8px; background: var(--blue); color: #fff; padding: 9px 16px; font-weight: 750; cursor: pointer; }
+button { min-height: 42px; border: 1px solid var(--blue); border-radius: 8px; background: var(--blue); color: #fff; padding: 9px 16px; font-weight: 750; cursor: pointer; transition: transform 80ms ease, box-shadow 80ms ease, background-color 80ms ease, border-color 80ms ease; }
 button:hover:not(:disabled) { background: var(--blue-dark); border-color: var(--blue-dark); }
+button:active:not(:disabled) { transform: translateY(2px) scale(.985); box-shadow: inset 0 2px 5px rgba(10, 28, 62, .28); }
 button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #f3a51f; outline-offset: 3px; }
 
 .field textarea { width: 100%; resize: vertical; border: 1px solid #c7d0dd; border-radius: 8px; background: #fff; color: #172033; padding: 12px; line-height: 1.5; }
-button:disabled { cursor: not-allowed; opacity: .62; }
+button:disabled { cursor: not-allowed; opacity: .62; transform: none; }
+button[aria-busy="true"] { opacity: .82; }
+button[aria-busy="true"]::before {
+  content: "";
+  width: .85em;
+  height: .85em;
+  display: inline-block;
+  flex: 0 0 auto;
+  margin-right: 7px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  vertical-align: -.1em;
+  animation: button-busy-spin .7s linear infinite;
+}
+@keyframes button-busy-spin { to { transform: rotate(360deg); } }
 button.secondary { background: #fff; color: #31405a; border-color: #c6d0de; }
 button.secondary:hover:not(:disabled) { background: #f3f6fa; border-color: #9eabc0; }
 code { overflow-wrap: anywhere; }
@@ -120,6 +136,11 @@ h3 { margin: 0; font-size: 1rem; }
 .compact-layout .main-content { padding-top: 24px; }
 .compact-layout .panel, .compact-layout .directory-toolbar { padding: 16px; }
 .reduce-motion, .reduce-motion * { scroll-behavior: auto !important; transition: none !important; animation: none !important; }
+.reduce-motion button[aria-busy="true"]::before { animation: none; border-right-color: currentColor; background: currentColor; }
+@media (prefers-reduced-motion: reduce) {
+  button { transition: none; }
+  button[aria-busy="true"]::before { animation: none; border-right-color: currentColor; background: currentColor; }
+}
 .directory-help { margin: 9px 2px 18px; }
 .directory-toolbar + .context-search, .directory-help + .context-search { max-width: 420px; margin: 18px 0 14px; }
 .directory-table { margin-top: 14px; background: #fff; }

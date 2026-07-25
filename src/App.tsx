@@ -53,6 +53,14 @@ type ResourceState<T> =
   | { status: "ready"; value: T }
   | { status: "error"; message: string };
 
+/**
+ * Lets React commit a busy state and gives the WebView a paint opportunity
+ * before native or CLI work begins.
+ */
+function yieldToBrowserPaint(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
 type ClientWorkflowState =
   | { status: "closed" }
   | { status: "editing"; error?: string }
@@ -1196,7 +1204,7 @@ function DeliveryView({ clientId, project, loading, actionError, creationAvailab
       <section className="panel"><div className="panel-heading"><div><p className="kicker">Package document</p><h2>Delivery Notes</h2></div>{notes.status === "ready" && <span>{new TextEncoder().encode(notesDraft).length.toLocaleString()} / {notes.value.maxBytes.toLocaleString()} bytes</span>}</div>
         {notes.status === "loading" && <p>Reading <code>Delivery_Notes.md</code>…</p>}
         {notes.status === "error" && <div className="form-error" role="alert">{notes.message}</div>}
-        {notes.status === "ready" && <><label className="field"><span>Markdown content</span><textarea aria-label="Delivery Notes Markdown content" rows={12} value={notesDraft} onChange={(event) => { setNotesDraft(event.target.value); setNotesMessage(null); }} /></label><div className="dialog-actions"><button type="button" onClick={saveNotes} disabled={notesSaving || notesDraft === notes.value.content || new TextEncoder().encode(notesDraft).length > notes.value.maxBytes}>{notesSaving ? "Saving…" : "Save Delivery Notes"}</button></div></>}
+        {notes.status === "ready" && <><label className="field"><span>Markdown content</span><textarea aria-label="Delivery Notes Markdown content" rows={12} value={notesDraft} onChange={(event) => { setNotesDraft(event.target.value); setNotesMessage(null); }} /></label><div className="dialog-actions"><button type="button" onClick={saveNotes} disabled={notesSaving || notesDraft === notes.value.content || new TextEncoder().encode(notesDraft).length > notes.value.maxBytes} aria-busy={notesSaving}>{notesSaving ? "Saving…" : "Save Delivery Notes"}</button></div></>}
         {notesMessage && <p role="status">{notesMessage}</p>}
       </section>
       <aside className="route-note"><strong>Manifest record</strong><span>Checksums are the values recorded and verified by JL Mixing Automation when this package was created. Studio did not re-hash delivery files.</span></aside>
@@ -1316,7 +1324,7 @@ function RevisionDialog({
               <input ref={descriptionInput} name="revisionDescription" value={values.description} onChange={(event) => onChange({ description: event.target.value })} placeholder={`Revision ${project.currentRevision + 1}`} autoComplete="off" disabled={pending} />
               <small>Leave blank to use the Automation default. Source files are added manually in this milestone.</small>
             </label>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending}>{pending ? "Checking…" : "Review revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review revision"}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "creating") && (
@@ -1328,7 +1336,7 @@ function RevisionDialog({
               <div><dt>New revision</dt><dd>Revision {state.preview.number}</dd></div>
               <div><dt>Description</dt><dd>{state.preview.description}</dd></div>
             </dl>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Creating…" : "Create revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create revision"}</button></div>
           </div>
         )}
         {state.status === "uncertain" && (
@@ -1389,7 +1397,7 @@ function ApprovalDialog({
               <input ref={approverInput} name="approvedBy" value={values.approvedBy} onChange={(event) => onChange({ approvedBy: event.target.value })} autoComplete="name" disabled={pending} />
               <small>This identity is written to the authoritative project manifest.</small>
             </label>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending}>{pending ? "Checking…" : "Review approval"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review approval"}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "approving") && (
@@ -1407,7 +1415,7 @@ function ApprovalDialog({
               olderThanCurrent ? `Revision ${state.revision.number} is older than current Revision ${project.currentRevision}.` : null,
               deliveryWillDiffer ? `The existing delivery remains on Revision ${project.deliveredRevision}.` : null,
             ].filter(Boolean).join(" ")}</span></div>}
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Approving…" : "Approve revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Approving…" : "Approve revision"}</button></div>
           </div>
         )}
         {state.status === "uncertain" && (
@@ -1440,7 +1448,7 @@ function IntakeDialog({
         {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not run validation again automatically. Close this message and refresh the authoritative report.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></> : <>
           <p className="dialog-intro">The dry-run preview below did not change the project. Confirm to replace only the Automation-managed section of <code>00_Admin/Intake_Report.md</code>. Intake source files will not be modified.</p>
           <IntakeReportContent report={state.preview} compact />
-          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>{pending ? "Updating report…" : "Update intake report"}</button></div>
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Updating report…" : "Update intake report"}</button></div>
         </>}
       </section>
     </div>
@@ -1492,8 +1500,8 @@ function StudioDialog({ state, values, onChange, onPreflight, onConfirm, onBack,
 }) {
   const pending = state.status === "preflighting" || state.status === "creating";
   return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="studio-dialog-title"><p className="kicker">Guided setup</p><h2 id="studio-dialog-title">{state.status === "confirming" || state.status === "creating" ? "Confirm new studio" : state.status === "uncertain" ? "Creation needs verification" : "New studio"}</h2>
-    {(state.status === "editing" || state.status === "preflighting") && <form onSubmit={onPreflight} noValidate><p className="dialog-intro">Creates the default workspace at <code>~/Music/Mixes</code>. No custom path or command options are accepted.</p>{state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}<label>Studio name<input aria-label="Studio name" value={values.studioName} onChange={(e) => onChange({...values, studioName:e.target.value})} required disabled={pending}/></label><label>Mix engineer <span>(optional)</span><input aria-label="Mix engineer" value={values.mixEngineer} onChange={(e) => onChange({...values, mixEngineer:e.target.value})} disabled={pending}/></label><label>Sample rate<select aria-label="Sample rate" value={values.sampleRate} onChange={(e) => onChange({...values, sampleRate:e.target.value})} disabled={pending}>{[44100,48000,88200,96000,176400,192000].map(v=><option key={v} value={v}>{v.toLocaleString()} Hz</option>)}</select></label><label>Bit depth<select aria-label="Bit depth" value={values.bitDepth} onChange={(e) => onChange({...values, bitDepth:e.target.value})} disabled={pending}>{[16,24,32].map(v=><option key={v} value={v}>{v}-bit</option>)}</select></label><label>File format<select aria-label="File format" value={values.fileFormat} onChange={(e) => onChange({...values, fileFormat:e.target.value})} disabled={pending}><option>WAV</option><option>AIFF</option></select></label><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending}>{pending ? "Checking…" : "Review studio"}</button></div></form>}
-    {(state.status === "confirming" || state.status === "creating") && <div><p className="dialog-intro">Preflight passed without changing the filesystem. Confirm to create the default workspace.</p><dl className="confirmation-list"><div><dt>Studio</dt><dd>{state.preview.studioName}</dd></div><div><dt>Engineer</dt><dd>{state.preview.mixEngineer ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{state.preview.sampleRate.toLocaleString()} Hz · {state.preview.bitDepth}-bit {state.preview.fileFormat}</dd></div><div><dt>Location</dt><dd><code>~/Music/Mixes</code></dd></div></dl><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button type="button" onClick={onConfirm} disabled={pending}>{pending ? "Creating…" : "Create studio"}</button></div></div>}
+    {(state.status === "editing" || state.status === "preflighting") && <form onSubmit={onPreflight} noValidate><p className="dialog-intro">Creates the default workspace at <code>~/Music/Mixes</code>. No custom path or command options are accepted.</p>{state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}<label>Studio name<input aria-label="Studio name" value={values.studioName} onChange={(e) => onChange({...values, studioName:e.target.value})} required disabled={pending}/></label><label>Mix engineer <span>(optional)</span><input aria-label="Mix engineer" value={values.mixEngineer} onChange={(e) => onChange({...values, mixEngineer:e.target.value})} disabled={pending}/></label><label>Sample rate<select aria-label="Sample rate" value={values.sampleRate} onChange={(e) => onChange({...values, sampleRate:e.target.value})} disabled={pending}>{[44100,48000,88200,96000,176400,192000].map(v=><option key={v} value={v}>{v.toLocaleString()} Hz</option>)}</select></label><label>Bit depth<select aria-label="Bit depth" value={values.bitDepth} onChange={(e) => onChange({...values, bitDepth:e.target.value})} disabled={pending}>{[16,24,32].map(v=><option key={v} value={v}>{v}-bit</option>)}</select></label><label>File format<select aria-label="File format" value={values.fileFormat} onChange={(e) => onChange({...values, fileFormat:e.target.value})} disabled={pending}><option>WAV</option><option>AIFF</option></select></label><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review studio"}</button></div></form>}
+    {(state.status === "confirming" || state.status === "creating") && <div><p className="dialog-intro">Preflight passed without changing the filesystem. Confirm to create the default workspace.</p><dl className="confirmation-list"><div><dt>Studio</dt><dd>{state.preview.studioName}</dd></div><div><dt>Engineer</dt><dd>{state.preview.mixEngineer ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{state.preview.sampleRate.toLocaleString()} Hz · {state.preview.bitDepth}-bit {state.preview.fileFormat}</dd></div><div><dt>Location</dt><dd><code>~/Music/Mixes</code></dd></div></dl><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create studio"}</button></div></div>}
     {state.status === "uncertain" && <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not submit again automatically. Close and refresh the authoritative workspace.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>}
   </section></div>;
 }
@@ -1857,10 +1865,11 @@ export default function App() {
   const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
   const requestId = useRef(0);
 
-  const refresh = useCallback(() => {
+  const refresh = useCallback(async () => {
     const currentRequest = ++requestId.current;
     setWorkspace({ status: "loading" });
     setVersion({ status: "loading" });
+    await yieldToBrowserPaint();
 
     invoke<WorkspaceSnapshot>("discover_default_workspace")
       .then((value) => {
@@ -1971,21 +1980,23 @@ export default function App() {
     if (studioWorkflow.status === "preflighting" || studioWorkflow.status === "creating") return;
     setStudioWorkflow({ status: "closed" });
   };
-  const preflightStudio = (event: FormEvent<HTMLFormElement>) => {
+  const preflightStudio = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (studioWorkflow.status !== "editing") return;
     const request: StudioCreationRequest = { studioName: studioForm.studioName.trim(), mixEngineer: studioForm.mixEngineer.trim() || null, sampleRate: Number(studioForm.sampleRate), bitDepth: Number(studioForm.bitDepth), fileFormat: studioForm.fileFormat };
     if (!request.studioName) { setStudioWorkflow({ status: "editing", error: "Studio name is required." }); return; }
     setStudioWorkflow({ status: "preflighting" });
+    await yieldToBrowserPaint();
     invoke<StudioOperationResult>("preflight_studio_creation", { request }).then((result) => {
       if (result.ok && result.code === "ready" && result.studio) setStudioWorkflow({ status: "confirming", request, preview: result.studio });
       else setStudioWorkflow({ status: "editing", error: result.message });
     }).catch((error: unknown) => setStudioWorkflow({ status: "editing", error: safeError(error, "Studio preflight could not be completed.") }));
   };
-  const confirmStudioCreation = () => {
+  const confirmStudioCreation = async () => {
     if (studioWorkflow.status !== "confirming") return;
     const { request, preview } = studioWorkflow;
     setStudioWorkflow({ status: "creating", request, preview });
+    await yieldToBrowserPaint();
     invoke<StudioOperationResult>("create_studio", { request }).then(async (result) => {
       if (!result.ok || result.code !== "created") {
         if (result.code === "uncertain") setStudioWorkflow({ status: "uncertain", message: result.message });
@@ -2090,7 +2101,7 @@ export default function App() {
     setProjectWorkflow({ status: "closed" });
   };
 
-  const preflightClient = (event: FormEvent<HTMLFormElement>) => {
+  const preflightClient = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (clientWorkflow.status !== "editing") return;
 
@@ -2112,6 +2123,7 @@ export default function App() {
     }
 
     setClientWorkflow({ status: "preflighting" });
+    await yieldToBrowserPaint();
     invoke<ClientOperationResult>("preflight_client_creation", { request })
       .then((result) => {
         if (result.ok && result.code === "ready" && result.client) {
@@ -2128,10 +2140,11 @@ export default function App() {
       });
   };
 
-  const confirmClientCreation = () => {
+  const confirmClientCreation = async () => {
     if (clientWorkflow.status !== "confirming") return;
     const { request, preview } = clientWorkflow;
     setClientWorkflow({ status: "creating", request, preview });
+    await yieldToBrowserPaint();
 
     invoke<ClientOperationResult>("create_client", { request })
       .then(async (result) => {
@@ -2173,7 +2186,7 @@ export default function App() {
       });
   };
 
-  const preflightProject = (event: FormEvent<HTMLFormElement>) => {
+  const preflightProject = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (projectWorkflow.status !== "editing") return;
     const { lockedClientId, fromClient } = projectWorkflow;
@@ -2195,6 +2208,7 @@ export default function App() {
     }
 
     setProjectWorkflow({ status: "preflighting", lockedClientId, fromClient });
+    await yieldToBrowserPaint();
     invoke<ProjectOperationResult>("preflight_project_creation", { request })
       .then((result) => {
         if (result.ok && result.code === "ready" && result.project) {
@@ -2213,10 +2227,11 @@ export default function App() {
       });
   };
 
-  const confirmProjectCreation = () => {
+  const confirmProjectCreation = async () => {
     if (projectWorkflow.status !== "confirming") return;
     const { request, preview, fromClient } = projectWorkflow;
     setProjectWorkflow({ status: "creating", request, preview, fromClient });
+    await yieldToBrowserPaint();
 
     invoke<ProjectOperationResult>("create_project", { request })
       .then(async (result) => {
@@ -2330,10 +2345,11 @@ export default function App() {
     setDeliveryWorkflow({ status: "options", request });
   };
 
-  const preflightDelivery = () => {
+  const preflightDelivery = async () => {
     if (deliveryWorkflow.status !== "options" || !resolvedProject) return;
     const { request } = deliveryWorkflow;
     setDeliveryWorkflow({ status: "preflighting", request });
+    await yieldToBrowserPaint();
     invoke<DeliveryOperationResult>("preflight_delivery_creation", { request })
       .then((result) => {
         if (
@@ -2368,7 +2384,7 @@ export default function App() {
     setDeliveryWorkflow({ status: "closed" });
   };
 
-  const confirmDelivery = () => {
+  const confirmDelivery = async () => {
     if (deliveryWorkflow.status !== "confirming") return;
     const { request, preview } = deliveryWorkflow;
     const executionRequest: DeliveryCreationRequest = {
@@ -2376,6 +2392,7 @@ export default function App() {
       confirmedDeletions: preview.replacementMode === "clean" ? preview.deletions : [],
     };
     setDeliveryWorkflow({ status: "creating", request: executionRequest, preview });
+    await yieldToBrowserPaint();
     invoke<DeliveryOperationResult>("create_delivery", { request: executionRequest })
       .then(async (result) => {
         if (!result.ok || result.code !== "created" || !result.delivery) {
@@ -2425,7 +2442,7 @@ export default function App() {
     setRevisionWorkflow({ status: "closed" });
   };
 
-  const preflightRevision = (event: FormEvent<HTMLFormElement>) => {
+  const preflightRevision = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (revisionWorkflow.status !== "editing" || !resolvedProjectClient || !resolvedProject) return;
     const request: RevisionCreationRequest = {
@@ -2434,6 +2451,7 @@ export default function App() {
       description: revisionForm.description.trim() || null,
     };
     setRevisionWorkflow({ status: "preflighting" });
+    await yieldToBrowserPaint();
     invoke<RevisionOperationResult>("preflight_revision_creation", { request })
       .then((result) => {
         if (
@@ -2454,10 +2472,11 @@ export default function App() {
       });
   };
 
-  const confirmRevision = () => {
+  const confirmRevision = async () => {
     if (revisionWorkflow.status !== "confirming") return;
     const { request, preview } = revisionWorkflow;
     setRevisionWorkflow({ status: "creating", request, preview });
+    await yieldToBrowserPaint();
     invoke<RevisionOperationResult>("create_revision", { request })
       .then(async (result) => {
         if (!result.ok || result.code !== "created" || !result.revision) {
@@ -2510,7 +2529,7 @@ export default function App() {
     setApprovalWorkflow({ status: "closed" });
   };
 
-  const preflightApproval = (event: FormEvent<HTMLFormElement>) => {
+  const preflightApproval = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (approvalWorkflow.status !== "editing" || !resolvedProjectClient || !resolvedProject) return;
     const revision = approvalWorkflow.revision;
@@ -2525,6 +2544,7 @@ export default function App() {
       return;
     }
     setApprovalWorkflow({ status: "preflighting", revision });
+    await yieldToBrowserPaint();
     invoke<ApprovalOperationResult>("preflight_revision_approval", { request })
       .then((result) => {
         if (
@@ -2547,10 +2567,11 @@ export default function App() {
       });
   };
 
-  const confirmApproval = () => {
+  const confirmApproval = async () => {
     if (approvalWorkflow.status !== "confirming") return;
     const { revision, request, preview } = approvalWorkflow;
     setApprovalWorkflow({ status: "approving", revision, request, preview });
+    await yieldToBrowserPaint();
     invoke<ApprovalOperationResult>("approve_revision", { request })
       .then(async (result) => {
         if (!result.ok || result.code !== "approved" || !result.approval) {
@@ -2595,12 +2616,13 @@ export default function App() {
       });
   };
 
-  const preflightIntake = () => {
+  const preflightIntake = async () => {
     if (!resolvedProjectClient || !resolvedProject || !intakeValidationAvailable) return;
     const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
     setIntakeActionError(null);
     setIntakeNotice(null);
     setIntakeWorkflow({ status: "preflighting" });
+    await yieldToBrowserPaint();
     invoke<IntakeOperationResult>("preflight_intake_validation", { request })
       .then((result) => {
         if (result.ok && result.report && (result.code === "ready" || result.code === "blockingFindings")) {
@@ -2616,11 +2638,12 @@ export default function App() {
       });
   };
 
-  const confirmIntake = () => {
+  const confirmIntake = async () => {
     if (intakeWorkflow.status !== "confirming" || !resolvedProjectClient || !resolvedProject) return;
     const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
     const preview = intakeWorkflow.preview;
     setIntakeWorkflow({ status: "running", preview });
+    await yieldToBrowserPaint();
     invoke<IntakeOperationResult>("run_intake_validation", { request })
       .then((result) => {
         if (result.code === "uncertain") {
