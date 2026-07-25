@@ -49,8 +49,13 @@ jobs:
         include:
           - name: macOS Intel
             os: macos-15-intel
+            artifact: DMG
+          - name: macOS Apple Silicon
+            os: macos-15
+            artifact: DMG
           - name: Windows
             os: windows-latest
+            artifact: NSIS
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -60,4 +65,5 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - run: npm ci
-      - run: npm run tauri build -- --no-bundle
+      - name: Build ${{ matrix.artifact }} installer
+        run: npm run tauri build

@@ -150,11 +150,58 @@ cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -
 cargo test --manifest-path src-tauri/Cargo.toml --all-features
 ```
 
-## Build without creating installers
+## Build and package the desktop application
 
 ```shell
 npm run tauri build -- --no-bundle
 ```
+
+The no-bundle command compiles the production application without creating an
+installer. To create the supported installer for the current operating system,
+run:
+
+```shell
+npm run tauri build
+```
+
+Packaging uses only native builders:
+
+- macOS produces `JL Mixing Studio.app` and a DMG under
+  `src-tauri/target/release/bundle/`. The build architecture determines whether
+  the package is Intel or Apple Silicon.
+- Windows x64 produces an NSIS setup executable under
+  `src-tauri/target/release/bundle/nsis/`.
+- Linux packages are not supported for 1.0.
+
+The macOS build requires macOS 12 or newer and the Apple Command Line Tools.
+The Windows build requires the Tauri Windows prerequisites listed above. A
+clean checkout needs only those platform prerequisites, a stable Rust
+toolchain, Node.js, and `npm ci`.
+
+JL Mixing Studio 1.0 packages are intentionally unsigned. No signing
+certificate, Apple Developer account, or notarization credential is required.
+
+### Install the unsigned macOS package
+
+1. Open the DMG and drag **JL Mixing Studio** to **Applications**.
+2. In Finder, Control-click **JL Mixing Studio** and choose **Open**.
+3. Confirm **Open** in the Gatekeeper prompt.
+
+If macOS does not offer **Open**, try launching the app once, then open
+**System Settings → Privacy & Security** and choose **Open Anyway** for
+JL Mixing Studio. Use installers obtained from the official JLAudio GitHub
+release and verify their published SHA-256 checksum before bypassing the
+warning.
+
+### Install the unsigned Windows package
+
+1. Run the NSIS setup executable.
+2. If Microsoft Defender SmartScreen appears, choose **More info**.
+3. Confirm the publisher is reported as unknown, then choose **Run anyway**.
+
+The installer uses per-user mode and does not require administrator access.
+Use installers obtained from the official JLAudio GitHub release and verify
+their published SHA-256 checksum before bypassing the warning.
 
 ## Application icons
 
@@ -174,7 +221,8 @@ The command writes the macOS, Windows, and PNG assets under
 approved source-artwork change. JL Mixing Studio 1.0 does not target mobile
 platforms, so generated `android/` and `ios/` directories are not committed.
 
-Release installers, signing, notarization, and automatic updates remain outside the current milestone.
+Signing, notarization, release publishing, and automatic updates remain
+outside this packaging milestone.
 
 ## Intel macOS Monterey guided-creation validation
 
