@@ -15,7 +15,7 @@ use models::{
     RevisionOperationCode, RevisionOperationResult, StudioCreationRequest, StudioOperationCode,
     StudioOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
 };
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{fs, io::Write};
 use tauri::Manager;
 
@@ -97,9 +97,9 @@ fn resolve_folder(app: tauri::AppHandle, request: FolderRequest) -> Result<Folde
         FolderLocation::Project => {
             project_path().ok_or("The project folder could not be resolved safely")?
         }
-        FolderLocation::Intake => project_path()
-            .ok_or("The project folder could not be resolved safely")?
-            .join("01_Intake"),
+        FolderLocation::Intake => intake_directory(
+            &project_path().ok_or("The project folder could not be resolved safely")?,
+        ),
         FolderLocation::Revisions => project_path()
             .ok_or("The project folder could not be resolved safely")?
             .join("04_Revisions"),
@@ -119,6 +119,12 @@ fn resolve_folder(app: tauri::AppHandle, request: FolderRequest) -> Result<Folde
     Ok(FolderResult {
         path: canonical.to_string_lossy().into_owned(),
     })
+}
+
+fn intake_directory(project_directory: &Path) -> PathBuf {
+    project_directory
+        .join("01_Client_Files")
+        .join("Original_Delivery")
 }
 
 #[tauri::command]
@@ -1489,6 +1495,16 @@ mod tests {
             WorkspaceStatus::Unavailable
         ));
         assert!(!workspace_allows_client_creation(WorkspaceStatus::Invalid));
+    }
+
+    #[test]
+    fn intake_folder_uses_the_automation_project_layout() {
+        assert_eq!(
+            intake_directory(Path::new("/workspace/project")),
+            Path::new("/workspace/project")
+                .join("01_Client_Files")
+                .join("Original_Delivery")
+        );
     }
 
     #[test]
