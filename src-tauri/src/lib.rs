@@ -1258,10 +1258,7 @@ fn verify_delivery_creation(
     let Some(delivery) = after.delivery.as_ref() else {
         return false;
     };
-    if delivery.revision != approved_revision
-        || delivery.method != before.delivery_method
-        || delivery.files.len() != expected.selected.len()
-    {
+    if delivery.revision != approved_revision || delivery.method != before.delivery_method {
         return false;
     }
     expected.selected.iter().all(|planned| {
@@ -1660,6 +1657,24 @@ mod tests {
         assert!(verify_delivery_creation(
             &project_with_two_revisions(),
             &project_after_delivery_creation(),
+            &expected_delivery(),
+        ));
+    }
+
+    #[test]
+    fn accepts_preserved_delivery_files_not_selected_by_the_current_revision() {
+        let before = project_with_two_revisions();
+        let mut after = project_after_delivery_creation();
+        after.delivery.as_mut().unwrap().files.push(DeliveryFile {
+            path: "client-reference.pdf".into(),
+            deliverable_type: "attachment".into(),
+            size_bytes: 24,
+            sha256: "1".repeat(64),
+        });
+
+        assert!(verify_delivery_creation(
+            &before,
+            &after,
             &expected_delivery(),
         ));
     }
