@@ -45,7 +45,7 @@ import type {
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
-import appIcon from "../assets/jl-studio-icon-source.png";
+import appIcon from "../src-tauri/icons/128x128.png";
 import "./App.css";
 
 type ResourceState<T> =
