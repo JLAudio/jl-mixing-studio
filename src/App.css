@@ -283,7 +283,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .client-dialog label > span { color: #7b879a; font-weight: 500; }
 .client-dialog label small { color: #7b879a; font-weight: 500; line-height: 1.4; }
 .client-dialog input,
-.client-dialog select { width: 100%; border: 1px solid #c7d0dd; border-radius: 8px; background: #fff; color: #172033; padding: 11px 12px; }
+.client-dialog select { width: 100%; min-height: 42px; border: 1px solid #c7d0dd; border-radius: 8px; background: #fff; color: #172033; padding: 10px 12px; font: inherit; }
+.client-dialog select { padding-right: 36px; }
 .client-dialog input::placeholder { color: #8994a6; opacity: 1; }
 .client-dialog input:focus,
 .client-dialog select:focus { border-color: #246bfd; outline: 3px solid rgba(36, 107, 253, .16); }
