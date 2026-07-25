@@ -1865,7 +1865,9 @@ describe("JL Mixing Studio", () => {
     const pendingButton = screen.getByRole("button", { name: "Checking…" });
     expect(pendingButton).toBeDisabled();
     fireEvent.click(pendingButton);
-    expect(mockedInvoke.mock.calls.filter(([command]) => command === "preflight_client_creation")).toHaveLength(1);
+    await waitFor(() => {
+      expect(mockedInvoke.mock.calls.filter(([command]) => command === "preflight_client_creation")).toHaveLength(1);
+    });
 
     resolvePreflight?.(preflightResult);
     expect(await screen.findByRole("heading", { name: "Confirm new client" })).toBeInTheDocument();
