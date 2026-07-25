@@ -45,6 +45,7 @@ import type {
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
+import appIcon from "../assets/jl-studio-icon-source.png";
 import "./App.css";
 
 type ResourceState<T> =
@@ -444,7 +445,7 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand" aria-label="JL Mixing Studio">
-        <span className="brand-mark" aria-hidden="true">JL</span>
+        <img className="brand-mark" src={appIcon} alt="" aria-hidden="true" />
         <span><strong>JL Mixing</strong><small>Studio</small></span>
       </div>
       <nav className="primary-nav" aria-label="Primary navigation">
