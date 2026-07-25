@@ -40,6 +40,14 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
+      # Temporary bootstrap for Issue #49. This step is removed after the
+      # generated lockfile is committed to the release branch.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-49-cargo-lock
+          path: src-tauri/Cargo.lock
+          if-no-files-found: error
+          retention-days: 1
 
   desktop-build:
     name: ${{ matrix.name }} build
