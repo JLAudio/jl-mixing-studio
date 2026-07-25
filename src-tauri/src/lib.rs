@@ -1714,11 +1714,7 @@ mod tests {
         let delivery = directory.path().join("05_Final_Delivery");
         fs::create_dir(&delivery).expect("delivery directory");
         fs::write(delivery.join("Delivery_Notes.md"), "Edited notes\n").expect("notes");
-        fs::write(
-            delivery.join("blue-sky-rev-01-20260724153045.zip"),
-            "zip",
-        )
-        .expect("zip");
+        fs::write(delivery.join("blue-sky-rev-01-20260724153045.zip"), "zip").expect("zip");
         let mut expected = expected_delivery();
         expected.replacement_mode = DeliveryReplacementMode::Overwrite;
         expected.create_zip = true;
@@ -1767,11 +1763,7 @@ mod tests {
             "untracked.txt".into(),
         ];
 
-        assert!(verify_delivery_artifacts(
-            directory.path(),
-            &expected,
-            None,
-        ));
+        assert!(verify_delivery_artifacts(directory.path(), &expected, None,));
         fs::write(delivery.join("untracked.txt"), "survivor").expect("untracked file");
         assert!(!verify_delivery_artifacts(
             directory.path(),
