@@ -156,6 +156,24 @@ cargo test --manifest-path src-tauri/Cargo.toml --all-features
 npm run tauri build -- --no-bundle
 ```
 
+## Application icons
+
+The approved application artwork is stored at
+`assets/jl-studio-icon-source.png`. Keep this square source image at least
+1024 × 1024 pixels so Tauri can generate clean small and high-resolution
+icons.
+
+Regenerate the platform icon files after replacing the source artwork:
+
+```bash
+npm run icons:generate
+```
+
+The command writes the macOS, Windows, and PNG assets under
+`src-tauri/icons/`. Commit the generated desktop assets together with any
+approved source-artwork change. JL Mixing Studio 1.0 does not target mobile
+platforms, so generated `android/` and `ios/` directories are not committed.
+
 Release installers, signing, notarization, and automatic updates remain outside the current milestone.
 
 ## Intel macOS Monterey guided-creation validation
