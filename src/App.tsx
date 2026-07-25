@@ -769,7 +769,7 @@ function ClientDetails({
         <article><span>Default artist</span><strong>{client.defaultArtist || "Not set"}</strong></article>
         <article><span>Projects</span><strong>{client.projects.length}</strong></article>
       </section>
-      <aside className="route-note"><strong>Read only</strong><span>Client editing is unavailable because JL Mixing Automation v1.2.0 has no approved client-edit command.</span></aside>
+      <aside className="route-note"><strong>Read only</strong><span>Client editing is unavailable because JL Mixing Automation v1.3.0 has no approved client-edit command.</span></aside>
       <section className="detail-section" aria-labelledby="client-projects-heading">
         <div className="panel-heading"><div><p className="kicker">Client projects</p><h2 id="client-projects-heading">Projects for {client.clientName}</h2></div><div className="directory-actions"><button type="button" disabled className="planned-action">Edit client <span>Planned</span></button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="client-new-project-help">New project</button></div></div>
         <p id="client-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
@@ -1215,7 +1215,7 @@ function DeliveryOptionsDialog({ request, projectName, onChange, onPreview, onCl
   return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">Guided delivery</p><h2 id="delivery-options-title">{request.replacementMode === "default" ? "Create delivery package" : "Rebuild delivery package"}</h2><p className="dialog-intro">Choose the supported package output for <strong>{projectName}</strong>. Studio will preview the exact Automation plan before making changes.</p>
     {request.replacementMode !== "default" && <fieldset className="delivery-mode"><legend>Replacement mode</legend><label><input type="radio" name="delivery-mode" checked={replacing} onChange={() => onChange({ ...request, replacementMode: "overwrite", confirmedDeletions: [] })} /><span><strong>Same-path overwrite</strong><small>Preserves Delivery Notes and unrelated files; rejects a changed delivered path set.</small></span></label><label><input type="radio" name="delivery-mode" checked={cleaning} onChange={() => onChange({ ...request, replacementMode: "clean", confirmedDeletions: [] })} /><span><strong>Clean replacement</strong><small>Deletes every existing item in 05_Final_Delivery before rebuilding it.</small></span></label></fieldset>}
     <dl className="confirmation-list"><div><dt>Replacement mode</dt><dd>{cleaning ? "Clean — delete all existing contents" : replacing ? "Overwrite — same delivered path set only" : "None — first package"}</dd></div><div><dt>Delivery Notes</dt><dd>{cleaning ? "Deleted and recreated from template" : replacing ? "Preserved" : "Created from the Automation template"}</dd></div></dl>
-    <label className="setting-row"><span><strong>Create delivery ZIP</strong><small>Create the fixed <code>{request.projectId}-delivery.zip</code> archive. Rebuilding includes the current edited Delivery Notes.</small></span><input type="checkbox" checked={request.createZip} onChange={(event) => onChange({ ...request, createZip: event.target.checked })} /></label>
+    <label className="setting-row"><span><strong>Create delivery ZIP</strong><small>Create a revisioned, local-time-stamped <code>{request.projectId}-rev-NN-YYYYMMDDHHMMSS.zip</code> archive. Rebuilding includes the current edited Delivery Notes.</small></span><input type="checkbox" checked={request.createZip} onChange={(event) => onChange({ ...request, createZip: event.target.checked })} /></label>
     {replacing && <div className="notice warning" role="status"><strong>Non-destructive replacement</strong><span>Automation will replace only the same manifest-recorded delivery paths and preserve Delivery Notes and unrelated package files. A changed path set is rejected.</span></div>}
     {cleaning && <div className="form-error" role="alert"><strong>Destructive replacement.</strong> Every file, folder, edited note, ZIP, and unrelated item currently inside 05_Final_Delivery will be deleted. The next screen lists the exact deletion preview.</div>}
     <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button type="button" onClick={onPreview}>Preview package</button></div>
@@ -1255,7 +1255,7 @@ function DeliveryDialog({
             <div><dt>Delivery method</dt><dd>{state.preview.deliveryMethod}</dd></div>
             <div><dt>Files</dt><dd>{state.preview.selected.length}</dd></div>
             <div><dt>Replacement mode</dt><dd>{state.preview.replacementMode === "clean" ? "Clean — delete all existing contents" : state.preview.replacementMode === "overwrite" ? "Overwrite — same path set" : "None — first package"}</dd></div>
-            <div><dt>ZIP</dt><dd>{state.preview.createZip ? `${state.preview.projectId}-delivery.zip` : "Not created"}</dd></div>
+            <div><dt>ZIP</dt><dd>{state.preview.createZip ? `${state.preview.projectId}-rev-${String(state.preview.approvedRevision).padStart(2, "0")}-YYYYMMDDHHMMSS.zip` : "Not created"}</dd></div>
           </dl>
           <div className="table-scroll"><table><thead><tr><th>Source</th><th>Type</th><th>Destination</th></tr></thead><tbody>{state.preview.selected.map((file) => <tr key={`${file.sourceName}:${file.path}`}><td>{file.sourceName}</td><td>{file.deliverableType.replace(/_/g, " ")}</td><td><code>{file.path}</code></td></tr>)}</tbody></table></div>
           {state.preview.excluded.length > 0 && <section className="route-note"><strong>Excluded by Automation defaults</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
@@ -1461,7 +1461,7 @@ function StudioRoute({ workspace, version, loading, setupAvailable, setupHelp, o
   if (!snapshot.studio) {
     const unavailable = snapshot.status === "unavailable";
     return <section className="planned-route" aria-labelledby="studio-state-heading">
-      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? "Not configured" : "Recovery required"}</span><h2 id="studio-state-heading">{unavailable ? "Create the default studio workspace" : "Studio configuration is not readable"}</h2><p>{unavailable ? "Use the guided JL Mixing Automation v1.2.0 workflow to create ~/Music/Mixes." : "Review the validated discovery issues below before changing the workspace."}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">New studio</button></div>
+      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? "Not configured" : "Recovery required"}</span><h2 id="studio-state-heading">{unavailable ? "Create the default studio workspace" : "Studio configuration is not readable"}</h2><p>{unavailable ? "Use the guided JL Mixing Automation v1.3.0 workflow to create ~/Music/Mixes." : "Review the validated discovery issues below before changing the workspace."}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">New studio</button></div>
       <p id="studio-setup-help" className="action-help">{setupHelp}</p>
       {snapshot.issues.length > 0 && <RouteIssues snapshot={snapshot} />}
     </section>;
@@ -1504,7 +1504,7 @@ function SettingsRoute({ preferences, onChange, workspace, version }: { preferen
   };
   return <section className="planned-route" aria-labelledby="settings-heading"><div className="panel-heading"><div><p className="kicker">Studio-owned preferences</p><h2 id="settings-heading">Settings</h2></div></div>
     <div className="project-detail-grid"><section className="panel"><h3>Appearance</h3><label className="setting-row"><span><strong>Compact layout</strong><small>Reduce spacing in the application shell and data panels.</small></span><input type="checkbox" checked={preferences.compactLayout} onChange={(event) => update({...preferences, compactLayout:event.target.checked})} /></label><label className="setting-row"><span><strong>Reduce motion</strong><small>Disable interface scrolling and transition animation.</small></span><input type="checkbox" checked={preferences.reduceMotion} onChange={(event) => update({...preferences, reduceMotion:event.target.checked})} /></label></section>
-      <section className="panel"><h3>Read-only diagnostics</h3><dl className="metadata-list"><div><dt>Workspace</dt><dd>{workspace.status === "ready" ? <code>{workspace.value.workspacePath}</code> : workspace.status}</dd></div><div><dt>Workspace status</dt><dd>{workspace.status === "ready" ? workspace.value.status : "Unavailable"}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div><div><dt>Supported contract</dt><dd>JL Mixing Automation 1.2.0</dd></div></dl></section></div>
+      <section className="panel"><h3>Read-only diagnostics</h3><dl className="metadata-list"><div><dt>Workspace</dt><dd>{workspace.status === "ready" ? <code>{workspace.value.workspacePath}</code> : workspace.status}</dd></div><div><dt>Workspace status</dt><dd>{workspace.status === "ready" ? workspace.value.status : "Unavailable"}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div><div><dt>Supported contract</dt><dd>JL Mixing Automation 1.3.0</dd></div></dl></section></div>
     <aside className="route-note"><strong>Settings boundary</strong><span>These preferences are local to JL Mixing Studio. They do not edit <code>studio.json</code>, client or project metadata, delivery defaults, or JL Mixing Automation.</span></aside>
   </section>;
 }
@@ -2011,7 +2011,7 @@ export default function App() {
     if (!version.value.clientCreationSupported) {
       return version.value.message;
     }
-    return "Preview and confirm a new client using JL Mixing Automation v1.2.0.";
+    return "Preview and confirm a new client using JL Mixing Automation v1.3.0.";
   })();
 
   const projectCreationHelp = (() => {
@@ -2026,7 +2026,7 @@ export default function App() {
     if (!version.value.projectCreationSupported) {
       return version.value.message;
     }
-    return "Preview and confirm a new project using JL Mixing Automation v1.2.0.";
+    return "Preview and confirm a new project using JL Mixing Automation v1.3.0.";
   })();
 
   const intakeValidationHelp = (() => {
@@ -2037,7 +2037,7 @@ export default function App() {
       return "The existing report remains readable, but workspace issues must be resolved before validation can run.";
     }
     if (!version.value.intakeValidationSupported) return version.value.message;
-    return "Preview the Automation v1.2.0 defaults, then confirm the managed report update.";
+    return "Preview the Automation v1.3.0 defaults, then confirm the managed report update.";
   })();
 
   const revisionCreationHelp = (() => {
@@ -2048,7 +2048,7 @@ export default function App() {
       return "Revision history remains readable, but workspace issues must be resolved before creating a revision.";
     }
     if (!version.value.revisionCreationSupported) return version.value.message;
-    return "Preview and confirm the next revision using JL Mixing Automation v1.2.0.";
+    return "Preview and confirm the next revision using JL Mixing Automation v1.3.0.";
   })();
 
   const revisionApprovalHelp = (() => {
@@ -2059,7 +2059,7 @@ export default function App() {
       return "Revision history remains readable, but workspace issues must be resolved before recording approval.";
     }
     if (!version.value.revisionApprovalSupported) return version.value.message;
-    return "Select a revision, review the lifecycle impact, and confirm its approval through JL Mixing Automation v1.2.0.";
+    return "Select a revision, review the lifecycle impact, and confirm its approval through JL Mixing Automation v1.3.0.";
   })();
 
   const openClientWorkflow = () => {

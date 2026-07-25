@@ -1115,12 +1115,7 @@ fn run_delivery_operation(
         return uncertain_delivery_result();
     };
     if !verify_delivery_creation(&before, after, expected)
-        || !verify_delivery_artifacts(
-            &project_directory,
-            &project_id,
-            expected,
-            prior_notes.as_deref(),
-        )
+        || !verify_delivery_artifacts(&project_directory, expected, prior_notes.as_deref())
     {
         return uncertain_delivery_result();
     }
@@ -1129,7 +1124,6 @@ fn run_delivery_operation(
 
 fn verify_delivery_artifacts(
     project_directory: &std::path::Path,
-    project_id: &str,
     expected: &DeliveryCreationPreview,
     prior_notes: Option<&[u8]>,
 ) -> bool {
@@ -1145,7 +1139,10 @@ fn verify_delivery_artifacts(
         return false;
     }
     if expected.create_zip {
-        let zip = delivery.join(format!("{project_id}-delivery.zip"));
+        let Some(zip_name) = expected.zip_name.as_deref() else {
+            return false;
+        };
+        let zip = delivery.join(zip_name);
         let Ok(zip_metadata) = fs::symlink_metadata(zip) else {
             return false;
         };
@@ -1159,7 +1156,10 @@ fn verify_delivery_artifacts(
             "delivery-manifest.json".to_owned(),
         ]);
         if expected.create_zip {
-            recreated.insert(format!("{project_id}-delivery.zip"));
+            let Some(zip_name) = expected.zip_name.as_ref() else {
+                return false;
+            };
+            recreated.insert(zip_name.clone());
         }
         for file in &expected.selected {
             recreated.insert(file.path.clone());
@@ -1258,10 +1258,7 @@ fn verify_delivery_creation(
     let Some(delivery) = after.delivery.as_ref() else {
         return false;
     };
-    if delivery.revision != approved_revision
-        || delivery.method != before.delivery_method
-        || delivery.files.len() != expected.selected.len()
-    {
+    if delivery.revision != approved_revision || delivery.method != before.delivery_method {
         return false;
     }
     expected.selected.iter().all(|planned| {
@@ -1449,6 +1446,7 @@ mod tests {
             delivery_method: "Download".into(),
             replacement_mode: crate::models::DeliveryReplacementMode::Default,
             create_zip: false,
+            zip_name: None,
             selected: vec![PlannedDeliveryFile {
                 source_name: "Blue Sky Main Mix.wav".into(),
                 deliverable_type: "main_mix".into(),
@@ -1664,6 +1662,24 @@ mod tests {
     }
 
     #[test]
+    fn accepts_preserved_delivery_files_not_selected_by_the_current_revision() {
+        let before = project_with_two_revisions();
+        let mut after = project_after_delivery_creation();
+        after.delivery.as_mut().unwrap().files.push(DeliveryFile {
+            path: "client-reference.pdf".into(),
+            deliverable_type: "attachment".into(),
+            size_bytes: 24,
+            sha256: "1".repeat(64),
+        });
+
+        assert!(verify_delivery_creation(
+            &before,
+            &after,
+            &expected_delivery(),
+        ));
+    }
+
+    #[test]
     fn rejects_delivery_reconciliation_when_history_or_files_change() {
         let before = project_with_two_revisions();
         let mut changed_history = project_after_delivery_creation();
@@ -1713,20 +1729,19 @@ mod tests {
         let delivery = directory.path().join("05_Final_Delivery");
         fs::create_dir(&delivery).expect("delivery directory");
         fs::write(delivery.join("Delivery_Notes.md"), "Edited notes\n").expect("notes");
-        fs::write(delivery.join("blue-sky-delivery.zip"), "zip").expect("zip");
+        fs::write(delivery.join("blue-sky-rev-01-20260724153045.zip"), "zip").expect("zip");
         let mut expected = expected_delivery();
         expected.replacement_mode = DeliveryReplacementMode::Overwrite;
         expected.create_zip = true;
+        expected.zip_name = Some("blue-sky-rev-01-20260724153045.zip".into());
 
         assert!(verify_delivery_artifacts(
             directory.path(),
-            "blue-sky",
             &expected,
             Some(b"Edited notes\n"),
         ));
         assert!(!verify_delivery_artifacts(
             directory.path(),
-            "blue-sky",
             &expected,
             Some(b"Different notes\n"),
         ));
@@ -1763,16 +1778,10 @@ mod tests {
             "untracked.txt".into(),
         ];
 
-        assert!(verify_delivery_artifacts(
-            directory.path(),
-            "blue-sky",
-            &expected,
-            None,
-        ));
+        assert!(verify_delivery_artifacts(directory.path(), &expected, None,));
         fs::write(delivery.join("untracked.txt"), "survivor").expect("untracked file");
         assert!(!verify_delivery_artifacts(
             directory.path(),
-            "blue-sky",
             &expected,
             None,
         ));

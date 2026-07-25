@@ -10,7 +10,7 @@ JL Mixing Studio is an early-stage desktop application built with Tauri 2, React
   - CI currently exercises Node.js 24.
 - A current stable Rust toolchain with Cargo, Clippy, and rustfmt.
 - Tauri's operating-system build prerequisites.
-- JL Mixing Automation v1.2.0 installed to its default `~/.local/bin` command location or available on `PATH` to exercise automation workflows.
+- JL Mixing Automation v1.3.0 installed to its default `~/.local/bin` command location or available on `PATH` to exercise automation workflows.
 
 You do not need GitHub CLI (`gh`), Homebrew, a global Tauri CLI installation, or—on macOS—the full Xcode application. The repository installs the Tauri CLI locally with `npm ci`.
 
@@ -55,7 +55,7 @@ new-revision --help
 approve-mix --help
 ```
 
-For the current functional baseline, the installed `VERSION` file must report `1.2.0`, and `new-client --help`, `new-mix --help`, `validate-intake --help`, `new-revision --help`, and `approve-mix --help` must succeed. JL Mixing Automation v1.2.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.2.0 is not supported, the application reports guided automation as unavailable without preventing supported report reading and workspace browsing.
+For the current functional baseline, the installed `VERSION` file must report `1.3.0`, and `new-client --help`, `new-mix --help`, `validate-intake --help`, `new-revision --help`, `approve-mix --help`, and `create-delivery --help` must succeed. JL Mixing Automation v1.3.0 installs individual workflow commands; it does not provide a top-level `jl-mixing` command. On Windows, where JL Mixing Automation v1.3.0 is not supported, the application reports guided automation as unavailable without preventing supported report reading and workspace browsing.
 
 On macOS, also confirm the Apple developer tools path:
 
