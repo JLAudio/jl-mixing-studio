@@ -1072,10 +1072,12 @@ describe("JL Mixing Studio", () => {
   });
 
   it("opens the functional Intake route and reads the authoritative report", async () => {
+    const path = "/Users/engineer/Music/Mixes/Clients/acme/Projects/blue-sky/01_Client_Files/Original_Delivery";
     mockedInvoke.mockImplementation((command) => {
       if (command === "discover_default_workspace") return Promise.resolve(healthyWorkspace());
       if (command === "get_jl_mixing_version") return Promise.resolve(version);
       if (command === "get_intake_report") return Promise.resolve({ ...intakePreview, code: "validated" } satisfies IntakeOperationResult);
+      if (command === "resolve_folder" || command === "open_folder") return Promise.resolve({ path });
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
@@ -1091,6 +1093,18 @@ describe("JL Mixing Studio", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("get_intake_report", {
       request: { clientId: "acme", projectId: "blue-sky" },
     });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Copy path" }));
+    await waitFor(() => expect(mockedWriteText).toHaveBeenCalledWith(path));
+    expect(await screen.findByText("Path copied.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open intake folder" }));
+    await waitFor(() =>
+      expect(mockedInvoke).toHaveBeenCalledWith("open_folder", {
+        request: { location: "intake", clientId: "acme", projectId: "blue-sky" },
+      }),
+    );
+    expect(await screen.findByText("Folder opened.")).toBeInTheDocument();
   });
 
   it("shows the authoritative not-yet-validated state", async () => {
