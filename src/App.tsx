@@ -445,7 +445,7 @@ function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand" aria-label="JL Mixing Studio">
-        <img className="brand-mark" src={appIcon} alt="" aria-hidden="true" />
+        <span className="brand-mark" aria-hidden="true"><img src={appIcon} alt="" /></span>
         <span><strong>JL Mixing</strong><small>Studio</small></span>
       </div>
       <nav className="primary-nav" aria-label="Primary navigation">
