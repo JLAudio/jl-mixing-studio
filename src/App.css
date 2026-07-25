@@ -31,7 +31,8 @@ code { overflow-wrap: anywhere; }
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 244px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; background: #fff; border-right: 1px solid var(--line); padding: 26px 16px 18px; z-index: 5; }
 .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 25px; color: #111c31; }
-.brand-mark { width: 42px; height: 42px; flex: 0 0 42px; object-fit: contain; padding: 4px; }
+.brand-mark { width: 48px; height: 48px; flex: 0 0 48px; display: grid; place-items: center; overflow: visible; }
+.brand-mark img { display: block; width: 36px; height: 36px; object-fit: contain; }
 .brand > span:last-child { display: grid; line-height: 1.05; }
 .brand strong { font-size: .95rem; letter-spacing: -.015em; }
 .brand small { color: #758096; font-size: .72rem; font-weight: 700; margin-top: 4px; text-transform: uppercase; letter-spacing: .12em; }
