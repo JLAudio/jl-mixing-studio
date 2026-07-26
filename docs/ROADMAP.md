@@ -1,6 +1,6 @@
 # JL Mixing Studio Roadmap
 
-**Status:** Proposed for review
+**Status:** Approved design; not yet implemented
 
 ## Product role
 
@@ -43,6 +43,26 @@ Release builds validate the declaration, confirm that its Studio version matches
 At runtime Studio combines the bundled declaration with `jl-mixing system-info --json` to derive the current compatibility state. The discovered state is runtime data, not configuration.
 
 Compatibility-policy changes require a reviewed source change, compatibility tests, and a new Studio release. Studio does not download or silently replace compatibility policy at runtime. Tests and development builds may inject controlled fixtures without changing the production resource model.
+
+## Approved Automation API cutover policy
+
+Studio 1.0.x remains tied to the exact JL Mixing Automation 1.3.0 command contract. The first Studio release that adopts Automation API 1.0 makes a clean cutover to the `jl-mixing` dispatcher and removes the legacy integration path for individual human-facing executables.
+
+The API-enabled release does not fall back to `new-studio`, `new-client`, `new-mix`, `validate-intake`, `new-revision`, `approve-mix`, or `create-delivery`. This avoids maintaining two request, response, error, progress, and reconciliation models and prevents unsafe fallback after an uncertain mutation.
+
+The cutover occurs only after:
+
+1. Automation API 1.0 is implemented and released;
+2. all seven existing Studio feature capabilities are available and contract-tested;
+3. Studio has dispatcher-based implementations for every existing Automation-backed workflow;
+4. success, planned, blocked, error, and supported progress-event contracts are tested;
+5. post-operation authoritative-state reconciliation remains in place;
+6. compatibility and upgrade messaging is complete; and
+7. end-to-end migration tests cover the Studio 1.0 and Automation 1.3.0 baseline.
+
+An API-enabled Studio release encountering Automation 1.3.0 or another installation without `system.info` classifies Automation API mode as incompatible or unavailable. Safe read-only workspace access may remain available, but Automation-backed mutation actions are disabled until a compatible API implementation is installed.
+
+The exact Studio release number for the cutover is assigned during release planning rather than fixed by this roadmap.
 
 ## Approved post-1.0 priority sequence
 
