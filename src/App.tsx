@@ -778,7 +778,7 @@ function ClientDetails({
         <article><span>Default artist</span><strong>{client.defaultArtist || "Not set"}</strong></article>
         <article><span>Projects</span><strong>{client.projects.length}</strong></article>
       </section>
-      <aside className="route-note"><strong>Read only</strong><span>Client editing is unavailable because JL Mixing Automation v1.3.0 has no approved client-edit command.</span></aside>
+      <aside className="route-note"><strong>Read only</strong><span>Client editing is unavailable because JL Mixing Automation v1.3.1 has no approved client-edit command.</span></aside>
       <section className="detail-section" aria-labelledby="client-projects-heading">
         <div className="panel-heading"><div><p className="kicker">Client projects</p><h2 id="client-projects-heading">Projects for {client.clientName}</h2></div><div className="directory-actions"><button type="button" disabled className="planned-action">Edit client <span>Planned</span></button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="client-new-project-help">New project</button></div></div>
         <p id="client-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
@@ -1470,7 +1470,7 @@ function StudioRoute({ workspace, version, loading, setupAvailable, setupHelp, o
   if (!snapshot.studio) {
     const unavailable = snapshot.status === "unavailable";
     return <section className="planned-route" aria-labelledby="studio-state-heading">
-      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? "Not configured" : "Recovery required"}</span><h2 id="studio-state-heading">{unavailable ? "Create the default studio workspace" : "Studio configuration is not readable"}</h2><p>{unavailable ? "Use the guided JL Mixing Automation v1.3.0 workflow to create ~/Music/Mixes." : "Review the validated discovery issues below before changing the workspace."}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">New studio</button></div>
+      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? "Not configured" : "Recovery required"}</span><h2 id="studio-state-heading">{unavailable ? "Create the default studio workspace" : "Studio configuration is not readable"}</h2><p>{unavailable ? "Use the guided JL Mixing Automation v1.3.1 workflow to create ~/Music/Mixes." : "Review the validated discovery issues below before changing the workspace."}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">New studio</button></div>
       <p id="studio-setup-help" className="action-help">{setupHelp}</p>
       {snapshot.issues.length > 0 && <RouteIssues snapshot={snapshot} />}
     </section>;
@@ -1513,7 +1513,7 @@ function SettingsRoute({ preferences, onChange, workspace, version }: { preferen
   };
   return <section className="planned-route" aria-labelledby="settings-heading"><div className="panel-heading"><div><p className="kicker">Studio-owned preferences</p><h2 id="settings-heading">Settings</h2></div></div>
     <div className="project-detail-grid"><section className="panel"><h3>Appearance</h3><label className="setting-row"><span><strong>Compact layout</strong><small>Reduce spacing in the application shell and data panels.</small></span><input type="checkbox" checked={preferences.compactLayout} onChange={(event) => update({...preferences, compactLayout:event.target.checked})} /></label><label className="setting-row"><span><strong>Reduce motion</strong><small>Disable interface scrolling and transition animation.</small></span><input type="checkbox" checked={preferences.reduceMotion} onChange={(event) => update({...preferences, reduceMotion:event.target.checked})} /></label></section>
-      <section className="panel"><h3>Read-only diagnostics</h3><dl className="metadata-list"><div><dt>Workspace</dt><dd>{workspace.status === "ready" ? <code>{workspace.value.workspacePath}</code> : workspace.status}</dd></div><div><dt>Workspace status</dt><dd>{workspace.status === "ready" ? workspace.value.status : "Unavailable"}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div><div><dt>Supported contract</dt><dd>JL Mixing Automation 1.3.0</dd></div></dl></section></div>
+      <section className="panel"><h3>Read-only diagnostics</h3><dl className="metadata-list"><div><dt>Workspace</dt><dd>{workspace.status === "ready" ? <code>{workspace.value.workspacePath}</code> : workspace.status}</dd></div><div><dt>Workspace status</dt><dd>{workspace.status === "ready" ? workspace.value.status : "Unavailable"}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div><div><dt>Supported contract</dt><dd>JL Mixing Automation 1.3.1</dd></div></dl></section></div>
     <aside className="route-note"><strong>Settings boundary</strong><span>These preferences are local to JL Mixing Studio. They do not edit <code>studio.json</code>, client or project metadata, delivery defaults, or JL Mixing Automation.</span></aside>
   </section>;
 }
@@ -2023,7 +2023,7 @@ export default function App() {
     if (!version.value.clientCreationSupported) {
       return version.value.message;
     }
-    return "Preview and confirm a new client using JL Mixing Automation v1.3.0.";
+    return "Preview and confirm a new client using JL Mixing Automation v1.3.1.";
   })();
 
   const projectCreationHelp = (() => {
@@ -2038,7 +2038,7 @@ export default function App() {
     if (!version.value.projectCreationSupported) {
       return version.value.message;
     }
-    return "Preview and confirm a new project using JL Mixing Automation v1.3.0.";
+    return "Preview and confirm a new project using JL Mixing Automation v1.3.1.";
   })();
 
   const intakeValidationHelp = (() => {
@@ -2049,7 +2049,7 @@ export default function App() {
       return "The existing report remains readable, but workspace issues must be resolved before validation can run.";
     }
     if (!version.value.intakeValidationSupported) return version.value.message;
-    return "Preview the Automation v1.3.0 defaults, then confirm the managed report update.";
+    return "Preview the Automation v1.3.1 defaults, then confirm the managed report update.";
   })();
 
   const revisionCreationHelp = (() => {
@@ -2060,7 +2060,7 @@ export default function App() {
       return "Revision history remains readable, but workspace issues must be resolved before creating a revision.";
     }
     if (!version.value.revisionCreationSupported) return version.value.message;
-    return "Preview and confirm the next revision using JL Mixing Automation v1.3.0.";
+    return "Preview and confirm the next revision using JL Mixing Automation v1.3.1.";
   })();
 
   const revisionApprovalHelp = (() => {
@@ -2071,7 +2071,7 @@ export default function App() {
       return "Revision history remains readable, but workspace issues must be resolved before recording approval.";
     }
     if (!version.value.revisionApprovalSupported) return version.value.message;
-    return "Select a revision, review the lifecycle impact, and confirm its approval through JL Mixing Automation v1.3.0.";
+    return "Select a revision, review the lifecycle impact, and confirm its approval through JL Mixing Automation v1.3.1.";
   })();
 
   const openClientWorkflow = () => {
