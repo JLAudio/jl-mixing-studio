@@ -35,20 +35,16 @@ linked issue for each failure.
 | Paths containing non-ASCII characters | Not tested | Not tested | Not tested | |
 | JL Mixing Automation missing | Passed | Not tested | Not tested | |
 | JL Mixing Automation incompatible version rejected | Not tested | Not tested | Not tested | |
-| JL Mixing Automation 1.3.0 detected and working | Failed | Not tested | Not applicable | Automation detected but all commands failing with 
-Traceback (most recent call last):
-  File "<stdin>", line 25, in <module>
-TypeError: write_text() got an unexpected keyword argument 'newline'
-[ERROR] Template rendering failed: /Users/jakelevine/.local/share/jl-mixing/templates/Intake_Report.md |
-| Intake report reading and validation | Not tested | Not tested | Not applicable | |
-| Revision creation and approval | Not tested | Not tested | Not applicable | |
-| Automation 1.3.0 delivery creation | Not tested | Not tested | Not applicable | |
-| Copy Path and Open Folder actions | Not tested | Not tested | Not tested | |
-| Upgrade from previous release candidate preserves settings | Not tested | Not tested | Not tested | |
+| JL Mixing Automation 1.3.0 detected and working | Passed | Not tested | Not applicable |  |
+| Intake report reading and validation | Passed | Not tested | Not applicable | |
+| Revision creation and approval | Passed | Not tested | Not applicable | |
+| Automation 1.3.0 delivery creation | Passed | Not tested | Not applicable | |
+| Copy Path and Open Folder actions | Passed | Not tested | Not tested | |
+| Upgrade from previous release candidate preserves settings | Passed | Not tested | Not tested | |
 | Uninstall removes application binaries | Passed | Not tested | Not tested | |
-| Uninstall retains settings | Not tested | Not tested | Not tested | |
-| Reinstall reuses retained settings | Not tested | Not tested | Not tested | |
-| Manual settings removal resets the application | Not tested | Not tested | Not tested | |
+| Uninstall retains settings | Passed | Not tested | Not tested | |
+| Reinstall reuses retained settings | Passed | Not tested | Not tested | |
+| Manual settings removal resets the application | Passed | Not tested | Not tested | |
 
 Windows does not support JL Mixing Automation 1.3.0. Windows must report guided
 Automation workflows as unavailable while preserving supported workspace
