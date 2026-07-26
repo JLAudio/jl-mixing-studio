@@ -28,14 +28,18 @@ linked issue for each failure.
 | --- | --- | --- | --- | --- |
 | Clean install without Node, Rust, Cargo, or source checkout | Passed | Not tested | Not tested | |
 | Launch from Applications / Start menu | Passed | Not tested | Not tested | |
-| Name, icon, version, architecture, and publisher metadata | Failed | Not tested | Not tested | Missing Application icon |
+| Name, icon, version, architecture, and publisher metadata | Passed | Not tested | Not tested | |
 | Expected unsigned Gatekeeper / SmartScreen warning and documented bypass | Passed | Not tested | Not tested | |
-| Default workspace discovery | Failed | Not tested | Not tested | Correctly detected mising workspace, but complained that "jq" was not installed when trying to create a new workspace. Note running "which jq" in a command terminal shows that it is installed and in the path. |
+| Default workspace discovery | Passed | Not tested | Not tested | |
 | Paths containing spaces | Not tested | Not tested | Not tested | |
 | Paths containing non-ASCII characters | Not tested | Not tested | Not tested | |
 | JL Mixing Automation missing | Passed | Not tested | Not tested | |
 | JL Mixing Automation incompatible version rejected | Not tested | Not tested | Not tested | |
-| JL Mixing Automation 1.3.0 detected and working | Failed | Not tested | Not applicable | Automation detected but all commands fail with can't find 'jq' |
+| JL Mixing Automation 1.3.0 detected and working | Failed | Not tested | Not applicable | Automation detected but all commands failing with 
+Traceback (most recent call last):
+  File "<stdin>", line 25, in <module>
+TypeError: write_text() got an unexpected keyword argument 'newline'
+[ERROR] Template rendering failed: /Users/jakelevine/.local/share/jl-mixing/templates/Intake_Report.md |
 | Intake report reading and validation | Not tested | Not tested | Not applicable | |
 | Revision creation and approval | Not tested | Not tested | Not applicable | |
 | Automation 1.3.0 delivery creation | Not tested | Not tested | Not applicable | |
