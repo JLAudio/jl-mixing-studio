@@ -34,6 +34,16 @@ A missing feature capability disables only the corresponding Studio workflow. St
 
 All seven feature capabilities constitute the full-functionality baseline for the first API-enabled Studio release.
 
+## Approved compatibility-declaration lifecycle
+
+`compatibility.json` is a version-controlled build-time release declaration. It defines the Studio release's supported Automation API range, metadata schema versions, globally required capabilities, feature capabilities, and full-functionality baseline.
+
+Release builds validate the declaration, confirm that its Studio version matches the application release, and bundle it as a read-only application resource. Production builds do not load a user-editable compatibility policy from the working directory or user data directory.
+
+At runtime Studio combines the bundled declaration with `jl-mixing system-info --json` to derive the current compatibility state. The discovered state is runtime data, not configuration.
+
+Compatibility-policy changes require a reviewed source change, compatibility tests, and a new Studio release. Studio does not download or silently replace compatibility policy at runtime. Tests and development builds may inject controlled fixtures without changing the production resource model.
+
 ## Approved post-1.0 priority sequence
 
 1. **Compatibility foundation** — adopt Automation API 1.0, replace exact Automation 1.3.0 application-version gating, add capability checks, validate structured responses and progress events, and preserve authoritative-state reconciliation.
