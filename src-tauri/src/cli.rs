@@ -28,6 +28,7 @@ const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.3.0";
 const MAX_VERSION_FILE_BYTES: usize = 64;
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
+const HOMEBREW_COMMAND_PATHS: [&str; 2] = ["/usr/local/bin", "/opt/homebrew/bin"];
 
 pub fn check_jl_mixing_version(home: &Path) -> VersionCheck {
     check_version_with_runner(home, &SystemProcessRunner)
@@ -322,6 +323,9 @@ impl ProcessRunner for SystemProcessRunner {
     ) -> io::Result<ProcessResult> {
         let mut command = Command::new(executable);
         command.args(arguments);
+        if let Some(path) = automation_subprocess_path(env::var_os("PATH").as_deref()) {
+            command.env("PATH", path);
+        }
         if let Some(directory) = current_directory {
             command.current_dir(directory);
         }
@@ -333,6 +337,23 @@ impl ProcessRunner for SystemProcessRunner {
             stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
         })
     }
+}
+
+fn automation_subprocess_path(inherited_path: Option<&OsStr>) -> Option<std::ffi::OsString> {
+    let mut paths: Vec<PathBuf> = inherited_path
+        .map(env::split_paths)
+        .into_iter()
+        .flatten()
+        .collect();
+
+    for path in HOMEBREW_COMMAND_PATHS {
+        let path = PathBuf::from(path);
+        if !paths.contains(&path) {
+            paths.push(path);
+        }
+    }
+
+    env::join_paths(paths).ok()
 }
 
 #[derive(Debug)]
@@ -1959,6 +1980,38 @@ mod tests {
             stdout: stdout.into(),
             stderr: String::new(),
         })
+    }
+
+    #[test]
+    fn automation_subprocess_path_preserves_inherited_path_and_adds_homebrew() {
+        let inherited = env::join_paths(["/custom/bin", "/usr/bin"]).unwrap();
+        let augmented = automation_subprocess_path(Some(&inherited)).unwrap();
+        let paths: Vec<_> = env::split_paths(&augmented).collect();
+
+        assert_eq!(
+            paths,
+            vec![
+                PathBuf::from("/custom/bin"),
+                PathBuf::from("/usr/bin"),
+                PathBuf::from("/usr/local/bin"),
+                PathBuf::from("/opt/homebrew/bin"),
+            ]
+        );
+    }
+
+    #[test]
+    fn automation_subprocess_path_does_not_duplicate_homebrew_paths() {
+        let inherited = env::join_paths(["/opt/homebrew/bin", "/usr/local/bin"]).unwrap();
+        let augmented = automation_subprocess_path(Some(&inherited)).unwrap();
+        let paths: Vec<_> = env::split_paths(&augmented).collect();
+
+        assert_eq!(
+            paths,
+            vec![
+                PathBuf::from("/opt/homebrew/bin"),
+                PathBuf::from("/usr/local/bin"),
+            ]
+        );
     }
 
     fn request(artist: Option<&str>) -> ClientCreationRequest {
