@@ -4,7 +4,7 @@
   "configuration_role": "bundled-read-only-release-declaration",
   "studio_version": "post-1.0-development",
   "current_baseline": {
-    "automation_application": "1.3.0",
+    "automation_application": "1.3.1",
     "contract_type": "exact-command-contract"
   },
   "target_compatibility": {
@@ -39,7 +39,7 @@
   ],
   "cutover_policy": {
     "strategy": "clean-api-cutover",
-    "legacy_contract": "automation-application-1.3.0-exact-command-contract",
+    "legacy_contract": "automation-application-1.3.1-exact-command-contract",
     "legacy_fallback_after_cutover": false,
     "safe_read_only_workspace_access_may_remain": true,
     "mutation_requires_compatible_api": true,
@@ -52,7 +52,7 @@
     "Success, planned, blocked, error, and supported progress-event contracts are tested.",
     "Post-operation authoritative-state reconciliation remains in place.",
     "Compatibility and upgrade messaging is complete.",
-    "End-to-end migration tests cover the Studio 1.0 and Automation 1.3.0 baseline."
+    "End-to-end migration tests cover the Studio 1.0 and Automation 1.3.1 baseline."
   ],
   "notes": [
     "This version-controlled file is the approved build-time compatibility policy design for the first API-enabled Studio release.",
@@ -61,7 +61,7 @@
     "system.info is required to enter Automation API mode; missing workflow capabilities disable only their corresponding Studio features.",
     "Studio reports compatible full-functionality, compatible limited-functionality, incompatible, and Automation-unavailable states.",
     "Compatibility policy changes require a reviewed source change, compatibility tests, and a new Studio release.",
-    "Studio 1.0.x remains tied to JL Mixing Automation 1.3.0 until a later Studio release completes the approved clean cutover to Automation API 1.0.",
+    "Studio 1.0.x remains tied to JL Mixing Automation 1.3.1 until a later Studio release completes the approved clean cutover to Automation API 1.0.",
     "The API-enabled release does not invoke individual legacy Automation executables as a fallback."
   ]
 }
