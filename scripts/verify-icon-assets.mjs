@@ -1,4 +1,7 @@
+import { Buffer } from "node:buffer";
 import { readFile } from "node:fs/promises";
+import process from "node:process";
+import { URL } from "node:url";
 
 const pngPath = new URL("../assets/jl-studio-icon-source.png", import.meta.url);
 const icnsPath = new URL("../src-tauri/icons/icon.icns", import.meta.url);
@@ -27,4 +30,4 @@ if (declaredLength !== icns.length) {
   );
 }
 
-console.log("Icon assets are structurally complete.");
+process.stdout.write("Icon assets are structurally complete.\n");
