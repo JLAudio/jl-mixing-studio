@@ -12,7 +12,7 @@ development build or CI compilation alone.
 
 | Platform | Expected asset | Tester | OS version | Result |
 | --- | --- | --- | --- | --- |
-| Intel Mac | `JL-Mixing-Studio_1.0.0-rc.1_macos_x86_64.dmg` |  |  | Not tested |
+| Intel Mac | `JL-Mixing-Studio_1.0.0-rc.1_macos_x86_64.dmg` | jlevine | Monterey v12.7.6 | in progress |
 | Apple Silicon Mac | `JL-Mixing-Studio_1.0.0-rc.1_macos_aarch64.dmg` |  |  | Not tested |
 | Windows x64 | `JL-Mixing-Studio_1.0.0-rc.1_windows_x86_64.exe` |  |  | Not tested |
 
@@ -26,22 +26,22 @@ linked issue for each failure.
 
 | Test | Intel Mac | Apple Silicon Mac | Windows x64 | Evidence / issue |
 | --- | --- | --- | --- | --- |
-| Clean install without Node, Rust, Cargo, or source checkout | Not tested | Not tested | Not tested | |
-| Launch from Applications / Start menu | Not tested | Not tested | Not tested | |
-| Name, icon, version, architecture, and publisher metadata | Not tested | Not tested | Not tested | |
-| Expected unsigned Gatekeeper / SmartScreen warning and documented bypass | Not tested | Not tested | Not tested | |
-| Default workspace discovery | Not tested | Not tested | Not tested | |
+| Clean install without Node, Rust, Cargo, or source checkout | Passed | Not tested | Not tested | |
+| Launch from Applications / Start menu | Passed | Not tested | Not tested | |
+| Name, icon, version, architecture, and publisher metadata | Failed | Not tested | Not tested | Missing Application icon |
+| Expected unsigned Gatekeeper / SmartScreen warning and documented bypass | Passed | Not tested | Not tested | |
+| Default workspace discovery | Failed | Not tested | Not tested | Correctly detected mising workspace, but complained that "jq" was not installed when trying to create a new workspace. Note running "which jq" in a command terminal shows that it is installed and in the path. |
 | Paths containing spaces | Not tested | Not tested | Not tested | |
 | Paths containing non-ASCII characters | Not tested | Not tested | Not tested | |
-| JL Mixing Automation missing | Not tested | Not tested | Not tested | |
+| JL Mixing Automation missing | Passed | Not tested | Not tested | |
 | JL Mixing Automation incompatible version rejected | Not tested | Not tested | Not tested | |
-| JL Mixing Automation 1.3.0 detected and working | Not tested | Not tested | Not applicable | |
+| JL Mixing Automation 1.3.0 detected and working | Failed | Not tested | Not applicable | Automation detected but all commands fail with can't find 'jq' |
 | Intake report reading and validation | Not tested | Not tested | Not applicable | |
 | Revision creation and approval | Not tested | Not tested | Not applicable | |
 | Automation 1.3.0 delivery creation | Not tested | Not tested | Not applicable | |
 | Copy Path and Open Folder actions | Not tested | Not tested | Not tested | |
 | Upgrade from previous release candidate preserves settings | Not tested | Not tested | Not tested | |
-| Uninstall removes application binaries | Not tested | Not tested | Not tested | |
+| Uninstall removes application binaries | Passed | Not tested | Not tested | |
 | Uninstall retains settings | Not tested | Not tested | Not tested | |
 | Reinstall reuses retained settings | Not tested | Not tested | Not tested | |
 | Manual settings removal resets the application | Not tested | Not tested | Not tested | |
