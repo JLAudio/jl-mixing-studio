@@ -14,7 +14,7 @@ Studio versions independently from JL Mixing Automation. Each Studio release dec
 - required and optional API capabilities;
 - supported metadata schema versions.
 
-Studio 1.0 remains based on the exact released Automation 1.3.0 command contract. Adoption of Automation API 1.0 is a post-1.0 transition and must not be implied retroactively.
+Studio 1.0 remains based on the exact released Automation 1.3.1 command contract. Adoption of Automation API 1.0 is a post-1.0 transition and must not be implied retroactively.
 
 ## Approved capability model
 
@@ -46,7 +46,7 @@ Compatibility-policy changes require a reviewed source change, compatibility tes
 
 ## Approved Automation API cutover policy
 
-Studio 1.0.x remains tied to the exact JL Mixing Automation 1.3.0 command contract. The first Studio release that adopts Automation API 1.0 makes a clean cutover to the `jl-mixing` dispatcher and removes the legacy integration path for individual human-facing executables.
+Studio 1.0.x remains tied to the exact JL Mixing Automation 1.3.1 command contract. The first Studio release that adopts Automation API 1.0 makes a clean cutover to the `jl-mixing` dispatcher and removes the legacy integration path for individual human-facing executables.
 
 The API-enabled release does not fall back to `new-studio`, `new-client`, `new-mix`, `validate-intake`, `new-revision`, `approve-mix`, or `create-delivery`. This avoids maintaining two request, response, error, progress, and reconciliation models and prevents unsafe fallback after an uncertain mutation.
 
@@ -58,9 +58,9 @@ The cutover occurs only after:
 4. success, planned, blocked, error, and supported progress-event contracts are tested;
 5. post-operation authoritative-state reconciliation remains in place;
 6. compatibility and upgrade messaging is complete; and
-7. end-to-end migration tests cover the Studio 1.0 and Automation 1.3.0 baseline.
+7. end-to-end migration tests cover the Studio 1.0 and Automation 1.3.1 baseline.
 
-An API-enabled Studio release encountering Automation 1.3.0 or another installation without `system.info` classifies Automation API mode as incompatible or unavailable. Safe read-only workspace access may remain available, but Automation-backed mutation actions are disabled until a compatible API implementation is installed.
+An API-enabled Studio release encountering Automation 1.3.1 or another installation without `system.info` classifies Automation API mode as incompatible or unavailable. Safe read-only workspace access may remain available, but Automation-backed mutation actions are disabled until a compatible API implementation is installed.
 
 The exact Studio release number for the cutover is assigned during release planning rather than fixed by this roadmap.
 
@@ -68,7 +68,7 @@ The exact Studio release number for the cutover is assigned during release plann
 
 Windows readiness remains a continuous architecture, implementation, and CI requirement. Platform-neutral code must avoid assumptions about POSIX paths, shells, executable locations, permissions, or operating-system UX. Windows builds, Rust and frontend tests, graceful unavailable-Automation behavior, and packaging smoke tests continue throughout the Automation API compatibility milestone.
 
-Full Windows workflow support is the next committed milestone after Automation API 1.0 adoption and before search, navigation, and reporting expansion. Studio does not implement Windows mutation workflows against the legacy Automation 1.3.0 command contract.
+Full Windows workflow support is the next committed milestone after Automation API 1.0 adoption and before search, navigation, and reporting expansion. Studio does not implement Windows mutation workflows against the legacy Automation 1.3.1 command contract.
 
 The Windows milestone requires:
 
@@ -86,7 +86,7 @@ Windows ecosystem support is coordinated across repositories. A parent design is
 
 ## Approved post-1.0 priority sequence
 
-1. **Compatibility foundation** — adopt Automation API 1.0, replace exact Automation 1.3.0 application-version gating, add capability checks, validate structured responses and progress events, and preserve authoritative-state reconciliation.
+1. **Compatibility foundation** — adopt Automation API 1.0, replace exact Automation 1.3.1 application-version gating, add capability checks, validate structured responses and progress events, and preserve authoritative-state reconciliation.
 2. **Windows platform enablement** — deliver native Windows support for the complete existing workflow after a compatible Windows Automation API implementation is available.
 3. **Search and navigation** — add global search, recent projects, favorites, filters, saved local views, and keyboard navigation after the API and Windows platform foundations are complete.
 4. **Reporting and workflow polish** — improve project summaries, reports, workflow views, progress presentation, notifications, errors, and drag-and-drop entry points.

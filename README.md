@@ -16,7 +16,7 @@ JL Mixing Studio will help engineers:
 - Configure studio-specific defaults without hiding the underlying project data.
 - Keep projects portable and understandable outside the application.
 
-JL Mixing Automation v1.3.0 is the current functional baseline. The GUI must preserve its project semantics unless a change is explicitly designed and approved.
+JL Mixing Automation v1.3.1 is the current functional baseline. The GUI must preserve its project semantics unless a change is explicitly designed and approved.
 
 ## Architecture
 
@@ -62,7 +62,7 @@ The architecture spike, application shell, guided creation and intake workflows,
 17. Creates optional delivery ZIPs and performs same-path `--overwrite` rebuilds while preserving edited Delivery Notes and unrelated package content.
 18. Guards destructive `--clean` replacement with an exact deletion preview, stale-inventory rejection, and typed project-specific confirmation.
 
-Guided studio, client, project, intake, revision, approval, and delivery operations are controlled workflows. Studio setup is available only when `~/Music/Mixes` is absent; it previews the fixed `new-studio` request, exposes only identity and audio defaults, disables command-driven directory changes, and verifies the created metadata after confirmation. Each workflow uses a fixed JL Mixing Automation v1.3.0 command without a shell and reconciles authoritative state after success. Same-path overwrite, revisioned timestamped ZIP generation, and explicitly confirmed clean replacement are supported; custom delivery filters remain Planned.
+Guided studio, client, project, intake, revision, approval, and delivery operations are controlled workflows. Studio setup is available only when `~/Music/Mixes` is absent; it previews the fixed `new-studio` request, exposes only identity and audio defaults, disables command-driven directory changes, and verifies the created metadata after confirmation. Each workflow uses a fixed JL Mixing Automation v1.3.1 command without a shell and reconciles authoritative state after success. Same-path overwrite, revisioned timestamped ZIP generation, and explicitly confirmed clean replacement are supported; custom delivery filters remain Planned.
 
 Dashboard priorities, Tasks, and Activity are rebuilt on refresh from validated recovery findings, deadlines, revision pointers, and persisted timestamps. They create no hidden task state or audit database.
 

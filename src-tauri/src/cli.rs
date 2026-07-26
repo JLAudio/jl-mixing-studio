@@ -25,7 +25,7 @@ const REVISION_EXECUTABLE: &str = "new-revision";
 const APPROVAL_EXECUTABLE: &str = "approve-mix";
 const DELIVERY_EXECUTABLE: &str = "create-delivery";
 const VERSION_FILE: &str = "VERSION";
-const SUPPORTED_VERSION: &str = "1.3.0";
+const SUPPORTED_VERSION: &str = "1.3.1";
 const MAX_VERSION_FILE_BYTES: usize = 64;
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
 const HOMEBREW_COMMAND_PATHS: [&str; 2] = ["/usr/local/bin", "/opt/homebrew/bin"];
@@ -2183,7 +2183,7 @@ mod tests {
 
     #[test]
     fn accepts_only_the_released_supported_version_for_creation() {
-        let supported = evaluate_version("1.3.0");
+        let supported = evaluate_version("1.3.1");
         assert!(supported.available);
         assert!(supported.supported);
         assert_eq!(
@@ -2198,7 +2198,7 @@ mod tests {
         let future = evaluate_version("1.4.0");
         assert!(future.available);
         assert!(!future.supported);
-        assert!(future.message.contains("requires 1.3.0"));
+        assert!(future.message.contains("requires 1.3.1"));
     }
 
     #[test]

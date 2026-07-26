@@ -33,8 +33,8 @@ const version: VersionCheck = {
   revisionCreationSupported: true,
   revisionApprovalSupported: true,
   deliveryCreationSupported: true,
-  version: "1.3.0",
-  message: "JL Mixing Automation 1.3.0 detected",
+  version: "1.3.1",
+  message: "JL Mixing Automation 1.3.1 detected",
 };
 
 const preflightResult: ClientOperationResult = {
@@ -290,7 +290,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.queryByText("Blue Sky")).not.toBeInTheDocument();
     expect(screen.queryByText("Revision 2")).not.toBeInTheDocument();
     expect(screen.queryByText("Revision 1")).not.toBeInTheDocument();
-    expect(screen.getByText("JL Mixing Automation 1.3.0 detected")).toBeInTheDocument();
+    expect(screen.getByText("JL Mixing Automation 1.3.1 detected")).toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("discover_default_workspace");
     expect(mockedInvoke).toHaveBeenCalledWith("get_jl_mixing_version");
   });
@@ -1899,12 +1899,12 @@ describe("JL Mixing Studio", () => {
       revisionApprovalSupported: false,
       deliveryCreationSupported: false,
       version: "1.4.0",
-      message: "JL Mixing Automation 1.4.0 detected; guided creation requires 1.3.0",
+      message: "JL Mixing Automation 1.4.0 detected; guided creation requires 1.3.1",
     });
     render(<App />);
 
     expect(await screen.findByText("JL Mix Studio")).toBeInTheDocument();
-    expect(screen.getAllByText(/guided creation requires 1.3.0/i)).toHaveLength(2);
+    expect(screen.getAllByText(/guided creation requires 1.3.1/i)).toHaveLength(2);
     expect(screen.getByRole("button", { name: "New client" })).toBeDisabled();
   });
 });
