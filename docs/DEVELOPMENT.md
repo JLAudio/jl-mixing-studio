@@ -203,6 +203,45 @@ The installer uses per-user mode and does not require administrator access.
 Use installers obtained from the official JLAudio GitHub release and verify
 their published SHA-256 checksum before bypassing the warning.
 
+## Publish a release
+
+The release workflow runs only for an intentional version tag. Before tagging,
+confirm `main` is current and all four version declarations agree:
+
+```shell
+npm ci
+npm run check
+npm run release:verify -- v1.0.0
+git status --short
+git tag -a v1.0.0 -m "JL Mixing Studio v1.0.0"
+git push origin v1.0.0
+```
+
+Do not move or recreate a published tag. The workflow first validates that the
+tag matches `package.json`, `package-lock.json`, `src-tauri/Cargo.toml`, and
+`src-tauri/tauri.conf.json`. It then builds the Intel macOS DMG, Apple Silicon
+macOS DMG, and Windows x64 NSIS installer on native GitHub-hosted runners.
+
+The GitHub Release is created only after every platform succeeds. Its assets
+use predictable names:
+
+- `JL-Mixing-Studio_1.0.0_macos_x86_64.dmg`
+- `JL-Mixing-Studio_1.0.0_macos_aarch64.dmg`
+- `JL-Mixing-Studio_1.0.0_windows_x86_64.exe`
+- `SHA256SUMS.txt`
+
+Tags containing a suffix, such as `v1.0.0-rc.1`, create a prerelease. Build
+artifacts are retained by GitHub Actions for 14 days so a failed release can be
+diagnosed without publishing partial release assets.
+
+If validation or a platform build fails, fix the cause in a new commit and use
+a new test/pre-release tag. Do not reuse a tag that GitHub has already
+published. If the workflow fails before creating any GitHub Release and the tag
+has never been distributed, delete the failed remote tag, correct the source,
+and retry only after confirming the version still agrees. If asset publication
+fails after the native builds succeed, rerun the failed workflow jobs from
+GitHub Actions; do not start a second release for the same tag.
+
 ## Application icons
 
 The approved application artwork is stored at
@@ -221,8 +260,8 @@ The command writes the macOS, Windows, and PNG assets under
 approved source-artwork change. JL Mixing Studio 1.0 does not target mobile
 platforms, so generated `android/` and `ios/` directories are not committed.
 
-Signing, notarization, release publishing, and automatic updates remain
-outside this packaging milestone.
+Signing, notarization, and automatic updates remain outside the 1.0 release
+workflow.
 
 ## Intel macOS Monterey guided-creation validation
 

@@ -1,0 +1,133 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node scripts/verify-release-version.mjs "${{ github.ref_name }}"
+      - run: npm run check
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS Intel DMG
+            os: macos-15-intel
+            platform: macos
+            architecture: x86_64
+            bundle_directory: dmg
+            extension: dmg
+          - label: macOS Apple Silicon DMG
+            os: macos-15
+            platform: macos
+            architecture: aarch64
+            bundle_directory: dmg
+            extension: dmg
+          - label: Windows x64 NSIS
+            os: windows-latest
+            platform: windows
+            architecture: x86_64
+            bundle_directory: nsis
+            extension: exe
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - name: Build installer
+        run: npm run tauri build
+      - name: Stage release asset
+        run: >-
+          node scripts/stage-release-asset.mjs
+          "${{ github.ref_name }}"
+          "${{ matrix.bundle_directory }}"
+          "${{ matrix.extension }}"
+          "${{ matrix.platform }}"
+          "${{ matrix.architecture }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify assets and generate checksums
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          expected=(
+            "JL-Mixing-Studio_${version}_macos_x86_64.dmg"
+            "JL-Mixing-Studio_${version}_macos_aarch64.dmg"
+            "JL-Mixing-Studio_${version}_windows_x86_64.exe"
+          )
+          for asset in "${expected[@]}"; do
+            test -s "release-assets/$asset"
+          done
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 3
+          (
+            cd release-assets
+            sha256sum "${expected[@]}" > SHA256SUMS.txt
+            sha256sum --check SHA256SUMS.txt
+          )
+      - name: Write release notes
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## JL Mixing Studio 1.0
+
+          This release provides separate installers for Intel Macs, Apple Silicon Macs, and Windows x64.
+
+          These installers are intentionally unsigned. macOS Gatekeeper and Windows SmartScreen will identify the publisher as unknown. Verify the downloaded file against `SHA256SUMS.txt`, then follow the unsigned-install instructions in the project documentation.
+          EOF
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=()
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "JL Mixing Studio $GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            "${prerelease[@]}" \
+            release-assets/*
