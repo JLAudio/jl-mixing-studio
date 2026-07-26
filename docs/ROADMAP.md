@@ -16,6 +16,24 @@ Studio versions independently from JL Mixing Automation. Each Studio release dec
 
 Studio 1.0 remains based on the exact released Automation 1.3.0 command contract. Adoption of Automation API 1.0 is a post-1.0 transition and must not be implied retroactively.
 
+## Approved capability model
+
+`system.info` is the only globally required Automation capability for Studio API mode. It provides the API version, Automation application version, metadata schema support, and capability list needed for compatibility evaluation.
+
+The initial feature-capability set is:
+
+- `studio.create`;
+- `client.create`;
+- `project.create`;
+- `intake.validate`;
+- `revision.create`;
+- `revision.approve`;
+- `delivery.create`.
+
+A missing feature capability disables only the corresponding Studio workflow. Studio remains usable for supported read-only workspace operations and any workflows whose capabilities are present. The first API-enabled Studio release reports four installation states: compatible with full functionality, compatible with limited functionality, incompatible, and Automation unavailable.
+
+All seven feature capabilities constitute the full-functionality baseline for the first API-enabled Studio release.
+
 ## Approved post-1.0 priority sequence
 
 1. **Compatibility foundation** — adopt Automation API 1.0, replace exact Automation 1.3.0 application-version gating, add capability checks, validate structured responses and progress events, and preserve authoritative-state reconciliation.
