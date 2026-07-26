@@ -64,14 +64,35 @@ An API-enabled Studio release encountering Automation 1.3.0 or another installat
 
 The exact Studio release number for the cutover is assigned during release planning rather than fixed by this roadmap.
 
+## Approved Windows support policy
+
+Windows readiness remains a continuous architecture, implementation, and CI requirement. Platform-neutral code must avoid assumptions about POSIX paths, shells, executable locations, permissions, or operating-system UX. Windows builds, Rust and frontend tests, graceful unavailable-Automation behavior, and packaging smoke tests continue throughout the Automation API compatibility milestone.
+
+Full Windows workflow support is the next committed milestone after Automation API 1.0 adoption and before search, navigation, and reporting expansion. Studio does not implement Windows mutation workflows against the legacy Automation 1.3.0 command contract.
+
+The Windows milestone requires:
+
+1. a compatible native Windows implementation of Automation API 1.0;
+2. discovery through `jl-mixing system-info --json`;
+3. all seven existing Studio workflow capabilities;
+4. matching preflight, confirmation, execution, structured-result, progress, and authoritative-state reconciliation behavior;
+5. correct handling of Windows paths, drive letters, known folders, spaces, file opening, and folder opening;
+6. native Windows packaging and upgrade validation; and
+7. end-to-end validation on a real Windows environment in addition to CI.
+
+Official Windows support targets native Windows operation. WSL may be useful for development or experimentation but is not the required end-user execution model.
+
+Windows ecosystem support is coordinated across repositories. A parent design issue defines the shared platform contract, with separate Automation and Studio implementation issues. Automation owns its Windows API implementation, filesystem and external-tool behavior, packaging, and contract tests. Studio owns Windows platform integration, compatibility presentation, operating-system UX, packaging, and end-to-end validation.
+
 ## Approved post-1.0 priority sequence
 
 1. **Compatibility foundation** — adopt Automation API 1.0, replace exact Automation 1.3.0 application-version gating, add capability checks, validate structured responses and progress events, and preserve authoritative-state reconciliation.
-2. **Search and navigation** — add global search, recent projects, favorites, filters, saved local views, and keyboard navigation after the API transition is complete.
-3. **Reporting and workflow polish** — improve project summaries, reports, workflow views, progress presentation, notifications, errors, and drag-and-drop entry points.
-4. **New cross-product capabilities** — consider project-health checks, batch operations, file watching, templates, persisted tasks, backup, recall, asset, and inventory features only through separately approved API or schema designs.
+2. **Windows platform enablement** — deliver native Windows support for the complete existing workflow after a compatible Windows Automation API implementation is available.
+3. **Search and navigation** — add global search, recent projects, favorites, filters, saved local views, and keyboard navigation after the API and Windows platform foundations are complete.
+4. **Reporting and workflow polish** — improve project summaries, reports, workflow views, progress presentation, notifications, errors, and drag-and-drop entry points.
+5. **New cross-product capabilities** — consider project-health checks, batch operations, file watching, templates, persisted tasks, backup, recall, asset, and inventory features only through separately approved API or schema designs.
 
-The compatibility foundation is the first committed post-1.0 milestone. Later roadmap items remain candidates until separately approved and assigned to a release milestone.
+The compatibility foundation and Windows platform enablement are the first two committed post-1.0 milestones. Later roadmap items remain candidates until separately approved and assigned to a release milestone.
 
 ## Post-1.0 roadmap themes
 
@@ -81,6 +102,15 @@ The compatibility foundation is the first committed post-1.0 milestone. Later ro
 - Replace exact application-version gating with API-range and capability checks.
 - Present clear missing, outdated, incompatible, and partially capable states.
 - Add contract tests using released Automation API fixtures.
+
+### Windows platform enablement
+
+- Preserve Windows CI and platform-neutral implementation throughout API adoption.
+- Integrate with the native Windows Automation API implementation.
+- Enable the complete existing Studio workflow capability set on Windows.
+- Validate Windows path, process, filesystem, WebView, notification, and operating-system UX behavior.
+- Build and test native Windows installers and upgrades.
+- Complete real-machine end-to-end acceptance testing before release.
 
 ### Workflow usability
 
