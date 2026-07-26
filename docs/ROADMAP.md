@@ -16,6 +16,15 @@ Studio versions independently from JL Mixing Automation. Each Studio release dec
 
 Studio 1.0 remains based on the exact released Automation 1.3.0 command contract. Adoption of Automation API 1.0 is a post-1.0 transition and must not be implied retroactively.
 
+## Approved post-1.0 priority sequence
+
+1. **Compatibility foundation** — adopt Automation API 1.0, replace exact Automation 1.3.0 application-version gating, add capability checks, validate structured responses and progress events, and preserve authoritative-state reconciliation.
+2. **Search and navigation** — add global search, recent projects, favorites, filters, saved local views, and keyboard navigation after the API transition is complete.
+3. **Reporting and workflow polish** — improve project summaries, reports, workflow views, progress presentation, notifications, errors, and drag-and-drop entry points.
+4. **New cross-product capabilities** — consider project-health checks, batch operations, file watching, templates, persisted tasks, backup, recall, asset, and inventory features only through separately approved API or schema designs.
+
+The compatibility foundation is the first committed post-1.0 milestone. Later roadmap items remain candidates until separately approved and assigned to a release milestone.
+
 ## Post-1.0 roadmap themes
 
 ### Compatibility foundation
