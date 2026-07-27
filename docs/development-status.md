@@ -1,6 +1,6 @@
 # JL Mixing Studio Development Status
 
-Last updated: 2026-07-26
+Last updated: 2026-07-27
 
 ## Current release
 
@@ -9,6 +9,12 @@ Last updated: 2026-07-26
 - Release commit: `1e386586148e8c6faed6d132adad0e93b094f812`
 - Supported JL Mixing Automation baseline: `1.3.1`
 - Release artifacts: Published and installation-verified
+
+## Active development target
+
+- Target release: `v1.1.0`
+- Primary objective: Establish the JL Mixing Automation API as the stable compatibility contract between Studio and Automation.
+- Versioning policy: Studio and Automation retain independent product versions. Studio declares compatibility with a specific Automation API version rather than requiring matching product release numbers.
 
 ## Release validation
 
@@ -20,14 +26,23 @@ Last updated: 2026-07-26
 
 ## Current work
 
-Post-v1.0 planning and release follow-up.
+Plan and implement the `v1.1.0` Automation API integration foundation.
+
+Initial work includes:
+
+- Define the supported Automation API version and compatibility policy.
+- Introduce a Studio-side Automation API abstraction layer.
+- Centralize Automation discovery, version negotiation, and compatibility validation.
+- Improve missing and incompatible Automation error handling.
+- Add integration tests for supported and rejected Automation API versions.
 
 ## Next work
 
-- Triage bug fixes into the `v1.0.1` milestone.
-- Formalize and prioritize the approved `v1.1.0` scope.
-- Maintain Studio and Automation with independent product versions.
-- Declare compatibility against a specific JL Mixing Automation API version rather than matching Automation release numbers.
+- Review and approve the detailed `v1.1.0` issue scope.
+- Implement the Automation API abstraction layer behind existing Studio workflows.
+- Replace remaining direct CLI and shell coupling where the approved API contract permits it.
+- Preserve current user-visible behavior unless a change is explicitly approved.
+- Continue UI refinement toward the approved wireframes after the API foundation is stable.
 
 ## Maintenance strategy
 
@@ -46,7 +61,9 @@ JL Mixing Studio reached its first stable public release after RC4 acceptance, m
 
 - Apple Silicon acceptance testing.
 - Native Windows support in JL Mixing Automation; Studio currently degrades gracefully when Automation is unavailable.
-- Post-v1.0 features not yet approved into a specific release scope.
+- Native Windows platform enablement after the Automation API foundation.
+- Broader UI and workflow enhancements not yet approved into a specific release scope.
+- Post-v1.0 features requiring Automation behavior beyond the approved API contract.
 
 ## Known issues and technical debt
 
