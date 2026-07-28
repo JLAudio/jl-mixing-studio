@@ -1,9 +1,7 @@
-#[cfg(test)]
-use std::env;
-use std::ffi::OsStr;
-use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(test)]
+use std::{env, path::PathBuf};
 
 #[cfg(test)]
 use crate::automation_api::{automation_subprocess_path, resolve_command_with_path};
@@ -1756,6 +1754,9 @@ mod tests {
                 arguments: arguments.to_vec(),
                 current_directory: current_directory.map(Path::to_owned),
             });
+            if arguments == ["system-info", "--json"] {
+                return Ok(discovery_output());
+            }
             self.results
                 .borrow_mut()
                 .pop_front()
@@ -1972,46 +1973,37 @@ mod tests {
         )
     }
 
-    fn installed_home(version: &str) -> tempfile::TempDir {
+    fn installed_home(_version: &str) -> tempfile::TempDir {
         let home = tempfile::tempdir().unwrap();
         let bin = home.path().join(".local/bin");
-        let application = home.path().join(".local/share/jl-mixing");
         std::fs::create_dir_all(&bin).unwrap();
-        std::fs::create_dir_all(&application).unwrap();
-        std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
-        std::fs::write(bin.join(STUDIO_EXECUTABLE), "managed launcher").unwrap();
-        std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();
-        std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();
-        std::fs::write(bin.join(DELIVERY_EXECUTABLE), "managed launcher").unwrap();
-        std::fs::write(bin.join(REVISION_EXECUTABLE), "managed launcher").unwrap();
-        std::fs::write(bin.join(APPROVAL_EXECUTABLE), "managed launcher").unwrap();
-        std::fs::write(application.join(VERSION_FILE), format!("{version}\n")).unwrap();
+        for executable in [
+            "jl-mixing",
+            CLIENT_EXECUTABLE,
+            STUDIO_EXECUTABLE,
+            PROJECT_EXECUTABLE,
+            INTAKE_EXECUTABLE,
+            DELIVERY_EXECUTABLE,
+            REVISION_EXECUTABLE,
+            APPROVAL_EXECUTABLE,
+        ] {
+            std::fs::write(bin.join(executable), "managed launcher").unwrap();
+        }
         home
     }
 
-    #[test]
-    fn accepts_only_the_released_supported_version_for_creation() {
-        let supported = evaluate_version("1.3.1");
-        assert!(supported.available);
-        assert!(supported.supported);
-        assert_eq!(
-            supported.studio_creation_supported,
-            !cfg!(target_os = "windows")
-        );
-        assert!(supported.intake_validation_supported);
-        assert!(supported.revision_creation_supported);
-        assert!(supported.revision_approval_supported);
-        assert!(supported.delivery_creation_supported);
-
-        let future = evaluate_version("1.4.0");
-        assert!(future.available);
-        assert!(!future.supported);
-        assert!(future.message.contains("requires 1.3.1"));
+    fn discovery_output() -> ProcessResult {
+        ProcessResult {
+            success: true,
+            exit_code: Some(0),
+            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","revision.create","intake.validate","revision.approve","delivery.create"]}"#.into(),
+            stderr: String::new(),
+        }
     }
 
     #[test]
     fn studio_preflight_uses_fixed_default_workspace_arguments() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("ready")]);
         let result = run_studio_operation(
             home.path(),
@@ -2049,7 +2041,7 @@ mod tests {
 
     #[test]
     fn confirmed_studio_creation_disables_directory_changes() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("created")]);
         let result = run_studio_operation(
             home.path(),
@@ -2081,24 +2073,8 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unrecognized_version_output() {
-        assert_eq!(parse_version("version one"), None);
-        assert_eq!(parse_version("jl-mixing 1.2.0"), None);
-    }
-
-    #[test]
-    fn reports_missing_executable_without_exposing_system_details() {
-        let result =
-            evaluate_health_check_error(io::Error::new(io::ErrorKind::NotFound, "private path"));
-        assert!(!result.available);
-        assert!(result
-            .message
-            .contains("default install location or on PATH"));
-    }
-
-    #[test]
     fn prefers_the_documented_default_install_location() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         assert_eq!(
             resolve_command_with_path(home.path(), CLIENT_EXECUTABLE, None),
             Some(home.path().join(".local/bin").join(CLIENT_EXECUTABLE))
@@ -2121,39 +2097,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(executable, bin.join(CLIENT_EXECUTABLE));
-        assert_eq!(
-            version_file_for_command(&executable),
-            Some(prefix.path().join("share/jl-mixing/VERSION"))
-        );
-    }
-
-    #[test]
-    fn rejects_missing_or_invalid_version_metadata_without_running_a_command() {
-        let home = installed_home("not-a-version");
-        let runner = FakeRunner::new(Vec::new());
-        let result = check_version_with_runner(home.path(), &runner);
-
-        assert!(!result.available);
-        assert!(result.message.contains("VERSION file is invalid"));
-        assert!(runner.invocations.borrow().is_empty());
-    }
-
-    #[test]
-    fn checks_new_client_health_after_reading_the_installed_version() {
-        let home = installed_home(SUPPORTED_VERSION);
-        let runner = FakeRunner::new(vec![success("Usage: new-client CLIENT_ID [options]")]);
-        let result = check_version_with_runner(home.path(), &runner);
-
-        assert!(result.available);
-        assert!(result.supported);
-        assert_eq!(result.version.as_deref(), Some(SUPPORTED_VERSION));
-        assert_eq!(runner.invocations.borrow().len(), 1);
-        assert_eq!(runner.invocations.borrow()[0].arguments, vec!["--help"]);
     }
 
     #[test]
     fn preflight_uses_dry_run_without_directory_change_flags() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("preview")]);
         let workspace = Path::new("/fixed/workspace");
         let result = run_client_operation(
@@ -2189,7 +2137,7 @@ mod tests {
 
     #[test]
     fn confirmed_creation_uses_no_cd_and_omits_empty_artist() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("created")]);
         let result = run_client_operation(
             home.path(),
@@ -2240,7 +2188,7 @@ mod tests {
 
     #[test]
     fn reports_collision_from_rejected_dry_run() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             failure(4, "Client destination already exists"),
@@ -2259,7 +2207,7 @@ mod tests {
 
     #[test]
     fn reports_missing_new_client_separately() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             Err(io::Error::new(io::ErrorKind::NotFound, "missing")),
@@ -2277,7 +2225,7 @@ mod tests {
 
     #[test]
     fn project_preflight_uses_fixed_arguments_and_validated_client_directory() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             success(&project_output("blue-sky", "The Artist")),
@@ -2327,7 +2275,7 @@ mod tests {
 
     #[test]
     fn confirmed_project_creation_uses_no_cd_and_inherits_artist() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             success(&project_output("blue-sky", "Inherited Artist")),
@@ -2368,7 +2316,7 @@ mod tests {
 
     #[test]
     fn project_collision_is_reported_from_preflight() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             failure(4, "Project destination already exists"),
@@ -2387,7 +2335,7 @@ mod tests {
 
     #[test]
     fn successful_creation_without_identity_is_uncertain() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("Project created")]);
         let result = run_project_operation(
             home.path(),
@@ -2403,7 +2351,7 @@ mod tests {
 
     #[test]
     fn revision_preflight_uses_description_and_dry_run_from_validated_project() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             success(&revision_output(true, "Vocal lift")),
@@ -2437,7 +2385,7 @@ mod tests {
 
     #[test]
     fn confirmed_revision_creation_uses_no_cd_and_automation_default_description() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             success(&revision_output(false, "Revision 3")),
@@ -2473,7 +2421,7 @@ mod tests {
 
     #[test]
     fn successful_revision_creation_without_identity_is_uncertain() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("Revision created")]);
         let result = run_revision_operation(
             home.path(),
@@ -2489,7 +2437,7 @@ mod tests {
 
     #[test]
     fn revision_rejection_preserves_the_bounded_automation_message() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             failure(4, "Revision destination already exists"),
@@ -2508,7 +2456,7 @@ mod tests {
 
     #[test]
     fn approval_preflight_uses_only_selected_revision_approver_and_dry_run() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             success(&approval_output(true, 2, "Client Reviewer")),
@@ -2551,7 +2499,7 @@ mod tests {
 
     #[test]
     fn confirmed_approval_parses_automation_timestamp_without_date_override() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             success(&approval_output(false, 2, "Client")),
@@ -2592,7 +2540,7 @@ mod tests {
 
     #[test]
     fn successful_approval_without_identity_is_uncertain() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("Revision approved")]);
         let result = run_approval_operation(
             home.path(),
@@ -2608,7 +2556,7 @@ mod tests {
 
     #[test]
     fn approval_rejection_preserves_the_bounded_automation_message() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             failure(5, "Revision 2 is already the approved revision"),
@@ -2627,7 +2575,7 @@ mod tests {
 
     #[test]
     fn delivery_preflight_uses_only_dry_run_from_the_validated_project() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success(&delivery_output(true))]);
         let project_directory = Path::new("/fixed/project");
         let result = run_delivery_operation(
@@ -2656,7 +2604,7 @@ mod tests {
 
     #[test]
     fn confirmed_delivery_creation_uses_no_arguments() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success(&delivery_output(false))]);
         let result = run_delivery_operation(
             home.path(),
@@ -2674,7 +2622,7 @@ mod tests {
 
     #[test]
     fn overwrite_zip_preflight_uses_only_fixed_release_flags() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let output = delivery_output(true)
             .replace("Delivered revision:  null", "Delivered revision:  1")
             .replace(
@@ -2738,7 +2686,7 @@ mod tests {
 
     #[test]
     fn clean_preview_parses_exact_deletions_and_uses_the_clean_flag() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let output = delivery_output(true)
             .replace("Delivered revision:  null", "Delivered revision:  1")
             .replace("Replacement mode:    default", "Replacement mode:    clean")
@@ -2775,7 +2723,7 @@ mod tests {
 
     #[test]
     fn confirmed_clean_uses_only_the_previously_validated_deletion_inventory() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let output = delivery_output(false)
             .replace("Replacement mode:    default", "Replacement mode:    clean");
         let runner = FakeRunner::new(vec![success("help"), success(&output)]);
@@ -2818,7 +2766,7 @@ mod tests {
 
     #[test]
     fn unverifiable_confirmed_delivery_is_uncertain() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success("created")]);
         let result = run_delivery_operation(
             home.path(),
@@ -2834,7 +2782,7 @@ mod tests {
 
     #[test]
     fn delivery_rejection_preserves_the_bounded_automation_message() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             failure(5, "No deliverable files were found after applying filters"),
@@ -2853,7 +2801,7 @@ mod tests {
 
     #[test]
     fn intake_preflight_uses_only_dry_run_from_the_validated_project() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![success("help"), success(&intake_report(false))]);
         let project_directory = Path::new("/fixed/project");
         let result = run_intake_operation(
@@ -2880,7 +2828,7 @@ mod tests {
 
     #[test]
     fn intake_exit_five_is_a_completed_preview_with_blocking_findings() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
             completed_with_findings(&intake_report(true)),
@@ -2900,7 +2848,7 @@ mod tests {
 
     #[test]
     fn confirmed_intake_run_has_no_arguments_and_verifies_the_report_from_disk() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let project = tempfile::tempdir().unwrap();
         let admin = project.path().join("00_Admin");
         std::fs::create_dir_all(&admin).unwrap();
@@ -2952,7 +2900,7 @@ mod tests {
 
     #[test]
     fn unverifiable_confirmed_intake_result_is_uncertain() {
-        let home = installed_home(SUPPORTED_VERSION);
+        let home = installed_home("1.3.1");
         let project = tempfile::tempdir().unwrap();
         let runner = FakeRunner::new(vec![success("help"), success("completed")]);
         let result = run_intake_operation(
