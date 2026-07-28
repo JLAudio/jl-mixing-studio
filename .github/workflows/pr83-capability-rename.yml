@@ -1,0 +1,44 @@
+name: PR83 capability rename
+
+on:
+  push:
+    branches: [agent/project-create-api-consumer]
+
+permissions:
+  contents: write
+
+jobs:
+  rename:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/project-create-api-consumer
+      - name: Rename capability
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          old = 'project.create.effective_artist'
+          new = 'project.create.artist'
+          for name in ['src-tauri/src/automation_api.rs', 'src-tauri/src/cli.rs']:
+              path = Path(name)
+              text = path.read_text()
+              count = text.count(old)
+              assert count > 0, f'{old} not found in {name}'
+              path.write_text(text.replace(old, new))
+          PY
+          cargo fmt --manifest-path src-tauri/Cargo.toml
+      - name: Verify
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --all-features
+      - name: Commit source and remove helper
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/pr83-capability-rename.yml
+          git add src-tauri/src/automation_api.rs src-tauri/src/cli.rs
+          git commit -m 'Use finalized project artist capability'
+          git push
