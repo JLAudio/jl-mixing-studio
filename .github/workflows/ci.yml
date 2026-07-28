@@ -32,6 +32,33 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
+
+          cli = Path('src-tauri/src/cli.rs')
+          source = cli.read_text()
+          pattern = re.compile(
+              r'(?ms)^            vec!\[\n'
+              r'\s+"acme-records",\n'
+              r'\s+"--name",\n'
+              r'\s+"Acme Records",\n'
+              r'\s+"--artist",\n'
+              r'\s+"The Artist",\n'
+              r'\s+"--dry-run",?\n'
+              r'\s+\]'
+          )
+          normalized = '''            vec![
+                  "acme-records",
+                  "--name",
+                  "Acme Records",
+                  "--artist",
+                  "The Artist",
+                  "--dry-run"
+              ]'''
+          source, count = pattern.subn(normalized, source, count=1)
+          if count != 1:
+              raise SystemExit('preflight client argument vector not found')
+          cli.write_text(source)
+
           workflow = Path('.github/workflows/pr82-client-api-migration.yml').read_text().splitlines()
           start = next(i for i, line in enumerate(workflow) if "python - <<'PY'" in line) + 1
           end = next(i for i in range(start, len(workflow)) if workflow[i].strip() == 'PY')
