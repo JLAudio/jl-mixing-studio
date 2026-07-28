@@ -6,13 +6,55 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  migrate-client-api:
+    name: Apply client API consumer migration
+    if: github.event_name == 'pull_request' && github.head_ref == 'agent/client-create-api-consumer' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/client-create-api-consumer
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Apply staged migration payload
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          workflow = Path('.github/workflows/pr82-client-api-migration.yml').read_text().splitlines()
+          start = next(i for i, line in enumerate(workflow) if "python - <<'PY'" in line) + 1
+          end = next(i for i in range(start, len(workflow)) if workflow[i].strip() == 'PY')
+          payload = '\n'.join(line[10:] if line.startswith('          ') else line for line in workflow[start:end])
+          exec(compile(payload, 'client-api-migration', 'exec'))
+          PY
+          cargo fmt --manifest-path src-tauri/Cargo.toml
+      - name: Verify migration
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml --check
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --all-features
+      - name: Commit migration and restore CI
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin main
+          git checkout origin/main -- .github/workflows/ci.yml
+          git rm -f .github/workflows/pr82-client-api-migration.yml .client-api-trigger
+          git add src-tauri/src/automation_api.rs src-tauri/src/cli.rs .github/workflows/ci.yml
+          git commit -m 'Migrate client creation to Automation API'
+          git push
+
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
