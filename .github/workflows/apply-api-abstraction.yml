@@ -1,0 +1,154 @@
+name: Apply API abstraction refactor
+
+on:
+  push:
+    branches:
+      - agent/automation-api-abstraction
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/automation-api-abstraction
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply refactor
+        shell: bash
+        run: |
+          cat > src-tauri/src/automation_api.rs <<'RS'
+          use std::env;
+          use std::ffi::OsStr;
+          use std::io;
+          use std::path::{Path, PathBuf};
+          use std::process::Command;
+
+          const HOMEBREW_COMMAND_PATHS: [&str; 2] = ["/usr/local/bin", "/opt/homebrew/bin"];
+
+          pub(crate) trait ProcessRunner {
+              fn run(
+                  &self,
+                  executable: &Path,
+                  arguments: &[String],
+                  current_directory: Option<&Path>,
+              ) -> io::Result<ProcessResult>;
+          }
+
+          pub(crate) struct SystemProcessRunner;
+
+          impl ProcessRunner for SystemProcessRunner {
+              fn run(
+                  &self,
+                  executable: &Path,
+                  arguments: &[String],
+                  current_directory: Option<&Path>,
+              ) -> io::Result<ProcessResult> {
+                  let mut command = Command::new(executable);
+                  command.args(arguments);
+                  if let Some(path) = automation_subprocess_path(env::var_os("PATH").as_deref()) {
+                      command.env("PATH", path);
+                  }
+                  if let Some(directory) = current_directory {
+                      command.current_dir(directory);
+                  }
+                  let output = command.output()?;
+                  Ok(ProcessResult {
+                      success: output.status.success(),
+                      exit_code: output.status.code(),
+                      stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+                      stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+                  })
+              }
+          }
+
+          pub(crate) fn automation_subprocess_path(
+              inherited_path: Option<&OsStr>,
+          ) -> Option<std::ffi::OsString> {
+              let mut paths: Vec<PathBuf> = inherited_path
+                  .map(env::split_paths)
+                  .into_iter()
+                  .flatten()
+                  .collect();
+
+              for path in HOMEBREW_COMMAND_PATHS {
+                  let path = PathBuf::from(path);
+                  if !paths.contains(&path) {
+                      paths.push(path);
+                  }
+              }
+
+              env::join_paths(paths).ok()
+          }
+
+          pub(crate) fn resolve_command(home: &Path, executable: &str) -> Option<PathBuf> {
+              let path = env::var_os("PATH");
+              resolve_command_with_path(home, executable, path.as_deref())
+          }
+
+          pub(crate) fn resolve_command_with_path(
+              home: &Path,
+              executable: &str,
+              search_path: Option<&OsStr>,
+          ) -> Option<PathBuf> {
+              let default_install = home.join(".local").join("bin").join(executable);
+              if default_install.is_file() {
+                  return Some(default_install);
+              }
+
+              search_path.and_then(|value| {
+                  env::split_paths(value)
+                      .map(|directory| directory.join(executable))
+                      .find(|candidate| candidate.is_file())
+              })
+          }
+
+          #[derive(Debug)]
+          pub(crate) struct ProcessResult {
+              pub(crate) success: bool,
+              pub(crate) exit_code: Option<i32>,
+              pub(crate) stdout: String,
+              pub(crate) stderr: String,
+          }
+          RS
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lib = Path('src-tauri/src/lib.rs')
+          text = lib.read_text()
+          text = text.replace('mod cli;\n', 'mod automation_api;\nmod cli;\n', 1)
+          lib.write_text(text)
+
+          cli = Path('src-tauri/src/cli.rs')
+          text = cli.read_text()
+          text = text.replace('use std::process::Command;\n', '')
+          text = text.replace('const HOMEBREW_COMMAND_PATHS: [&str; 2] = ["/usr/local/bin", "/opt/homebrew/bin"];\n', '')
+          marker = 'use crate::models::{'
+          text = text.replace(marker, 'use crate::automation_api::{\n    automation_subprocess_path, resolve_command, resolve_command_with_path, ProcessResult,\n    ProcessRunner, SystemProcessRunner,\n};\n' + marker, 1)
+
+          start = text.index('trait ProcessRunner {')
+          end = text.index('#[derive(Clone, Copy)]\nenum ClientOperation', start)
+          text = text[:start] + text[end:]
+
+          start = text.index('fn resolve_command(home: &Path, executable: &str) -> Option<PathBuf> {')
+          end = text.index('fn version_file_for_command', start)
+          text = text[:start] + text[end:]
+          cli.write_text(text)
+          PY
+
+          cargo fmt --manifest-path src-tauri/Cargo.toml
+          rm .github/workflows/apply-api-abstraction.yml
+      - name: Commit refactor
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/src/automation_api.rs src-tauri/src/cli.rs src-tauri/src/lib.rs .github/workflows/apply-api-abstraction.yml
+          git commit -m "Introduce Automation process abstraction"
+          git push origin HEAD:agent/automation-api-abstraction
