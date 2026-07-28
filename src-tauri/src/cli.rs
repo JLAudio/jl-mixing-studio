@@ -5,10 +5,9 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::automation_api::{
-    automation_subprocess_path, resolve_command, resolve_command_with_path, ProcessResult,
-    ProcessRunner, SystemProcessRunner,
-};
+#[cfg(test)]
+use crate::automation_api::{automation_subprocess_path, resolve_command_with_path, ProcessResult};
+use crate::automation_api::{resolve_command, ProcessRunner, SystemProcessRunner};
 use crate::models::{
     ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientCreationSummary,
     ClientOperationCode, ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest,
