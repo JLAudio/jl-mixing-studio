@@ -6,49 +6,13 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  migrate-project-api:
-    name: Apply project API consumer migration
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/project-create-api-consumer' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/project-create-api-consumer
-      - name: Install Tauri Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - name: Apply staged migration
-        run: |
-          python3 .github/project-api-migration.py
-          python3 .github/project-api-test-capability-fix.py
-          cargo fmt --manifest-path src-tauri/Cargo.toml
-      - name: Verify migration
-        run: |
-          cargo fmt --manifest-path src-tauri/Cargo.toml --check
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo test --manifest-path src-tauri/Cargo.toml --all-features
-      - name: Commit migration and restore CI
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm .github/project-api-migration.py .github/project-api-test-capability-fix.py
-          git add src-tauri/src/automation_api.rs src-tauri/src/cli.rs .github/workflows/ci.yml
-          git commit -m 'Migrate project creation to Automation API'
-          git push
-
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest

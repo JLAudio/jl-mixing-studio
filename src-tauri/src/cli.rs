@@ -24,7 +24,6 @@ use crate::models::{
 use crate::{intake, intake::IntakeReportError};
 
 const STUDIO_EXECUTABLE: &str = "new-studio";
-const PROJECT_EXECUTABLE: &str = "new-mix";
 const INTAKE_EXECUTABLE: &str = "validate-intake";
 const REVISION_EXECUTABLE: &str = "new-revision";
 const APPROVAL_EXECUTABLE: &str = "approve-mix";
@@ -545,17 +544,29 @@ fn run_project_operation<R: ProcessRunner>(
             &version.message,
         );
     }
-
-    let Some(executable) = resolve_command(home, PROJECT_EXECUTABLE) else {
+    if !version.project_creation_supported {
         return blocked_project_operation(
-            ProjectOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation new-mix command was not found",
+            ProjectOperationCode::Rejected,
+            "JL Mixing Automation does not advertise the project.create effective-artist capability required by Studio",
         );
-    };
+    }
+
     let arguments = project_arguments(&request, operation);
-    match runner.run(&executable, &arguments, Some(client_directory)) {
-        Ok(output) if output.success => {
-            let Some(project) = parse_project_preview(&output.stdout, &request) else {
+    match invoke_api(
+        home,
+        "project.create",
+        &arguments,
+        Some(client_directory),
+        runner,
+    ) {
+        Ok(response)
+            if matches!(
+                (operation, response.status),
+                (ProjectOperation::Preflight, ApiStatus::Planned)
+                    | (ProjectOperation::Create, ApiStatus::Success)
+            ) =>
+        {
+            let Some(project) = project_summary_from_api(&response.data, &request) else {
                 return blocked_project_operation(
                     match operation {
                         ProjectOperation::Preflight => ProjectOperationCode::Failed,
@@ -585,25 +596,76 @@ fn run_project_operation<R: ProcessRunner>(
                 project: Some(project),
             }
         }
-        Ok(output) => rejected_project_operation(output),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_project_operation(
+        Ok(response) => rejected_project_api_response(response),
+        Err(ApiCallError::Unavailable) => blocked_project_operation(
             ProjectOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation new-mix command was not found",
+            "JL Mixing Automation was not found in its default install location or on PATH",
         ),
-        Err(_) => blocked_project_operation(
+        Err(ApiCallError::IncompatibleVersion(version)) => blocked_project_operation(
+            ProjectOperationCode::UnsupportedVersion,
+            &format!(
+                "JL Mixing Automation returned API {}; Studio requires Automation API 1.0",
+                version
+            ),
+        ),
+        Err(error) => blocked_project_operation(
             match operation {
                 ProjectOperation::Preflight => ProjectOperationCode::Failed,
                 ProjectOperation::Create => ProjectOperationCode::Uncertain,
             },
-            match operation {
-                ProjectOperation::Preflight => {
-                    "The JL Mixing Automation new-mix command could not be started"
-                }
-                ProjectOperation::Create => {
-                    "The JL Mixing Automation new-mix result could not be confirmed. The operation may have completed."
-                }
-            },
+            &error.message(),
         ),
+    }
+}
+
+fn project_summary_from_api(
+    data: &serde_json::Value,
+    request: &ProjectCreationRequest,
+) -> Option<ProjectCreationSummary> {
+    let project = data.get("project")?;
+    let project_id = project.get("id")?.as_str()?;
+    let project_name = project.get("name")?.as_str()?;
+    let artist = project.get("artist")?.as_str()?;
+    let client_id = data.get("client")?.get("id")?.as_str()?;
+
+    if !is_valid_client_id(project_id)
+        || project_name != request.project_name
+        || artist.trim().is_empty()
+        || client_id != request.client_id
+    {
+        return None;
+    }
+
+    Some(ProjectCreationSummary {
+        client_id: request.client_id.clone(),
+        project_id: project_id.to_owned(),
+        project_name: request.project_name.clone(),
+        artist: artist.to_owned(),
+    })
+}
+
+fn rejected_project_api_response(
+    response: crate::automation_api::ApiResponse,
+) -> ProjectOperationResult {
+    let error = response.errors.first();
+    let collision = error
+        .map(|item| item.code == "PROJECT_ALREADY_EXISTS")
+        .unwrap_or(false);
+    let message = error.map(|item| item.message.clone()).unwrap_or_else(|| {
+        format!(
+            "JL Mixing Automation returned unexpected status {:?} for project.create",
+            response.status
+        )
+    });
+    ProjectOperationResult {
+        ok: false,
+        code: if collision {
+            ProjectOperationCode::Collision
+        } else {
+            ProjectOperationCode::Rejected
+        },
+        message,
+        project: None,
     }
 }
 
@@ -1318,14 +1380,18 @@ fn studio_arguments(studio: &StudioCreationSummary, operation: StudioOperation) 
 }
 
 fn project_arguments(request: &ProjectCreationRequest, operation: ProjectOperation) -> Vec<String> {
-    let mut arguments = vec!["--project".into(), request.project_name.clone()];
+    let mut arguments = vec![
+        "project".into(),
+        "create".into(),
+        request.project_name.clone(),
+        "--json".into(),
+    ];
     if let Some(artist) = &request.artist {
         arguments.push("--artist".into());
         arguments.push(artist.clone());
     }
-    match operation {
-        ProjectOperation::Preflight => arguments.push("--dry-run".into()),
-        ProjectOperation::Create => arguments.push("--no-cd".into()),
+    if matches!(operation, ProjectOperation::Preflight) {
+        arguments.push("--dry-run".into());
     }
     arguments
 }
@@ -1386,29 +1452,6 @@ fn delivery_arguments(
         arguments.push("--dry-run".into());
     }
     arguments
-}
-
-fn parse_project_preview(
-    stdout: &str,
-    request: &ProjectCreationRequest,
-) -> Option<ProjectCreationSummary> {
-    let field = |label: &str| {
-        stdout.lines().find_map(|line| {
-            let (candidate, value) = line.split_once(':')?;
-            (candidate.trim() == label).then(|| value.trim().to_owned())
-        })
-    };
-    let project_id = field("Project ID")?;
-    let artist = field("Artist")?;
-    if !is_valid_client_id(&project_id) || artist.is_empty() {
-        return None;
-    }
-    Some(ProjectCreationSummary {
-        client_id: request.client_id.clone(),
-        project_id,
-        project_name: request.project_name.clone(),
-        artist,
-    })
 }
 
 fn parse_revision_output(
@@ -1689,32 +1732,6 @@ fn rejected_studio_operation(
     }
 }
 
-fn rejected_project_operation(output: ProcessResult) -> ProjectOperationResult {
-    let fallback = format!(
-        "JL Mixing Automation rejected the project request with exit code {}",
-        output
-            .exit_code
-            .map_or_else(|| "unknown".into(), |code| code.to_string())
-    );
-    let message = bounded_process_message(&output.stderr, &output.stdout, &fallback);
-    let normalized = message.to_ascii_lowercase();
-    let collision = normalized.contains("already exists")
-        || normalized.contains("already used")
-        || normalized.contains("already in use")
-        || normalized.contains("collision");
-
-    ProjectOperationResult {
-        ok: false,
-        code: if collision {
-            ProjectOperationCode::Collision
-        } else {
-            ProjectOperationCode::Rejected
-        },
-        message,
-        project: None,
-    }
-}
-
 fn check_version_with_runner<R: ProcessRunner>(home: &Path, runner: &R) -> VersionCheck {
     crate::automation_api::check_automation_compatibility(home, runner)
 }
@@ -1899,8 +1916,23 @@ mod tests {
         }
     }
 
-    fn project_output(project_id: &str, artist: &str) -> String {
-        format!("Project: Blue Sky\nProject ID: {project_id}\nArtist: {artist}\n")
+    fn project_api_response(status: &str, artist: &str) -> io::Result<ProcessResult> {
+        success(&format!(
+            r#"{{"api_version":"1.0","operation":"project.create","status":"{}","data":{{"project":{{"id":"blue-sky","name":"Blue Sky","artist":"{}","path":"/fixed/client/Projects/Blue Sky"}},"client":{{"id":"acme-records","path":"/fixed/client"}},"workspace_path":"/fixed/workspace"}},"warnings":[],"errors":[]}}"#,
+            status, artist
+        ))
+    }
+
+    fn project_api_error(code: &str, message: &str) -> io::Result<ProcessResult> {
+        Ok(ProcessResult {
+            success: false,
+            exit_code: Some(5),
+            stdout: format!(
+                r#"{{"api_version":"1.0","operation":"project.create","status":"blocked","data":{{}},"warnings":[],"errors":[{{"code":"{}","message":"{}","details":{{"exit_code":5}},"retryable":false}}]}}"#,
+                code, message
+            ),
+            stderr: String::new(),
+        })
     }
 
     fn intake_request() -> IntakeRequest {
@@ -2030,7 +2062,6 @@ mod tests {
         for executable in [
             "jl-mixing",
             STUDIO_EXECUTABLE,
-            PROJECT_EXECUTABLE,
             INTAKE_EXECUTABLE,
             DELIVERY_EXECUTABLE,
             REVISION_EXECUTABLE,
@@ -2045,7 +2076,7 @@ mod tests {
         ProcessResult {
             success: true,
             exit_code: Some(0),
-            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","revision.create","intake.validate","revision.approve","delivery.create"]}"#.into(),
+            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","project.create.effective_artist","revision.create","intake.validate","revision.approve","delivery.create"]}"#.into(),
             stderr: String::new(),
         }
     }
@@ -2272,7 +2303,7 @@ mod tests {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
-            success(&project_output("blue-sky", "The Artist")),
+            project_api_response("planned", "The Artist"),
         ]);
         let client_directory = Path::new("/fixed/workspace/Clients/Acme Records");
         let result = run_project_operation(
@@ -2298,13 +2329,15 @@ mod tests {
         assert_eq!(invocations.len(), 2);
         assert_eq!(
             invocations[1].executable,
-            home.path().join(".local/bin/new-mix")
+            home.path().join(".local/bin/jl-mixing")
         );
         assert_eq!(
             invocations[1].arguments,
             vec![
-                "--project",
+                "project",
+                "create",
                 "Blue Sky",
+                "--json",
                 "--artist",
                 "The Artist",
                 "--dry-run"
@@ -2322,7 +2355,7 @@ mod tests {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
-            success(&project_output("blue-sky", "Inherited Artist")),
+            project_api_response("success", "Inherited Artist"),
         ]);
         let result = run_project_operation(
             home.path(),
@@ -2336,7 +2369,7 @@ mod tests {
         assert_eq!(result.code, ProjectOperationCode::Created);
         assert_eq!(
             runner.invocations.borrow()[1].arguments,
-            vec!["--project", "Blue Sky", "--no-cd"]
+            vec!["project", "create", "Blue Sky", "--json"]
         );
         assert_eq!(result.project.unwrap().artist, "Inherited Artist");
     }
@@ -2363,7 +2396,10 @@ mod tests {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
-            failure(4, "Project destination already exists"),
+            project_api_error(
+                "PROJECT_ALREADY_EXISTS",
+                "Project destination already exists",
+            ),
         ]);
         let result = run_project_operation(
             home.path(),
@@ -2380,7 +2416,12 @@ mod tests {
     #[test]
     fn successful_creation_without_identity_is_uncertain() {
         let home = installed_home("1.3.1");
-        let runner = FakeRunner::new(vec![success("help"), success("Project created")]);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(
+                r#"{"api_version":"1.0","operation":"project.create","status":"success","data":{"project":{"id":"blue-sky","name":"Blue Sky","path":"/fixed/client/Projects/Blue Sky"},"client":{"id":"acme-records","path":"/fixed/client"}},"warnings":[],"errors":[]}"#,
+            ),
+        ]);
         let result = run_project_operation(
             home.path(),
             Path::new("/fixed/client"),
