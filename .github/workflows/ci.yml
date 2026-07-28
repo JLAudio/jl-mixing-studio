@@ -31,6 +31,7 @@ jobs:
       - name: Apply staged migration
         run: |
           python3 .github/project-api-migration.py
+          python3 .github/project-api-test-capability-fix.py
           cargo fmt --manifest-path src-tauri/Cargo.toml
       - name: Verify migration
         run: |
@@ -43,7 +44,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git fetch origin main
           git checkout origin/main -- .github/workflows/ci.yml
-          git rm .github/project-api-migration.py
+          git rm .github/project-api-migration.py .github/project-api-test-capability-fix.py
           git add src-tauri/src/automation_api.rs src-tauri/src/cli.rs .github/workflows/ci.yml
           git commit -m 'Migrate project creation to Automation API'
           git push
