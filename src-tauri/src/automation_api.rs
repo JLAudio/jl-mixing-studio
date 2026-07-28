@@ -272,7 +272,7 @@ pub(crate) fn check_automation_compatibility<R: ProcessRunner>(
         client_creation_supported: platform_supported && has("client.create"),
         project_creation_supported: platform_supported
             && has("project.create")
-            && has("project.create.effective_artist"),
+            && has("project.create.artist"),
         intake_validation_supported: platform_supported && has("intake.validate"),
         revision_creation_supported: platform_supported && has("revision.create"),
         revision_approval_supported: platform_supported && has("revision.approve"),
@@ -390,7 +390,7 @@ mod tests {
         let discovery = r#"{
             "api_version":"1.0",
             "application":{"name":"jl-mixing","version":"1.9.4"},
-            "capabilities":["system.info","client.create","project.create","project.create.effective_artist","revision.create","intake.validate","revision.approve","delivery.create"]
+            "capabilities":["system.info","client.create","project.create","project.create.artist","revision.create","intake.validate","revision.approve","delivery.create"]
         }"#;
         let result =
             check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(discovery)]));

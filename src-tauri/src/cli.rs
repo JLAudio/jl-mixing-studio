@@ -2076,7 +2076,7 @@ mod tests {
         ProcessResult {
             success: true,
             exit_code: Some(0),
-            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","project.create.effective_artist","revision.create","intake.validate","revision.approve","delivery.create"]}"#.into(),
+            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","project.create.artist","revision.create","intake.validate","revision.approve","delivery.create"]}"#.into(),
             stderr: String::new(),
         }
     }
