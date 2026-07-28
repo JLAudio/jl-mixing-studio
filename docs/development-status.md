@@ -15,6 +15,7 @@ Last updated: 2026-07-27
 - Target release: `v1.1.0`
 - Primary objective: Establish the JL Mixing Automation API as the stable compatibility contract between Studio and Automation.
 - Versioning policy: Studio and Automation retain independent product versions. Studio declares compatibility with a specific Automation API version rather than requiring matching product release numbers.
+- Cross-repository dependency: JL Mixing Automation owns the provider contract and machine-readable API declaration in `JLAudio/jl-mixing#44`. Studio owns its consumer policy and integration in `JLAudio/jl-mixing-studio#74` through `#77`.
 
 ## Release validation
 
@@ -26,20 +27,27 @@ Last updated: 2026-07-27
 
 ## Current work
 
-Plan and implement the `v1.1.0` Automation API integration foundation.
+Plan and implement the `v1.1.0` Automation API integration foundation across the two products.
 
-Initial work includes:
+Automation-owned provider work:
 
-- Define the supported Automation API version and compatibility policy.
+- Define and publish the stable Automation API contract.
+- Expose the Automation API version through a machine-readable interface.
+- Document the supported operations and structured error behavior consumed by Studio.
+
+Studio-owned consumer work:
+
+- Define the Automation API version supported by Studio v1.1 and the consumer compatibility policy.
 - Introduce a Studio-side Automation API abstraction layer.
-- Centralize Automation discovery, version negotiation, and compatibility validation.
-- Improve missing and incompatible Automation error handling.
+- Centralize Automation discovery, API-version validation, and compatibility handling.
+- Improve missing, malformed, unavailable, and incompatible Automation error handling.
 - Add integration tests for supported and rejected Automation API versions.
 
 ## Next work
 
-- Review and approve the detailed `v1.1.0` issue scope.
-- Implement the Automation API abstraction layer behind existing Studio workflows.
+- Review and approve the Automation provider-contract scope in `JLAudio/jl-mixing#44`.
+- Review and approve the Studio consumer scope in issues `#74` through `#77`.
+- Implement the provider contract before or in coordination with the Studio consumer boundary.
 - Replace remaining direct CLI and shell coupling where the approved API contract permits it.
 - Preserve current user-visible behavior unless a change is explicitly approved.
 - Continue UI refinement toward the approved wireframes after the API foundation is stable.
