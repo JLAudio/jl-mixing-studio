@@ -78,6 +78,21 @@ jobs:
               1,
           )
           source = source.replace('CLIENT_EXECUTABLE', 'AUTOMATION_EXECUTABLE')
+
+          studio_pattern = re.compile(
+              r'(?ms)(fn confirmed_studio_creation_disables_directory_changes\(\) \{.*?let runner = FakeRunner::new\(vec!\[success\("help"\), )client_api_response\("success"\)(\]\);)'
+          )
+          source, studio_count = studio_pattern.subn(r'\1success("created")\2', source, count=1)
+          if studio_count != 1:
+              raise SystemExit('studio creation fixture correction not found')
+
+          client_pattern = re.compile(
+              r'(?ms)(fn confirmed_creation_uses_no_cd_and_omits_empty_artist\(\) \{.*?let runner = FakeRunner::new\(vec!\[success\("help"\), )success\("created"\)(\]\);)'
+          )
+          source, client_count = client_pattern.subn(r'\1client_api_response("success")\2', source, count=1)
+          if client_count != 1:
+              raise SystemExit('client creation fixture correction not found')
+
           bounds_pattern = re.compile(
               r'(?ms)^    #\[test\]\n    fn bounds_process_error_output\(\) \{.*?^    \}\n'
           )
