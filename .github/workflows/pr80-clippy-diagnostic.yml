@@ -1,0 +1,29 @@
+name: PR80 Clippy Diagnostic
+on:
+  push:
+    branches: [agent/automation-api-abstraction]
+permissions:
+  contents: read
+jobs:
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Run Clippy and capture output
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings 2>&1 | tee /tmp/pr80-clippy.log
+      - name: Upload Clippy log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr80-clippy-log
+          path: /tmp/pr80-clippy.log
