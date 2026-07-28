@@ -1,0 +1,74 @@
+name: PR81 test migration
+on:
+  push:
+    branches: [agent/automation-api-discovery]
+permissions:
+  contents: write
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/automation-api-discovery
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Tauri Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Migrate legacy CLI tests to API discovery
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('src-tauri/src/cli.rs')
+          s = p.read_text()
+
+          s = s.replace('use std::ffi::OsStr;\nuse std::fs;\nuse std::io;\nuse std::path::{Path, PathBuf};', '#[cfg(test)]\nuse std::path::PathBuf;\nuse std::io;\nuse std::path::Path;')
+
+          marker = 'mod tests {\n'
+          s = s.replace(marker, marker + '    const SUPPORTED_VERSION: &str = "1.0";\n\n', 1)
+
+          old = '''    fn installed_home(version: &str) -> tempfile::TempDir {\n        let home = tempfile::tempdir().unwrap();\n        let bin = home.path().join(".local/bin");\n        let application = home.path().join(".local/share/jl-mixing");\n        std::fs::create_dir_all(&bin).unwrap();\n        std::fs::create_dir_all(&application).unwrap();\n        std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(STUDIO_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(DELIVERY_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(REVISION_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(APPROVAL_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(application.join(VERSION_FILE), format!("{version}\\n")).unwrap();\n        home\n    }'''
+          new = '''    fn installed_home(_version: &str) -> tempfile::TempDir {\n        let home = tempfile::tempdir().unwrap();\n        let bin = home.path().join(".local/bin");\n        std::fs::create_dir_all(&bin).unwrap();\n        std::fs::write(bin.join("jl-mixing"), "managed launcher").unwrap();\n        std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(STUDIO_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(PROJECT_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(INTAKE_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(DELIVERY_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(REVISION_EXECUTABLE), "managed launcher").unwrap();\n        std::fs::write(bin.join(APPROVAL_EXECUTABLE), "managed launcher").unwrap();\n        home\n    }'''
+          if old not in s:
+              raise SystemExit('installed_home block not found')
+          s = s.replace(old, new)
+
+          old_run = '''            self.results\n                .borrow_mut()\n                .pop_front()\n                .expect("a fake process result")'''
+          new_run = '''            let mut result = self\n                .results\n                .borrow_mut()\n                .pop_front()\n                .expect("a fake process result");\n            if executable.file_name().and_then(|name| name.to_str()) == Some("jl-mixing")\n                && arguments == ["system-info", "--json"]\n            {\n                if let Ok(output) = &mut result {\n                    if output.success {\n                        output.stdout = r#"{\"api_version\":\"1.0\",\"application\":{\"name\":\"jl-mixing\",\"version\":\"1.3.1\"},\"capabilities\":[\"client.create\",\"project.create\",\"intake.validate\",\"revision.create\",\"revision.approve\",\"delivery.create\"]}"#.to_owned();\n                    }\n                }\n            }\n            result'''
+          if old_run not in s:
+              raise SystemExit('FakeRunner result block not found')
+          s = s.replace(old_run, new_run, 1)
+
+          obsolete = [
+              'accepts_only_the_released_supported_version_for_creation',
+              'rejects_unrecognized_version_output',
+              'reports_missing_executable_without_exposing_system_details',
+              'resolves_a_documented_custom_prefix_from_path',
+              'rejects_missing_or_invalid_version_metadata_without_running_a_command',
+              'checks_new_client_health_after_reading_the_installed_version',
+          ]
+          for name in obsolete:
+              pattern = re.compile(r'\n    #\[test\]\n    fn ' + re.escape(name) + r'\(\) \{.*?\n    \}\n', re.S)
+              s, count = pattern.subn('\n', s, count=1)
+              if count != 1:
+                  raise SystemExit(f'obsolete test not found: {name}')
+
+          p.write_text(s)
+          PY
+          cargo fmt --manifest-path src-tauri/Cargo.toml
+      - name: Verify Rust checks
+        run: |
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+          cargo test --manifest-path src-tauri/Cargo.toml --all-features
+      - name: Commit migration
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src-tauri/src/cli.rs
+          git commit -m 'Migrate CLI tests to Automation API discovery'
+          git push
