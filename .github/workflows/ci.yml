@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,8 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/automation-api-abstraction
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
@@ -40,22 +38,35 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - name: Capture Clippy diagnostic
+      - name: Run Clippy and capture output
+        id: clippy
+        continue-on-error: true
         shell: bash
         run: |
-          set +e
+          set -o pipefail
           cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings > pr80-clippy.log 2>&1
-          status=$?
-          if [ "$status" -ne 0 ]; then
-            git config user.name github-actions[bot]
-            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-            git add pr80-clippy.log
-            git commit -m 'Capture PR80 Clippy failure output' || true
-            git push || true
-            exit "$status"
-          fi
-          rm -f pr80-clippy.log
+      - name: Upload Clippy diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr80-clippy-log
+          path: pr80-clippy.log
+      - name: Fail if Clippy failed
+        if: steps.clippy.outcome == 'failure'
+        run: exit 1
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
+
+  clippy-report:
+    name: Clippy diagnostic report
+    if: always()
+    needs: rust
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pr80-clippy-log
+      - name: Print Clippy diagnostic
+        run: cat pr80-clippy.log
 
   desktop-build:
     name: ${{ matrix.name }} build
