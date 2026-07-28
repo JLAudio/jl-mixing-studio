@@ -6,77 +6,13 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  repair-pr81:
-    name: Apply PR81 test harness fix
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/automation-api-discovery' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/automation-api-discovery
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-      - name: Align fake discovery queue semantics
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-          p = Path('src-tauri/src/cli.rs')
-          s = p.read_text()
-          pattern = re.compile(
-              r'(?m)^(?P<i>\s*)if arguments == \["system-info", "--json"\] \{\n'
-              r'\s*return Ok\(discovery_output\(\)\);\n'
-              r'\s*\}\n'
-              r'\s*self\.results\n'
-              r'\s*\.borrow_mut\(\)\n'
-              r'\s*\.pop_front\(\)\n'
-              r'\s*\.expect\("a fake process result"\)'
-          )
-          match = pattern.search(s)
-          if not match:
-              raise SystemExit('FakeRunner discovery block not found')
-          i = match.group('i')
-          replacement = (
-              f'{i}let result = self\n'
-              f'{i}    .results\n'
-              f'{i}    .borrow_mut()\n'
-              f'{i}    .pop_front()\n'
-              f'{i}    .expect("a fake process result");\n'
-              f'{i}if arguments == ["system-info", "--json"] {{\n'
-              f'{i}    return match result {{\n'
-              f'{i}        Ok(output) if output.success => Ok(discovery_output()),\n'
-              f'{i}        other => other,\n'
-              f'{i}    }};\n'
-              f'{i}}}\n'
-              f'{i}result'
-          )
-          s = pattern.sub(replacement, s, count=1)
-          test_pattern = re.compile(
-              r'(?ms)^    #\[test\]\n    fn unsupported_version_never_starts_new_client\(\) \{.*?(?=^    #\[test\]\n)'
-          )
-          s, count = test_pattern.subn('', s, count=1)
-          if count != 1:
-              raise SystemExit('obsolete unsupported-version test not found')
-          p.write_text(s)
-          PY
-          cargo fmt --manifest-path src-tauri/Cargo.toml
-      - name: Commit repair
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src-tauri/src/cli.rs
-          git diff --cached --quiet && exit 0
-          git commit -m 'Align CLI test harness with API discovery'
-          git push
-
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest
