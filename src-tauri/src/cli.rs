@@ -2,7 +2,6 @@
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
-#[cfg(test)]
 use std::io;
 use std::path::{Path, PathBuf};
 
