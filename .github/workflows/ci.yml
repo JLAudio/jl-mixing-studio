@@ -6,125 +6,13 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  migrate-client-api:
-    name: Apply client API consumer migration
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/client-create-api-consumer' && github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/client-create-api-consumer
-      - name: Install Tauri Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - name: Apply staged migration payload
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          cli = Path('src-tauri/src/cli.rs')
-          source = cli.read_text()
-          pattern = re.compile(
-              r'(?ms)^            vec!\[\n'
-              r'\s+"acme-records",\n'
-              r'\s+"--name",\n'
-              r'\s+"Acme Records",\n'
-              r'\s+"--artist",\n'
-              r'\s+"The Artist",\n'
-              r'\s+"--dry-run",?\n'
-              r'\s+\]'
-          )
-          normalized = '''            vec![
-                  "acme-records",
-                  "--name",
-                  "Acme Records",
-                  "--artist",
-                  "The Artist",
-                  "--dry-run"
-              ]'''
-          source, count = pattern.subn(normalized, source, count=1)
-          if count != 1:
-              raise SystemExit('preflight client argument vector not found')
-          cli.write_text(source)
-
-          workflow = Path('.github/workflows/pr82-client-api-migration.yml').read_text().splitlines()
-          start = next(i for i, line in enumerate(workflow) if "python - <<'PY'" in line) + 1
-          end = next(i for i in range(start, len(workflow)) if workflow[i].strip() == 'PY')
-          payload = '\n'.join(line[10:] if line.startswith('          ') else line for line in workflow[start:end])
-          exec(compile(payload, 'client-api-migration', 'exec'))
-
-          cli = Path('src-tauri/src/cli.rs')
-          source = cli.read_text()
-          source = source.replace(
-              'use crate::automation_api::{automation_subprocess_path, resolve_command_with_path};',
-              'use crate::automation_api::{automation_subprocess_path, resolve_command_with_path, AUTOMATION_EXECUTABLE};',
-              1,
-          )
-          source = source.replace(
-              '    SystemProcessRunner, AUTOMATION_EXECUTABLE,\n',
-              '    SystemProcessRunner,\n',
-              1,
-          )
-          source = source.replace('CLIENT_EXECUTABLE', 'AUTOMATION_EXECUTABLE')
-
-          studio_pattern = re.compile(
-              r'(?ms)(fn confirmed_studio_creation_disables_directory_changes\(\) \{.*?let runner = FakeRunner::new\(vec!\[success\("help"\), )client_api_response\("success"\)(\]\);)'
-          )
-          source, studio_count = studio_pattern.subn(r'\1success("created")\2', source, count=1)
-          if studio_count != 1:
-              raise SystemExit('studio creation fixture correction not found')
-
-          client_pattern = re.compile(
-              r'(?ms)(fn confirmed_creation_uses_no_cd_and_omits_empty_artist\(\) \{.*?let runner = FakeRunner::new\(vec!\[success\("help"\), )success\("created"\)(\]\);)'
-          )
-          source, client_count = client_pattern.subn(r'\1client_api_response("success")\2', source, count=1)
-          if client_count != 1:
-              raise SystemExit('client creation fixture correction not found')
-
-          bounds_pattern = re.compile(
-              r'(?ms)^    #\[test\]\n    fn bounds_process_error_output\(\) \{.*?^    \}\n'
-          )
-          bounds_replacement = '''    #[test]
-          fn bounds_process_error_output() {
-              let message = "x".repeat(MAX_PROCESS_MESSAGE_CHARS + 20);
-              let result = bounded_process_message(&message, "", "fallback");
-              assert_eq!(result.chars().count(), MAX_PROCESS_MESSAGE_CHARS);
-          }
-          '''
-          source, count = bounds_pattern.subn(bounds_replacement, source, count=1)
-          if count != 1:
-              raise SystemExit('legacy bounded error test not found')
-          cli.write_text(source)
-          PY
-          cargo fmt --manifest-path src-tauri/Cargo.toml
-      - name: Verify migration
-        run: |
-          cargo fmt --manifest-path src-tauri/Cargo.toml --check
-          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
-          cargo test --manifest-path src-tauri/Cargo.toml --all-features
-      - name: Commit migration and restore CI
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm -f .github/workflows/pr82-client-api-migration.yml .client-api-trigger
-          git add src-tauri/src/automation_api.rs src-tauri/src/cli.rs .github/workflows/ci.yml
-          git commit -m 'Migrate client creation to Automation API'
-          git push
-
   frontend:
     name: Frontend checks
     runs-on: ubuntu-latest

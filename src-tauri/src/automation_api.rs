@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::models::VersionCheck;
 
-const AUTOMATION_EXECUTABLE: &str = "jl-mixing";
+pub(crate) const AUTOMATION_EXECUTABLE: &str = "jl-mixing";
 const SUPPORTED_API_VERSION: &str = "1.0";
 const HOMEBREW_COMMAND_PATHS: [&str; 2] = ["/usr/local/bin", "/opt/homebrew/bin"];
 
@@ -89,6 +89,90 @@ pub(crate) fn resolve_command_with_path(
             .map(|directory| directory.join(executable))
             .find(|candidate| candidate.is_file())
     })
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum ApiStatus {
+    Success,
+    Planned,
+    Blocked,
+    Error,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ApiError {
+    pub(crate) code: String,
+    pub(crate) message: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct ApiResponse {
+    api_version: String,
+    operation: String,
+    pub(crate) status: ApiStatus,
+    pub(crate) data: serde_json::Value,
+    pub(crate) errors: Vec<ApiError>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum ApiCallError {
+    Unavailable,
+    StartFailed,
+    Malformed,
+    IncompatibleVersion(String),
+    UnexpectedOperation(String),
+}
+
+impl ApiCallError {
+    pub(crate) fn message(&self) -> String {
+        match self {
+            Self::Unavailable => {
+                "JL Mixing Automation was not found in its default install location or on PATH"
+                    .into()
+            }
+            Self::StartFailed => "JL Mixing Automation could not be started".into(),
+            Self::Malformed => "JL Mixing Automation returned a malformed API response".into(),
+            Self::IncompatibleVersion(version) => format!(
+                "JL Mixing Automation returned API {}; Studio requires Automation API {}",
+                version, SUPPORTED_API_VERSION
+            ),
+            Self::UnexpectedOperation(operation) => format!(
+                "JL Mixing Automation returned an unexpected API operation: {}",
+                operation
+            ),
+        }
+    }
+}
+
+pub(crate) fn invoke_api<R: ProcessRunner>(
+    home: &Path,
+    expected_operation: &str,
+    arguments: &[String],
+    current_directory: Option<&Path>,
+    runner: &R,
+) -> Result<ApiResponse, ApiCallError> {
+    let Some(executable) = resolve_command(home, AUTOMATION_EXECUTABLE) else {
+        return Err(ApiCallError::Unavailable);
+    };
+    let output = runner
+        .run(&executable, arguments, current_directory)
+        .map_err(|error| {
+            if error.kind() == io::ErrorKind::NotFound {
+                ApiCallError::Unavailable
+            } else {
+                ApiCallError::StartFailed
+            }
+        })?;
+    let response: ApiResponse =
+        serde_json::from_str(output.stdout.trim()).map_err(|_| ApiCallError::Malformed)?;
+    if response.api_version != SUPPORTED_API_VERSION {
+        return Err(ApiCallError::IncompatibleVersion(response.api_version));
+    }
+    if response.operation != expected_operation {
+        return Err(ApiCallError::UnexpectedOperation(response.operation));
+    }
+    Ok(response)
 }
 
 pub(crate) fn check_automation_compatibility<R: ProcessRunner>(
