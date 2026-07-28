@@ -28,38 +28,43 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
           p = Path('src-tauri/src/cli.rs')
           s = p.read_text()
-          old = '''            if arguments == ["system-info", "--json"] {
-                return Ok(discovery_output());
-            }
-            self.results
-                .borrow_mut()
-                .pop_front()
-                .expect("a fake process result")'''
-          new = '''            let result = self
-                .results
-                .borrow_mut()
-                .pop_front()
-                .expect("a fake process result");
-            if arguments == ["system-info", "--json"] {
-                return match result {
-                    Ok(output) if output.success => Ok(discovery_output()),
-                    other => other,
-                };
-            }
-            result'''
-          if old not in s:
+          pattern = re.compile(
+              r'(?m)^(?P<i>\s*)if arguments == \["system-info", "--json"\] \{\n'
+              r'\s*return Ok\(discovery_output\(\)\);\n'
+              r'\s*\}\n'
+              r'\s*self\.results\n'
+              r'\s*\.borrow_mut\(\)\n'
+              r'\s*\.pop_front\(\)\n'
+              r'\s*\.expect\("a fake process result"\)'
+          )
+          match = pattern.search(s)
+          if not match:
               raise SystemExit('FakeRunner discovery block not found')
-          s = s.replace(old, new, 1)
-          marker = '''    #[test]\n    fn unsupported_version_never_starts_new_client()'''
-          start = s.find(marker)
-          if start == -1:
+          i = match.group('i')
+          replacement = (
+              f'{i}let result = self\n'
+              f'{i}    .results\n'
+              f'{i}    .borrow_mut()\n'
+              f'{i}    .pop_front()\n'
+              f'{i}    .expect("a fake process result");\n'
+              f'{i}if arguments == ["system-info", "--json"] {{\n'
+              f'{i}    return match result {{\n'
+              f'{i}        Ok(output) if output.success => Ok(discovery_output()),\n'
+              f'{i}        other => other,\n'
+              f'{i}    }};\n'
+              f'{i}}}\n'
+              f'{i}result'
+          )
+          s = pattern.sub(replacement, s, count=1)
+          test_pattern = re.compile(
+              r'(?ms)^    #\[test\]\n    fn unsupported_version_never_starts_new_client\(\) \{.*?(?=^    #\[test\]\n)'
+          )
+          s, count = test_pattern.subn('', s, count=1)
+          if count != 1:
               raise SystemExit('obsolete unsupported-version test not found')
-          next_test = s.find('    #[test]\n', start + len(marker))
-          if next_test == -1:
-              raise SystemExit('cannot find end of unsupported-version test')
-          s = s[:start] + s[next_test:]
           p.write_text(s)
           PY
           cargo fmt --manifest-path src-tauri/Cargo.toml
