@@ -1,10 +1,13 @@
+#[cfg(test)]
 use std::env;
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
+#[cfg(test)]
+use crate::automation_api::{automation_subprocess_path, resolve_command_with_path};
+use crate::automation_api::{resolve_command, ProcessResult, ProcessRunner, SystemProcessRunner};
 use crate::models::{
     ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientCreationSummary,
     ClientOperationCode, ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest,
@@ -28,7 +31,6 @@ const VERSION_FILE: &str = "VERSION";
 const SUPPORTED_VERSION: &str = "1.3.1";
 const MAX_VERSION_FILE_BYTES: usize = 64;
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
-const HOMEBREW_COMMAND_PATHS: [&str; 2] = ["/usr/local/bin", "/opt/homebrew/bin"];
 
 pub fn check_jl_mixing_version(home: &Path) -> VersionCheck {
     check_version_with_runner(home, &SystemProcessRunner)
@@ -301,67 +303,6 @@ pub fn blocked_delivery_operation(
         message: message.to_owned(),
         delivery: None,
     }
-}
-
-trait ProcessRunner {
-    fn run(
-        &self,
-        executable: &Path,
-        arguments: &[String],
-        current_directory: Option<&Path>,
-    ) -> io::Result<ProcessResult>;
-}
-
-struct SystemProcessRunner;
-
-impl ProcessRunner for SystemProcessRunner {
-    fn run(
-        &self,
-        executable: &Path,
-        arguments: &[String],
-        current_directory: Option<&Path>,
-    ) -> io::Result<ProcessResult> {
-        let mut command = Command::new(executable);
-        command.args(arguments);
-        if let Some(path) = automation_subprocess_path(env::var_os("PATH").as_deref()) {
-            command.env("PATH", path);
-        }
-        if let Some(directory) = current_directory {
-            command.current_dir(directory);
-        }
-        let output = command.output()?;
-        Ok(ProcessResult {
-            success: output.status.success(),
-            exit_code: output.status.code(),
-            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-        })
-    }
-}
-
-fn automation_subprocess_path(inherited_path: Option<&OsStr>) -> Option<std::ffi::OsString> {
-    let mut paths: Vec<PathBuf> = inherited_path
-        .map(env::split_paths)
-        .into_iter()
-        .flatten()
-        .collect();
-
-    for path in HOMEBREW_COMMAND_PATHS {
-        let path = PathBuf::from(path);
-        if !paths.contains(&path) {
-            paths.push(path);
-        }
-    }
-
-    env::join_paths(paths).ok()
-}
-
-#[derive(Debug)]
-struct ProcessResult {
-    success: bool,
-    exit_code: Option<i32>,
-    stdout: String,
-    stderr: String,
 }
 
 #[derive(Clone, Copy)]
@@ -1780,28 +1721,6 @@ fn check_version_with_runner<R: ProcessRunner>(home: &Path, runner: &R) -> Versi
         )),
         Err(error) => evaluate_health_check_error(error),
     }
-}
-
-fn resolve_command(home: &Path, executable: &str) -> Option<PathBuf> {
-    let path = env::var_os("PATH");
-    resolve_command_with_path(home, executable, path.as_deref())
-}
-
-fn resolve_command_with_path(
-    home: &Path,
-    executable: &str,
-    search_path: Option<&OsStr>,
-) -> Option<PathBuf> {
-    let default_install = home.join(".local").join("bin").join(executable);
-    if default_install.is_file() {
-        return Some(default_install);
-    }
-
-    search_path.and_then(|value| {
-        env::split_paths(value)
-            .map(|directory| directory.join(executable))
-            .find(|candidate| candidate.is_file())
-    })
 }
 
 fn version_file_for_command(executable: &Path) -> Option<PathBuf> {

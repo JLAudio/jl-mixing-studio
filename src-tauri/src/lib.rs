@@ -1,3 +1,4 @@
+mod automation_api;
 mod cli;
 mod derived;
 mod intake;
