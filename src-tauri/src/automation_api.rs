@@ -117,7 +117,9 @@ pub(crate) fn check_automation_compatibility<R: ProcessRunner>(
                 "JL Mixing Automation was not found in its default install location or on PATH",
             )
         }
-        Err(_) => return unavailable_version("JL Mixing Automation discovery could not be started"),
+        Err(_) => {
+            return unavailable_version("JL Mixing Automation discovery could not be started")
+        }
     };
 
     let discovery: DiscoveryDocument = match serde_json::from_str(output.stdout.trim()) {
@@ -129,8 +131,13 @@ pub(crate) fn check_automation_compatibility<R: ProcessRunner>(
         }
     };
 
-    let Some(api_version) = discovery.api_version.filter(|value| !value.trim().is_empty()) else {
-        return unavailable_version("JL Mixing Automation did not declare an Automation API version");
+    let Some(api_version) = discovery
+        .api_version
+        .filter(|value| !value.trim().is_empty())
+    else {
+        return unavailable_version(
+            "JL Mixing Automation did not declare an Automation API version",
+        );
     };
 
     let Some(application) = discovery.application else {
@@ -299,7 +306,8 @@ mod tests {
             "application":{"name":"jl-mixing","version":"1.9.4"},
             "capabilities":["system.info","client.create","project.create","revision.create","intake.validate","revision.approve","delivery.create"]
         }"#;
-        let result = check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(discovery)]));
+        let result =
+            check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(discovery)]));
         assert!(result.available);
         assert!(result.supported);
         assert_eq!(result.version.as_deref(), Some("1.9.4"));
@@ -321,7 +329,8 @@ mod tests {
             "application":{"name":"jl-mixing","version":"1.3.1"},
             "capabilities":["system.info","client.create"]
         }"#;
-        let result = check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(discovery)]));
+        let result =
+            check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(discovery)]));
         assert!(result.available);
         assert!(!result.supported);
         assert_eq!(result.version.as_deref(), Some("1.3.1"));
@@ -347,7 +356,8 @@ mod tests {
             "application":{"name":"jl-mixing","version":"2.0.0"},
             "capabilities":["system.info","client.create"]
         }"#;
-        let result = check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(discovery)]));
+        let result =
+            check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(discovery)]));
         assert!(result.supported);
         if !cfg!(target_os = "windows") {
             assert!(result.client_creation_supported);
