@@ -4,8 +4,13 @@ use std::path::Path;
 use std::{env, path::PathBuf};
 
 #[cfg(test)]
-use crate::automation_api::{automation_subprocess_path, resolve_command_with_path};
-use crate::automation_api::{resolve_command, ProcessResult, ProcessRunner, SystemProcessRunner};
+use crate::automation_api::{
+    automation_subprocess_path, resolve_command_with_path, AUTOMATION_EXECUTABLE,
+};
+use crate::automation_api::{
+    invoke_api, resolve_command, ApiCallError, ApiStatus, ProcessResult, ProcessRunner,
+    SystemProcessRunner,
+};
 use crate::models::{
     ApprovalOperationCode, ApprovalOperationResult, ClientCreationRequest, ClientCreationSummary,
     ClientOperationCode, ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest,
@@ -18,7 +23,6 @@ use crate::models::{
 };
 use crate::{intake, intake::IntakeReportError};
 
-const CLIENT_EXECUTABLE: &str = "new-client";
 const STUDIO_EXECUTABLE: &str = "new-studio";
 const PROJECT_EXECUTABLE: &str = "new-mix";
 const INTAKE_EXECUTABLE: &str = "validate-intake";
@@ -366,37 +370,86 @@ fn run_client_operation<R: ProcessRunner>(
     if !version.supported {
         return blocked_client_operation(ClientOperationCode::UnsupportedVersion, &version.message);
     }
-
-    let Some(executable) = resolve_command(home, CLIENT_EXECUTABLE) else {
+    if !version.client_creation_supported {
         return blocked_client_operation(
-            ClientOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation new-client command was not found",
+            ClientOperationCode::Rejected,
+            "JL Mixing Automation does not advertise the client.create capability",
         );
-    };
+    }
+
     let arguments = client_arguments(&client, operation);
-    match runner.run(&executable, &arguments, Some(workspace)) {
-        Ok(output) if output.success => ClientOperationResult {
-            ok: true,
-            code: match operation {
-                ClientOperation::Preflight => ClientOperationCode::Ready,
-                ClientOperation::Create => ClientOperationCode::Created,
-            },
-            message: match operation {
-                ClientOperation::Preflight => "Preflight passed. No changes were made.",
-                ClientOperation::Create => "Client created successfully.",
+    match invoke_api(home, "client.create", &arguments, Some(workspace), runner) {
+        Ok(response)
+            if matches!(
+                (operation, response.status),
+                (ClientOperation::Preflight, ApiStatus::Planned)
+                    | (ClientOperation::Create, ApiStatus::Success)
+            ) =>
+        {
+            let returned_id = response
+                .data
+                .get("client")
+                .and_then(|value| value.get("id"))
+                .and_then(|value| value.as_str());
+            if returned_id != Some(client.client_id.as_str()) {
+                return blocked_client_operation(
+                        ClientOperationCode::Failed,
+                        "JL Mixing Automation returned a client identity that did not match the request",
+                    );
             }
-            .to_owned(),
-            client: Some(client),
-        },
-        Ok(output) => rejected_operation(output, client),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_client_operation(
+            ClientOperationResult {
+                ok: true,
+                code: match operation {
+                    ClientOperation::Preflight => ClientOperationCode::Ready,
+                    ClientOperation::Create => ClientOperationCode::Created,
+                },
+                message: match operation {
+                    ClientOperation::Preflight => "Preflight passed. No changes were made.",
+                    ClientOperation::Create => "Client created successfully.",
+                }
+                .to_owned(),
+                client: Some(client),
+            }
+        }
+        Ok(response) => rejected_client_api_response(response, client),
+        Err(ApiCallError::Unavailable) => blocked_client_operation(
             ClientOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation new-client command was not found",
+            "JL Mixing Automation was not found in its default install location or on PATH",
         ),
-        Err(_) => blocked_client_operation(
-            ClientOperationCode::Failed,
-            "The JL Mixing Automation new-client command could not be started",
+        Err(ApiCallError::IncompatibleVersion(version)) => blocked_client_operation(
+            ClientOperationCode::UnsupportedVersion,
+            &format!(
+                "JL Mixing Automation returned API {}; Studio requires Automation API 1.0",
+                version
+            ),
         ),
+        Err(error) => blocked_client_operation(ClientOperationCode::Failed, &error.message()),
+    }
+}
+
+fn rejected_client_api_response(
+    response: crate::automation_api::ApiResponse,
+    client: ClientCreationSummary,
+) -> ClientOperationResult {
+    let error = response.errors.first();
+    let collision = error
+        .map(|item| item.code == "CLIENT_ALREADY_EXISTS")
+        .unwrap_or(false);
+    let message = error.map(|item| item.message.clone()).unwrap_or_else(|| {
+        format!(
+            "JL Mixing Automation returned unexpected status {:?} for client.create",
+            response.status
+        )
+    });
+    ClientOperationResult {
+        ok: false,
+        code: if collision {
+            ClientOperationCode::Collision
+        } else {
+            ClientOperationCode::Rejected
+        },
+        message,
+        client: Some(client),
     }
 }
 
@@ -1223,7 +1276,10 @@ fn is_valid_client_id(value: &str) -> bool {
 
 fn client_arguments(client: &ClientCreationSummary, operation: ClientOperation) -> Vec<String> {
     let mut arguments = vec![
+        "client".into(),
+        "create".into(),
         client.client_id.clone(),
+        "--json".into(),
         "--name".into(),
         client.client_name.clone(),
     ];
@@ -1231,9 +1287,8 @@ fn client_arguments(client: &ClientCreationSummary, operation: ClientOperation) 
         arguments.push("--artist".into());
         arguments.push(artist.clone());
     }
-    match operation {
-        ClientOperation::Preflight => arguments.push("--dry-run".into()),
-        ClientOperation::Create => arguments.push("--no-cd".into()),
+    if matches!(operation, ClientOperation::Preflight) {
+        arguments.push("--dry-run".into());
     }
     arguments
 }
@@ -1616,35 +1671,6 @@ fn is_safe_delivery_relative_path(value: &str) -> bool {
             .all(|part| !part.is_empty() && part != "." && part != "..")
 }
 
-fn rejected_operation(
-    output: ProcessResult,
-    client: ClientCreationSummary,
-) -> ClientOperationResult {
-    let fallback = format!(
-        "JL Mixing Automation rejected the client request with exit code {}",
-        output
-            .exit_code
-            .map_or_else(|| "unknown".into(), |code| code.to_string())
-    );
-    let message = bounded_process_message(&output.stderr, &output.stdout, &fallback);
-    let normalized = message.to_ascii_lowercase();
-    let collision = normalized.contains("already exists")
-        || normalized.contains("already used")
-        || normalized.contains("already in use")
-        || normalized.contains("collision");
-
-    ClientOperationResult {
-        ok: false,
-        code: if collision {
-            ClientOperationCode::Collision
-        } else {
-            ClientOperationCode::Rejected
-        },
-        message,
-        client: Some(client),
-    }
-}
-
 fn rejected_studio_operation(
     output: ProcessResult,
     studio: StudioCreationSummary,
@@ -1836,6 +1862,25 @@ mod tests {
         }
     }
 
+    fn client_api_response(status: &str) -> io::Result<ProcessResult> {
+        success(&format!(
+            r#"{{"api_version":"1.0","operation":"client.create","status":"{}","data":{{"client":{{"id":"acme-records","path":"/fixed/workspace/Clients/Acme Records"}},"configuration_path":"/fixed/workspace/Clients/Acme Records/client.json","workspace_path":"/fixed/workspace"}},"warnings":[],"errors":[]}}"#,
+            status
+        ))
+    }
+
+    fn client_api_error(code: &str, message: &str) -> io::Result<ProcessResult> {
+        Ok(ProcessResult {
+            success: false,
+            exit_code: Some(5),
+            stdout: format!(
+                r#"{{"api_version":"1.0","operation":"client.create","status":"blocked","data":{{}},"warnings":[],"errors":[{{"code":"{}","message":"{}","details":{{"exit_code":5}},"retryable":false}}]}}"#,
+                code, message
+            ),
+            stderr: String::new(),
+        })
+    }
+
     fn studio_request() -> StudioCreationRequest {
         StudioCreationRequest {
             studio_name: " New Studio ".into(),
@@ -1984,7 +2029,6 @@ mod tests {
         std::fs::create_dir_all(&bin).unwrap();
         for executable in [
             "jl-mixing",
-            CLIENT_EXECUTABLE,
             STUDIO_EXECUTABLE,
             PROJECT_EXECUTABLE,
             INTAKE_EXECUTABLE,
@@ -2081,8 +2125,8 @@ mod tests {
     fn prefers_the_documented_default_install_location() {
         let home = installed_home("1.3.1");
         assert_eq!(
-            resolve_command_with_path(home.path(), CLIENT_EXECUTABLE, None),
-            Some(home.path().join(".local/bin").join(CLIENT_EXECUTABLE))
+            resolve_command_with_path(home.path(), AUTOMATION_EXECUTABLE, None),
+            Some(home.path().join(".local/bin").join(AUTOMATION_EXECUTABLE))
         );
     }
 
@@ -2092,22 +2136,22 @@ mod tests {
         let prefix = tempfile::tempdir().unwrap();
         let bin = prefix.path().join("bin");
         std::fs::create_dir_all(&bin).unwrap();
-        std::fs::write(bin.join(CLIENT_EXECUTABLE), "managed launcher").unwrap();
+        std::fs::write(bin.join(AUTOMATION_EXECUTABLE), "managed launcher").unwrap();
         let search_path = env::join_paths([&bin]).unwrap();
 
         let executable = resolve_command_with_path(
             home.path(),
-            CLIENT_EXECUTABLE,
+            AUTOMATION_EXECUTABLE,
             Some(search_path.as_os_str()),
         )
         .unwrap();
-        assert_eq!(executable, bin.join(CLIENT_EXECUTABLE));
+        assert_eq!(executable, bin.join(AUTOMATION_EXECUTABLE));
     }
 
     #[test]
     fn preflight_uses_dry_run_without_directory_change_flags() {
         let home = installed_home("1.3.1");
-        let runner = FakeRunner::new(vec![success("help"), success("preview")]);
+        let runner = FakeRunner::new(vec![success("help"), client_api_response("planned")]);
         let workspace = Path::new("/fixed/workspace");
         let result = run_client_operation(
             home.path(),
@@ -2123,12 +2167,15 @@ mod tests {
         assert_eq!(invocations.len(), 2);
         assert_eq!(
             invocations[1].executable,
-            home.path().join(".local/bin/new-client")
+            home.path().join(".local/bin/jl-mixing")
         );
         assert_eq!(
             invocations[1].arguments,
             vec![
+                "client",
+                "create",
                 "acme-records",
+                "--json",
                 "--name",
                 "Acme Records",
                 "--artist",
@@ -2143,7 +2190,7 @@ mod tests {
     #[test]
     fn confirmed_creation_uses_no_cd_and_omits_empty_artist() {
         let home = installed_home("1.3.1");
-        let runner = FakeRunner::new(vec![success("help"), success("created")]);
+        let runner = FakeRunner::new(vec![success("help"), client_api_response("success")]);
         let result = run_client_operation(
             home.path(),
             Path::new("/fixed/workspace"),
@@ -2156,7 +2203,14 @@ mod tests {
         assert_eq!(result.code, ClientOperationCode::Created);
         assert_eq!(
             runner.invocations.borrow()[1].arguments,
-            vec!["acme-records", "--name", "Acme Records", "--no-cd"]
+            vec![
+                "client",
+                "create",
+                "acme-records",
+                "--json",
+                "--name",
+                "Acme Records"
+            ]
         );
     }
 
@@ -2181,7 +2235,7 @@ mod tests {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
-            failure(4, "Client destination already exists"),
+            client_api_error("CLIENT_ALREADY_EXISTS", "Client destination already exists"),
         ]);
         let result = run_client_operation(
             home.path(),
@@ -2196,7 +2250,7 @@ mod tests {
     }
 
     #[test]
-    fn reports_missing_new_client_separately() {
+    fn reports_missing_api_provider_separately() {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
@@ -2210,7 +2264,7 @@ mod tests {
             &runner,
         );
         assert_eq!(result.code, ClientOperationCode::AutomationUnavailable);
-        assert!(result.message.contains("new-client"));
+        assert!(result.message.contains("JL Mixing Automation"));
     }
 
     #[test]
@@ -2908,14 +2962,7 @@ mod tests {
     #[test]
     fn bounds_process_error_output() {
         let message = "x".repeat(MAX_PROCESS_MESSAGE_CHARS + 20);
-        let result = rejected_operation(
-            failure(1, &message).unwrap(),
-            ClientCreationSummary {
-                client_id: "acme".into(),
-                client_name: "Acme".into(),
-                default_artist: None,
-            },
-        );
-        assert_eq!(result.message.chars().count(), MAX_PROCESS_MESSAGE_CHARS);
+        let result = bounded_process_message(&message, "", "fallback");
+        assert_eq!(result.chars().count(), MAX_PROCESS_MESSAGE_CHARS);
     }
 }
