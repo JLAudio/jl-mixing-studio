@@ -27,9 +27,6 @@ const INTAKE_EXECUTABLE: &str = "validate-intake";
 const REVISION_EXECUTABLE: &str = "new-revision";
 const APPROVAL_EXECUTABLE: &str = "approve-mix";
 const DELIVERY_EXECUTABLE: &str = "create-delivery";
-const VERSION_FILE: &str = "VERSION";
-const SUPPORTED_VERSION: &str = "1.3.1";
-const MAX_VERSION_FILE_BYTES: usize = 64;
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
 
 pub fn check_jl_mixing_version(home: &Path) -> VersionCheck {
@@ -1695,115 +1692,7 @@ fn rejected_project_operation(output: ProcessResult) -> ProjectOperationResult {
 }
 
 fn check_version_with_runner<R: ProcessRunner>(home: &Path, runner: &R) -> VersionCheck {
-    let Some(executable) = resolve_command(home, CLIENT_EXECUTABLE) else {
-        return unavailable_version(
-            "JL Mixing Automation was not found in its default install location or on PATH",
-        );
-    };
-    let Some(version_file) = version_file_for_command(&executable) else {
-        return unavailable_version(
-            "The JL Mixing Automation installation location could not be verified",
-        );
-    };
-    let version = match read_version_file(&version_file) {
-        Ok(version) => version,
-        Err(message) => return unavailable_version(message),
-    };
-
-    let arguments = vec!["--help".to_owned()];
-    match runner.run(&executable, &arguments, None) {
-        Ok(output) if output.success => evaluate_version(&version),
-        Ok(output) => unavailable_version(&format!(
-            "JL Mixing Automation health check failed with exit code {}",
-            output
-                .exit_code
-                .map_or_else(|| "unknown".into(), |code| code.to_string())
-        )),
-        Err(error) => evaluate_health_check_error(error),
-    }
-}
-
-fn version_file_for_command(executable: &Path) -> Option<PathBuf> {
-    let bin_directory = executable.parent()?;
-    if bin_directory.file_name()? != OsStr::new("bin") {
-        return None;
-    }
-    let prefix = bin_directory.parent()?;
-    Some(prefix.join("share").join("jl-mixing").join(VERSION_FILE))
-}
-
-fn read_version_file(path: &Path) -> Result<String, &'static str> {
-    let bytes =
-        fs::read(path).map_err(|_| "The JL Mixing Automation VERSION file could not be read")?;
-    if bytes.len() > MAX_VERSION_FILE_BYTES {
-        return Err("The JL Mixing Automation VERSION file is invalid");
-    }
-    let text = std::str::from_utf8(&bytes)
-        .map_err(|_| "The JL Mixing Automation VERSION file is invalid")?;
-    parse_version(text).ok_or("The JL Mixing Automation VERSION file is invalid")
-}
-
-fn evaluate_health_check_error(error: io::Error) -> VersionCheck {
-    let message = if error.kind() == io::ErrorKind::NotFound {
-        "JL Mixing Automation was not found in its default install location or on PATH"
-    } else {
-        "JL Mixing Automation could not be started"
-    };
-    unavailable_version(message)
-}
-
-fn evaluate_version(version: &str) -> VersionCheck {
-    let supported = version == SUPPORTED_VERSION;
-    VersionCheck {
-        available: true,
-        supported,
-        studio_creation_supported: supported && !cfg!(target_os = "windows"),
-        client_creation_supported: supported && !cfg!(target_os = "windows"),
-        project_creation_supported: supported && !cfg!(target_os = "windows"),
-        intake_validation_supported: supported && !cfg!(target_os = "windows"),
-        revision_creation_supported: supported && !cfg!(target_os = "windows"),
-        revision_approval_supported: supported && !cfg!(target_os = "windows"),
-        delivery_creation_supported: supported && !cfg!(target_os = "windows"),
-        message: if supported {
-            format!("JL Mixing Automation {version} detected")
-        } else {
-            format!(
-                "JL Mixing Automation {version} detected; guided creation requires {SUPPORTED_VERSION}"
-            )
-        },
-        version: Some(version.to_owned()),
-    }
-}
-
-fn unavailable_version(message: &str) -> VersionCheck {
-    VersionCheck {
-        available: false,
-        supported: false,
-        studio_creation_supported: false,
-        client_creation_supported: false,
-        project_creation_supported: false,
-        intake_validation_supported: false,
-        revision_creation_supported: false,
-        revision_approval_supported: false,
-        delivery_creation_supported: false,
-        version: None,
-        message: message.to_owned(),
-    }
-}
-
-fn parse_version(input: &str) -> Option<String> {
-    let version = input.trim();
-    let parts: Vec<_> = version.split('.').collect();
-
-    if parts.len() == 3
-        && parts.iter().all(|part| {
-            !part.is_empty() && part.chars().all(|character| character.is_ascii_digit())
-        })
-    {
-        Some(version.to_owned())
-    } else {
-        None
-    }
+    crate::automation_api::check_automation_compatibility(home, runner)
 }
 
 fn bounded_process_message(stderr: &str, stdout: &str, fallback: &str) -> String {
