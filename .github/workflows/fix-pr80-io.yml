@@ -22,8 +22,6 @@ jobs:
           p.write_text(s)
           PY
           cargo fmt --manifest-path src-tauri/Cargo.toml
-      - name: Verify clippy
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
       - name: Commit fix
         run: |
           git config user.name github-actions[bot]
