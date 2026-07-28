@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,6 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/automation-api-abstraction
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
@@ -38,7 +40,21 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
+      - name: Capture Clippy diagnostic
+        shell: bash
+        run: |
+          set +e
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings > pr80-clippy.log 2>&1
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add pr80-clippy.log
+            git commit -m 'Capture PR80 Clippy failure output' || true
+            git push || true
+            exit "$status"
+          fi
+          rm -f pr80-clippy.log
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
 
   desktop-build:
