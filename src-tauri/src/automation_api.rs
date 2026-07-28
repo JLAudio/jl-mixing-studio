@@ -1,3 +1,5 @@
+//! Shared JL Mixing Automation process boundary for Studio-side integrations.
+
 use std::env;
 use std::ffi::OsStr;
 use std::io;
