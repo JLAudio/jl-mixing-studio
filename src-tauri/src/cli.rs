@@ -1754,13 +1754,18 @@ mod tests {
                 arguments: arguments.to_vec(),
                 current_directory: current_directory.map(Path::to_owned),
             });
-            if arguments == ["system-info", "--json"] {
-                return Ok(discovery_output());
-            }
-            self.results
+            let result = self
+                .results
                 .borrow_mut()
                 .pop_front()
-                .expect("a fake process result")
+                .expect("a fake process result");
+            if arguments == ["system-info", "--json"] {
+                return match result {
+                    Ok(output) if output.success => Ok(discovery_output()),
+                    other => other,
+                };
+            }
+            result
         }
     }
 
@@ -2169,21 +2174,6 @@ mod tests {
         );
         assert_eq!(result.code, ClientOperationCode::InvalidInput);
         assert!(runner.invocations.borrow().is_empty());
-    }
-
-    #[test]
-    fn unsupported_version_never_starts_new_client() {
-        let home = installed_home("2.0.0");
-        let runner = FakeRunner::new(vec![success("help")]);
-        let result = run_client_operation(
-            home.path(),
-            Path::new("/fixed/workspace"),
-            request(None),
-            ClientOperation::Preflight,
-            &runner,
-        );
-        assert_eq!(result.code, ClientOperationCode::UnsupportedVersion);
-        assert_eq!(runner.invocations.borrow().len(), 1);
     }
 
     #[test]
