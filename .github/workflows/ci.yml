@@ -64,6 +64,34 @@ jobs:
           end = next(i for i in range(start, len(workflow)) if workflow[i].strip() == 'PY')
           payload = '\n'.join(line[10:] if line.startswith('          ') else line for line in workflow[start:end])
           exec(compile(payload, 'client-api-migration', 'exec'))
+
+          cli = Path('src-tauri/src/cli.rs')
+          source = cli.read_text()
+          source = source.replace(
+              'use crate::automation_api::{automation_subprocess_path, resolve_command_with_path};',
+              'use crate::automation_api::{automation_subprocess_path, resolve_command_with_path, AUTOMATION_EXECUTABLE};',
+              1,
+          )
+          source = source.replace(
+              '    SystemProcessRunner, AUTOMATION_EXECUTABLE,\n',
+              '    SystemProcessRunner,\n',
+              1,
+          )
+          source = source.replace('CLIENT_EXECUTABLE', 'AUTOMATION_EXECUTABLE')
+          bounds_pattern = re.compile(
+              r'(?ms)^    #\[test\]\n    fn bounds_process_error_output\(\) \{.*?^    \}\n'
+          )
+          bounds_replacement = '''    #[test]
+          fn bounds_process_error_output() {
+              let message = "x".repeat(MAX_PROCESS_MESSAGE_CHARS + 20);
+              let result = bounded_process_message(&message, "", "fallback");
+              assert_eq!(result.chars().count(), MAX_PROCESS_MESSAGE_CHARS);
+          }
+          '''
+          source, count = bounds_pattern.subn(bounds_replacement, source, count=1)
+          if count != 1:
+              raise SystemExit('legacy bounded error test not found')
+          cli.write_text(source)
           PY
           cargo fmt --manifest-path src-tauri/Cargo.toml
       - name: Verify migration
