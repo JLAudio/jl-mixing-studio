@@ -25,7 +25,6 @@ use crate::{intake, intake::IntakeReportError};
 
 const STUDIO_EXECUTABLE: &str = "new-studio";
 const INTAKE_EXECUTABLE: &str = "validate-intake";
-const REVISION_EXECUTABLE: &str = "new-revision";
 const APPROVAL_EXECUTABLE: &str = "approve-mix";
 const DELIVERY_EXECUTABLE: &str = "create-delivery";
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
@@ -800,17 +799,29 @@ fn run_revision_operation<R: ProcessRunner>(
             &version.message,
         );
     }
-
-    let Some(executable) = resolve_command(home, REVISION_EXECUTABLE) else {
+    if !version.revision_creation_supported {
         return blocked_revision_operation(
-            RevisionOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation new-revision command was not found",
+            RevisionOperationCode::Rejected,
+            "JL Mixing Automation does not advertise the revision.create description capability required by Studio",
         );
-    };
-    let arguments = revision_arguments(&request, operation);
-    match runner.run(&executable, &arguments, Some(project_directory)) {
-        Ok(output) if output.success => {
-            let Some(revision) = parse_revision_output(&output.stdout, &request, operation) else {
+    }
+
+    let arguments = revision_arguments(project_directory, &request, operation);
+    match invoke_api(
+        home,
+        "revision.create",
+        &arguments,
+        Some(project_directory),
+        runner,
+    ) {
+        Ok(response)
+            if matches!(
+                (operation, response.status),
+                (RevisionOperation::Preflight, ApiStatus::Planned)
+                    | (RevisionOperation::Create, ApiStatus::Success)
+            ) =>
+        {
+            let Some(revision) = revision_summary_from_api(&response.data, &request) else {
                 return blocked_revision_operation(
                     match operation {
                         RevisionOperation::Preflight => RevisionOperationCode::Failed,
@@ -842,38 +853,65 @@ fn run_revision_operation<R: ProcessRunner>(
                 revision: Some(revision),
             }
         }
-        Ok(output) => blocked_revision_operation(
+        Ok(response) => blocked_revision_operation(
             RevisionOperationCode::Rejected,
-            &bounded_process_message(
-                &output.stderr,
-                &output.stdout,
-                &format!(
-                    "JL Mixing Automation rejected revision creation with exit code {}",
-                    output
-                        .exit_code
-                        .map_or_else(|| "unknown".into(), |code| code.to_string())
-                ),
+            &response
+                .errors
+                .first()
+                .map(|error| error.message.clone())
+                .unwrap_or_else(|| {
+                    format!(
+                        "JL Mixing Automation returned unexpected status {:?} for revision.create",
+                        response.status
+                    )
+                }),
+        ),
+        Err(ApiCallError::Unavailable) => blocked_revision_operation(
+            RevisionOperationCode::AutomationUnavailable,
+            "JL Mixing Automation was not found in its default install location or on PATH",
+        ),
+        Err(ApiCallError::IncompatibleVersion(version)) => blocked_revision_operation(
+            RevisionOperationCode::UnsupportedVersion,
+            &format!(
+                "JL Mixing Automation returned API {}; Studio requires Automation API 1.0",
+                version
             ),
         ),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_revision_operation(
-            RevisionOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation new-revision command was not found",
-        ),
-        Err(_) => blocked_revision_operation(
+        Err(error) => blocked_revision_operation(
             match operation {
                 RevisionOperation::Preflight => RevisionOperationCode::Failed,
                 RevisionOperation::Create => RevisionOperationCode::Uncertain,
             },
-            match operation {
-                RevisionOperation::Preflight => {
-                    "The JL Mixing Automation new-revision command could not be started"
-                }
-                RevisionOperation::Create => {
-                    "The revision-creation result could not be confirmed. The operation may have completed; do not retry automatically."
-                }
-            },
+            &error.message(),
         ),
     }
+}
+
+fn revision_summary_from_api(
+    data: &serde_json::Value,
+    request: &RevisionCreationRequest,
+) -> Option<RevisionCreationSummary> {
+    let project_id = data.get("project")?.get("id")?.as_str()?;
+    let revision = data.get("revision")?;
+    let number = revision.get("number")?.as_u64()?;
+    let description = revision.get("description")?.as_str()?;
+    if project_id != request.project_id
+        || number == 0
+        || number > u32::MAX as u64
+        || description.trim().is_empty()
+        || request
+            .description
+            .as_ref()
+            .is_some_and(|expected| expected != description)
+    {
+        return None;
+    }
+    Some(RevisionCreationSummary {
+        client_id: request.client_id.clone(),
+        project_id: request.project_id.clone(),
+        number: number as u32,
+        description: description.to_owned(),
+    })
 }
 
 fn run_approval_operation<R: ProcessRunner>(
@@ -1397,17 +1435,23 @@ fn project_arguments(request: &ProjectCreationRequest, operation: ProjectOperati
 }
 
 fn revision_arguments(
+    project_directory: &Path,
     request: &RevisionCreationRequest,
     operation: RevisionOperation,
 ) -> Vec<String> {
-    let mut arguments = Vec::new();
+    let mut arguments = vec![
+        "revision".into(),
+        "create".into(),
+        "--json".into(),
+        "--project".into(),
+        project_directory.to_string_lossy().into_owned(),
+    ];
     if let Some(description) = &request.description {
         arguments.push("--description".into());
         arguments.push(description.clone());
     }
-    match operation {
-        RevisionOperation::Preflight => arguments.push("--dry-run".into()),
-        RevisionOperation::Create => arguments.push("--no-cd".into()),
+    if matches!(operation, RevisionOperation::Preflight) {
+        arguments.push("--dry-run".into());
     }
     arguments
 }
@@ -1452,41 +1496,6 @@ fn delivery_arguments(
         arguments.push("--dry-run".into());
     }
     arguments
-}
-
-fn parse_revision_output(
-    stdout: &str,
-    request: &RevisionCreationRequest,
-    operation: RevisionOperation,
-) -> Option<RevisionCreationSummary> {
-    let field = |label: &str| {
-        stdout.lines().find_map(|line| {
-            let (candidate, value) = line.split_once(':')?;
-            (candidate.trim() == label).then(|| value.trim().to_owned())
-        })
-    };
-    let number = field(match operation {
-        RevisionOperation::Preflight => "New revision",
-        RevisionOperation::Create => "Revision",
-    })?
-    .parse::<u32>()
-    .ok()?;
-    let description = field("Description")?;
-    if number == 0
-        || description.is_empty()
-        || request
-            .description
-            .as_ref()
-            .is_some_and(|expected| expected != &description)
-    {
-        return None;
-    }
-    Some(RevisionCreationSummary {
-        client_id: request.client_id.clone(),
-        project_id: request.project_id.clone(),
-        number,
-        description,
-    })
 }
 
 fn parse_approval_output(
@@ -1935,6 +1944,25 @@ mod tests {
         })
     }
 
+    fn revision_api_response(status: &str, description: &str) -> io::Result<ProcessResult> {
+        success(&format!(
+            r#"{{"api_version":"1.0","operation":"revision.create","status":"{}","data":{{"project":{{"id":"blue-sky","path":"/fixed/project"}},"revision":{{"number":3,"description":"{}","path":"/fixed/project/04_Revisions/Revision_03"}},"revision_notes_path":"/fixed/project/04_Revisions/Revision_03/Revision_Notes.md","workspace_path":"/fixed/workspace"}},"warnings":[],"errors":[]}}"#,
+            status, description
+        ))
+    }
+
+    fn revision_api_error(code: &str, message: &str) -> io::Result<ProcessResult> {
+        Ok(ProcessResult {
+            success: false,
+            exit_code: Some(5),
+            stdout: format!(
+                r#"{{"api_version":"1.0","operation":"revision.create","status":"blocked","data":{{}},"warnings":[],"errors":[{{"code":"{}","message":"{}","details":{{"exit_code":5}},"retryable":false}}]}}"#,
+                code, message
+            ),
+            stderr: String::new(),
+        })
+    }
+
     fn intake_request() -> IntakeRequest {
         IntakeRequest {
             client_id: "acme-records".into(),
@@ -1948,17 +1976,6 @@ mod tests {
             project_id: "blue-sky".into(),
             description: description.map(str::to_owned),
         }
-    }
-
-    fn revision_output(preflight: bool, description: &str) -> String {
-        let revision_label = if preflight {
-            "New revision"
-        } else {
-            "Revision"
-        };
-        format!(
-            "Project: Blue Sky\n{revision_label}: 3\nDescription: {description}\nRevision folder: /fixed/project/04_Revisions/Revision_03\n"
-        )
     }
 
     fn approval_request(revision: u32, approved_by: &str) -> RevisionApprovalRequest {
@@ -2064,7 +2081,6 @@ mod tests {
             STUDIO_EXECUTABLE,
             INTAKE_EXECUTABLE,
             DELIVERY_EXECUTABLE,
-            REVISION_EXECUTABLE,
             APPROVAL_EXECUTABLE,
         ] {
             std::fs::write(bin.join(executable), "managed launcher").unwrap();
@@ -2076,7 +2092,7 @@ mod tests {
         ProcessResult {
             success: true,
             exit_code: Some(0),
-            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","project.create.artist","revision.create","intake.validate","revision.approve","delivery.create"]}"#.into(),
+            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","project.create.artist","revision.create","revision.create.description","intake.validate","revision.approve","delivery.create"]}"#.into(),
             stderr: String::new(),
         }
     }
@@ -2439,7 +2455,7 @@ mod tests {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
-            success(&revision_output(true, "Vocal lift")),
+            revision_api_response("planned", "Vocal lift"),
         ]);
         let project_directory = Path::new("/fixed/project");
         let result = run_revision_operation(
@@ -2456,11 +2472,20 @@ mod tests {
         let invocations = runner.invocations.borrow();
         assert_eq!(
             invocations[1].executable,
-            home.path().join(".local/bin/new-revision")
+            home.path().join(".local/bin/jl-mixing")
         );
         assert_eq!(
             invocations[1].arguments,
-            vec!["--description", "Vocal lift", "--dry-run"]
+            vec![
+                "revision",
+                "create",
+                "--json",
+                "--project",
+                "/fixed/project",
+                "--description",
+                "Vocal lift",
+                "--dry-run"
+            ]
         );
         assert_eq!(
             invocations[1].current_directory,
@@ -2473,7 +2498,7 @@ mod tests {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
-            success(&revision_output(false, "Revision 3")),
+            revision_api_response("success", "Revision 3"),
         ]);
         let result = run_revision_operation(
             home.path(),
@@ -2485,7 +2510,16 @@ mod tests {
 
         assert!(result.ok);
         assert_eq!(result.code, RevisionOperationCode::Created);
-        assert_eq!(runner.invocations.borrow()[1].arguments, vec!["--no-cd"]);
+        assert_eq!(
+            runner.invocations.borrow()[1].arguments,
+            vec![
+                "revision",
+                "create",
+                "--json",
+                "--project",
+                "/fixed/project"
+            ]
+        );
         assert_eq!(result.revision.unwrap().description, "Revision 3");
     }
 
@@ -2507,7 +2541,12 @@ mod tests {
     #[test]
     fn successful_revision_creation_without_identity_is_uncertain() {
         let home = installed_home("1.3.1");
-        let runner = FakeRunner::new(vec![success("help"), success("Revision created")]);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(
+                r#"{"api_version":"1.0","operation":"revision.create","status":"success","data":{"project":{"id":"blue-sky","path":"/fixed/project"},"revision":{"number":3,"path":"/fixed/project/04_Revisions/Revision_03"}},"warnings":[],"errors":[]}"#,
+            ),
+        ]);
         let result = run_revision_operation(
             home.path(),
             Path::new("/fixed/project"),
@@ -2525,7 +2564,10 @@ mod tests {
         let home = installed_home("1.3.1");
         let runner = FakeRunner::new(vec![
             success("help"),
-            failure(4, "Revision destination already exists"),
+            revision_api_error(
+                "REVISION_ALREADY_EXISTS",
+                "Revision destination already exists",
+            ),
         ]);
         let result = run_revision_operation(
             home.path(),
