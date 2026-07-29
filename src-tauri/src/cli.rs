@@ -24,7 +24,6 @@ use crate::models::{
 use crate::{intake, intake::IntakeReportError};
 
 const STUDIO_EXECUTABLE: &str = "new-studio";
-const INTAKE_EXECUTABLE: &str = "validate-intake";
 const APPROVAL_EXECUTABLE: &str = "approve-mix";
 const DELIVERY_EXECUTABLE: &str = "create-delivery";
 const MAX_PROCESS_MESSAGE_CHARS: usize = 1_000;
@@ -692,45 +691,87 @@ fn run_intake_operation<R: ProcessRunner>(
     if !version.supported {
         return blocked_intake_operation(IntakeOperationCode::UnsupportedVersion, &version.message);
     }
-
-    let Some(executable) = resolve_command(home, INTAKE_EXECUTABLE) else {
+    if !version.intake_validation_supported {
         return blocked_intake_operation(
-            IntakeOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation validate-intake command was not found",
+            IntakeOperationCode::Rejected,
+            "JL Mixing Automation does not advertise the intake.validate report capability required by Studio",
         );
-    };
-    let arguments = match operation {
-        IntakeOperation::Preflight => vec!["--dry-run".to_owned()],
-        IntakeOperation::Run => Vec::new(),
-    };
-    match runner.run(&executable, &arguments, Some(project_directory)) {
-        Ok(output) if output.success || output.exit_code == Some(5) => {
-            let parsed = match operation {
-                IntakeOperation::Preflight => intake::parse_report(&output.stdout, &request),
-                IntakeOperation::Run => intake::read_report(project_directory, &request),
-            };
-            let mut result = report_result(parsed, matches!(operation, IntakeOperation::Preflight));
-            let expected_blocking = output.exit_code == Some(5);
-            let actual_blocking = result
-                .report
-                .as_ref()
-                .is_some_and(|report| report.blocking_errors > 0);
-            if result.report.is_none() || expected_blocking != actual_blocking {
-                return blocked_intake_operation(
-                    match operation {
-                        IntakeOperation::Preflight => IntakeOperationCode::Failed,
-                        IntakeOperation::Run => IntakeOperationCode::Uncertain,
-                    },
-                    match operation {
-                        IntakeOperation::Preflight => {
-                            "The JL Mixing Automation intake preview could not be verified"
-                        }
-                        IntakeOperation::Run => {
-                            "Intake validation may have updated the report, but the authoritative result could not be verified. Do not retry automatically."
-                        }
-                    },
-                );
+    }
+
+    let arguments = intake_arguments(project_directory, operation);
+    match invoke_api(
+        home,
+        "intake.validate",
+        &arguments,
+        Some(project_directory),
+        runner,
+    ) {
+        Ok(response) => {
+            let completed_with_findings = response.status == ApiStatus::Blocked
+                && response
+                    .errors
+                    .first()
+                    .is_some_and(|error| error.code == "INTAKE_BLOCKING_FINDINGS");
+            let completed = matches!(
+                (operation, response.status),
+                (IntakeOperation::Preflight, ApiStatus::Planned)
+                    | (IntakeOperation::Run, ApiStatus::Success)
+            ) || completed_with_findings;
+
+            if !completed {
+                let message = response
+                    .errors
+                    .first()
+                    .map(|error| error.message.clone())
+                    .unwrap_or_else(|| {
+                        format!(
+                            "JL Mixing Automation returned unexpected status {:?} for intake.validate",
+                            response.status
+                        )
+                    });
+                return blocked_intake_operation(IntakeOperationCode::Rejected, &message);
             }
+
+            let Some(report_markdown) = response
+                .data
+                .get("report_markdown")
+                .and_then(|value| value.as_str())
+            else {
+                return unverifiable_intake_result(operation);
+            };
+
+            let parsed = intake::parse_report(report_markdown, &request);
+            let mut result = report_result(parsed, matches!(operation, IntakeOperation::Preflight));
+            let Some(report) = result.report.as_ref() else {
+                return unverifiable_intake_result(operation);
+            };
+
+            let returned_project_id = response
+                .data
+                .get("project")
+                .and_then(|value| value.get("id"))
+                .and_then(|value| value.as_str());
+            let summary = response.data.get("summary");
+            let files_discovered = summary
+                .and_then(|value| value.get("files_discovered"))
+                .and_then(|value| value.as_u64());
+            let blocking_errors = summary
+                .and_then(|value| value.get("blocking_errors"))
+                .and_then(|value| value.as_u64());
+            let warnings = summary
+                .and_then(|value| value.get("warnings"))
+                .and_then(|value| value.as_u64());
+
+            let blocking_matches = completed_with_findings == (report.blocking_errors > 0);
+            let summary_matches = returned_project_id == Some(request.project_id.as_str())
+                && files_discovered == Some(report.files_discovered as u64)
+                && blocking_errors == Some(report.blocking_errors as u64)
+                && warnings == Some(report.warnings as u64);
+
+            if !blocking_matches || !summary_matches {
+                return unverifiable_intake_result(operation);
+            }
+
             if matches!(operation, IntakeOperation::Run)
                 && result.code == IntakeOperationCode::Validated
             {
@@ -738,38 +779,56 @@ fn run_intake_operation<R: ProcessRunner>(
             }
             result
         }
-        Ok(output) => blocked_intake_operation(
-            IntakeOperationCode::Rejected,
-            &bounded_process_message(
-                &output.stderr,
-                &output.stdout,
-                &format!(
-                    "JL Mixing Automation rejected intake validation with exit code {}",
-                    output
-                        .exit_code
-                        .map_or_else(|| "unknown".into(), |code| code.to_string())
-                ),
+        Err(ApiCallError::Unavailable) => blocked_intake_operation(
+            IntakeOperationCode::AutomationUnavailable,
+            "JL Mixing Automation was not found in its default install location or on PATH",
+        ),
+        Err(ApiCallError::IncompatibleVersion(version)) => blocked_intake_operation(
+            IntakeOperationCode::UnsupportedVersion,
+            &format!(
+                "JL Mixing Automation returned API {}; Studio requires Automation API 1.0",
+                version
             ),
         ),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_intake_operation(
-            IntakeOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation validate-intake command was not found",
-        ),
-        Err(_) => blocked_intake_operation(
+        Err(error) => blocked_intake_operation(
             match operation {
                 IntakeOperation::Preflight => IntakeOperationCode::Failed,
                 IntakeOperation::Run => IntakeOperationCode::Uncertain,
             },
-            match operation {
-                IntakeOperation::Preflight => {
-                    "The JL Mixing Automation validate-intake command could not be started"
-                }
-                IntakeOperation::Run => {
-                    "The intake-validation result could not be confirmed. The report may have been updated; do not retry automatically."
-                }
-            },
+            &error.message(),
         ),
     }
+}
+
+fn intake_arguments(project_directory: &Path, operation: IntakeOperation) -> Vec<String> {
+    let mut arguments = vec![
+        "intake".into(),
+        "validate".into(),
+        "--json".into(),
+        "--project".into(),
+        project_directory.to_string_lossy().into_owned(),
+    ];
+    if matches!(operation, IntakeOperation::Preflight) {
+        arguments.push("--dry-run".into());
+    }
+    arguments
+}
+
+fn unverifiable_intake_result(operation: IntakeOperation) -> IntakeOperationResult {
+    blocked_intake_operation(
+        match operation {
+            IntakeOperation::Preflight => IntakeOperationCode::Failed,
+            IntakeOperation::Run => IntakeOperationCode::Uncertain,
+        },
+        match operation {
+            IntakeOperation::Preflight => {
+                "The JL Mixing Automation intake preview could not be verified"
+            }
+            IntakeOperation::Run => {
+                "Intake validation may have updated the report, but the authoritative result could not be verified. Do not retry automatically."
+            }
+        },
+    )
 }
 
 fn run_revision_operation<R: ProcessRunner>(
@@ -1839,15 +1898,6 @@ mod tests {
         })
     }
 
-    fn completed_with_findings(stdout: &str) -> io::Result<ProcessResult> {
-        Ok(ProcessResult {
-            success: false,
-            exit_code: Some(5),
-            stdout: stdout.into(),
-            stderr: String::new(),
-        })
-    }
-
     #[test]
     fn automation_subprocess_path_preserves_inherited_path_and_adds_homebrew() {
         let inherited = env::join_paths(["/custom/bin", "/usr/bin"]).unwrap();
@@ -1961,6 +2011,44 @@ mod tests {
             ),
             stderr: String::new(),
         })
+    }
+
+    fn intake_api_response(status: &str, blocking: bool) -> io::Result<ProcessResult> {
+        let report = intake_report(blocking);
+        let errors = if blocking {
+            serde_json::json!([{
+                "code": "INTAKE_BLOCKING_FINDINGS",
+                "message": "Intake validation completed with blocking findings.",
+                "details": {"exit_code": 5, "blocking_errors": 1},
+                "retryable": false
+            }])
+        } else {
+            serde_json::json!([])
+        };
+        success(
+            &serde_json::json!({
+                "api_version": "1.0",
+                "operation": "intake.validate",
+                "status": status,
+                "data": {
+                    "project": {"id": "blue-sky", "path": "/fixed/project"},
+                    "manifest_path": "/fixed/project/00_Admin/project-manifest.json",
+                    "intake_report_path": "/fixed/project/00_Admin/Intake_Report.md",
+                    "workspace_path": "/fixed/workspace",
+                    "source_path": "/fixed/project/01_Client_Files/Original_Delivery",
+                    "report_markdown": report,
+                    "summary": {
+                        "files_discovered": 1,
+                        "blocking_errors": usize::from(blocking),
+                        "warnings": 0,
+                        "ffprobe_available": false
+                    }
+                },
+                "warnings": [],
+                "errors": errors
+            })
+            .to_string(),
+        )
     }
 
     fn intake_request() -> IntakeRequest {
@@ -2079,7 +2167,6 @@ mod tests {
         for executable in [
             "jl-mixing",
             STUDIO_EXECUTABLE,
-            INTAKE_EXECUTABLE,
             DELIVERY_EXECUTABLE,
             APPROVAL_EXECUTABLE,
         ] {
@@ -2092,7 +2179,7 @@ mod tests {
         ProcessResult {
             success: true,
             exit_code: Some(0),
-            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","project.create.artist","revision.create","revision.create.description","intake.validate","revision.approve","delivery.create"]}"#.into(),
+            stdout: r#"{"api_version":"1.0","application":{"name":"jl-mixing","version":"9.9.9"},"capabilities":["system.info","client.create","project.create","project.create.artist","revision.create","revision.create.description","intake.validate","intake.validate.report","revision.approve","delivery.create"]}"#.into(),
             stderr: String::new(),
         }
     }
@@ -2927,9 +3014,9 @@ mod tests {
     }
 
     #[test]
-    fn intake_preflight_uses_only_dry_run_from_the_validated_project() {
+    fn intake_preflight_uses_structured_api_from_the_validated_project() {
         let home = installed_home("1.3.1");
-        let runner = FakeRunner::new(vec![success("help"), success(&intake_report(false))]);
+        let runner = FakeRunner::new(vec![success("help"), intake_api_response("planned", false)]);
         let project_directory = Path::new("/fixed/project");
         let result = run_intake_operation(
             home.path(),
@@ -2944,9 +3031,19 @@ mod tests {
         let invocations = runner.invocations.borrow();
         assert_eq!(
             invocations[1].executable,
-            home.path().join(".local/bin/validate-intake")
+            home.path().join(".local/bin/jl-mixing")
         );
-        assert_eq!(invocations[1].arguments, vec!["--dry-run"]);
+        assert_eq!(
+            invocations[1].arguments,
+            vec![
+                "intake",
+                "validate",
+                "--json",
+                "--project",
+                "/fixed/project",
+                "--dry-run"
+            ]
+        );
         assert_eq!(
             invocations[1].current_directory,
             Some(project_directory.into())
@@ -2954,12 +3051,9 @@ mod tests {
     }
 
     #[test]
-    fn intake_exit_five_is_a_completed_preview_with_blocking_findings() {
+    fn intake_blocked_api_response_is_a_completed_preview_with_blocking_findings() {
         let home = installed_home("1.3.1");
-        let runner = FakeRunner::new(vec![
-            success("help"),
-            completed_with_findings(&intake_report(true)),
-        ]);
+        let runner = FakeRunner::new(vec![success("help"), intake_api_response("blocked", true)]);
         let result = run_intake_operation(
             home.path(),
             Path::new("/fixed/project"),
@@ -2974,23 +3068,10 @@ mod tests {
     }
 
     #[test]
-    fn confirmed_intake_run_has_no_arguments_and_verifies_the_report_from_disk() {
+    fn confirmed_intake_run_uses_structured_api_and_embedded_authoritative_report() {
         let home = installed_home("1.3.1");
         let project = tempfile::tempdir().unwrap();
-        let admin = project.path().join("00_Admin");
-        std::fs::create_dir_all(&admin).unwrap();
-        std::fs::write(
-            admin.join("Intake_Report.md"),
-            format!(
-                "# Intake Report\n\n<!-- BEGIN AUTOMATED SECTION -->\n{}<!-- END AUTOMATED SECTION -->\n",
-                intake_report(false)
-            ),
-        )
-        .unwrap();
-        let runner = FakeRunner::new(vec![
-            success("help"),
-            success("Intake validation completed"),
-        ]);
+        let runner = FakeRunner::new(vec![success("help"), intake_api_response("success", false)]);
         let result = run_intake_operation(
             home.path(),
             project.path(),
@@ -3001,7 +3082,16 @@ mod tests {
 
         assert!(result.ok);
         assert_eq!(result.code, IntakeOperationCode::Validated);
-        assert!(runner.invocations.borrow()[1].arguments.is_empty());
+        assert_eq!(
+            runner.invocations.borrow()[1].arguments,
+            vec![
+                "intake",
+                "validate",
+                "--json",
+                "--project",
+                project.path().to_string_lossy().as_ref()
+            ]
+        );
         assert_eq!(
             runner.invocations.borrow()[1].current_directory,
             Some(project.path().into())
@@ -3029,7 +3119,12 @@ mod tests {
     fn unverifiable_confirmed_intake_result_is_uncertain() {
         let home = installed_home("1.3.1");
         let project = tempfile::tempdir().unwrap();
-        let runner = FakeRunner::new(vec![success("help"), success("completed")]);
+        let runner = FakeRunner::new(vec![
+            success("help"),
+            success(
+                r#"{"api_version":"1.0","operation":"intake.validate","status":"success","data":{"project":{"id":"blue-sky","path":"/fixed/project"},"summary":{"files_discovered":1,"blocking_errors":0,"warnings":0}},"warnings":[],"errors":[]}"#,
+            ),
+        ]);
         let result = run_intake_operation(
             home.path(),
             project.path(),
