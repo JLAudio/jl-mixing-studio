@@ -103,7 +103,10 @@ for name, entries in groups.items():
     text += 'afterEach(cleanup);\n\n'
     text += f'describe("JL Mixing Studio — {labels[name]}", () => {{\n'
     text += '  beforeEach(() => {\n    resetAppTestState();\n  });\n\n'
-    text += "\n\n".join(block for _, block in entries) + "\n});\n"
+    indented_blocks = []
+    for _, block in entries:
+        indented_blocks.append("\n".join(f"  {line}" if line else "" for line in block.splitlines()))
+    text += "\n\n".join(indented_blocks) + "\n});\n"
     Path(f"src/App.{name}.test.tsx").write_text(text)
 
 source_path.unlink()
