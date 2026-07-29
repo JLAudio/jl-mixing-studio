@@ -8,7 +8,10 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 
 use super::*;
-use crate::models::{ClientCreationRequest, ClientOperationCode};
+use crate::automation_api::ProcessResult;
+use crate::models::{
+    ClientCreationRequest, ClientOperationCode, StudioCreationRequest, StudioOperationCode,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 struct Invocation {
