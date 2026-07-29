@@ -764,7 +764,7 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rebuild delivery" }));
     const options = await screen.findByRole("dialog", { name: "Rebuild delivery package" });
     fireEvent.click(within(options).getByRole("radio", { name: /clean replacement/i }));
-    expect(within(options).getByText(/everything currently inside 05_Final_Delivery/i)).toBeInTheDocument();
+    expect(within(options).getByRole("alert")).toHaveTextContent(/everything currently inside 05_Final_Delivery/i);
     fireEvent.click(within(options).getByRole("button", { name: "Preview package" }));
 
     const confirmation = await screen.findByRole("dialog", { name: "Confirm delivery package" });
