@@ -52,7 +52,7 @@ mod_text = workflows_mod_path.read_text()
 if "mod revision;\n" not in mod_text:
     mod_text = mod_text.replace("mod delivery;\n", "mod delivery;\nmod revision;\n", 1)
 if "pub(super) use revision::" not in mod_text:
-    mod_text += '''\npub(super) use revision::{\n    run_approval_operation, run_revision_operation, verify_revision_approval,\n    verify_revision_creation, workspace_allows_revision_approval,\n    workspace_allows_revision_creation,\n};\n'''
+    mod_text += '''\npub(super) use revision::{run_approval_operation, run_revision_operation};\n#[cfg(test)]\npub(super) use revision::{\n    verify_revision_approval, verify_revision_creation, workspace_allows_revision_approval,\n    workspace_allows_revision_creation,\n};\n'''
 workflows_mod_path.write_text(mod_text)
 lib_path.write_text(source)
 subprocess.run(["cargo", "fmt", "--manifest-path", "src-tauri/Cargo.toml"], check=True)
