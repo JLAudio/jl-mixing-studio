@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,29 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/issue-111-extract-workflow-availability
-      - name: Extract workflow availability logic
-        run: python scripts/extract_workflow_availability.py
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: Commit extraction and restore normal CI
-        if: success()
-        run: |
-          git fetch origin main:refs/remotes/origin/main
-          git checkout origin/main -- .github/workflows/ci.yml
-          rm scripts/extract_workflow_availability.py
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/App.tsx src/AppWorkflowAvailability.ts .github/workflows/ci.yml scripts/extract_workflow_availability.py
-          if ! git diff --cached --quiet; then
-            git commit -m "Extract workflow availability logic"
-            git push origin HEAD:agent/issue-111-extract-workflow-availability
-          fi
 
   rust:
     name: Rust checks
