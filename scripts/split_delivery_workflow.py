@@ -18,13 +18,28 @@ source = source.replace(status_fn, "", 1)
 if "mod workflows;\n" not in source:
     source = source.replace("mod workspace;\n", "mod workspace;\nmod workflows;\n", 1)
 
+source = source.replace(
+    "    ClientOperationResult, DeliveryCreationPreview, DeliveryCreationRequest, DeliveryNotesDocument,\n"
+    "    DeliveryNotesRequest, DeliveryNotesUpdateRequest, DeliveryOperationCode,\n"
+    "    DeliveryOperationResult, DeliveryReplacementMode, FolderLocation, FolderRequest, FolderResult,\n",
+    "    ClientOperationResult, DeliveryCreationRequest, DeliveryNotesDocument, DeliveryNotesRequest,\n"
+    "    DeliveryNotesUpdateRequest, DeliveryOperationResult, FolderLocation, FolderRequest, FolderResult,\n",
+    1,
+)
+
 imports_anchor = "use tauri::Manager;\n"
-workflow_import = (
-    "use workflows::{list_delivery_entries, run_delivery_operation, verify_delivery_artifacts, "
-    "verify_delivery_creation, workspace_allows_delivery_creation};\n"
+workflow_import = "use workflows::run_delivery_operation;\n"
+test_imports = (
+    "#[cfg(test)]\n"
+    "use models::{DeliveryCreationPreview, DeliveryReplacementMode};\n"
+    "#[cfg(test)]\n"
+    "use workflows::{\n"
+    "    list_delivery_entries, verify_delivery_artifacts, verify_delivery_creation,\n"
+    "    workspace_allows_delivery_creation,\n"
+    "};\n"
 )
 if workflow_import not in source:
-    source = source.replace(imports_anchor, imports_anchor + workflow_import, 1)
+    source = source.replace(imports_anchor, imports_anchor + workflow_import + test_imports, 1)
 
 # These comments document the two safety properties that are easy to lose during future edits:
 # a clean replacement must execute the exact reviewed deletion plan, and a successful CLI exit is
@@ -45,9 +60,11 @@ delivery_body = delivery_body.replace(
 workflows_dir.mkdir(parents=True, exist_ok=True)
 Path("src-tauri/src/workflows/mod.rs").write_text(
     "mod delivery;\n\n"
+    "pub(super) use delivery::run_delivery_operation;\n"
+    "#[cfg(test)]\n"
     "pub(super) use delivery::{\n"
-    "    list_delivery_entries, run_delivery_operation, verify_delivery_artifacts,\n"
-    "    verify_delivery_creation, workspace_allows_delivery_creation,\n"
+    "    list_delivery_entries, verify_delivery_artifacts, verify_delivery_creation,\n"
+    "    workspace_allows_delivery_creation,\n"
     "};\n"
 )
 Path("src-tauri/src/workflows/delivery.rs").write_text(
