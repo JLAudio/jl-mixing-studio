@@ -4,8 +4,8 @@ use std::path::Path;
 
 use crate::automation_api::{resolve_command, ProcessRunner, SystemProcessRunner};
 use crate::models::{
-    DeliveryCreationPreview, DeliveryCreationRequest, DeliveryOperationCode, DeliveryOperationResult,
-    DeliveryReplacementMode, ExcludedDeliveryFile, PlannedDeliveryFile,
+    DeliveryCreationPreview, DeliveryCreationRequest, DeliveryOperationCode,
+    DeliveryOperationResult, DeliveryReplacementMode, ExcludedDeliveryFile, PlannedDeliveryFile,
 };
 
 pub(super) const DELIVERY_EXECUTABLE: &str = "create-delivery";
