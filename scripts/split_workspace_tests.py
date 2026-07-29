@@ -14,6 +14,11 @@ if not source.rstrip().endswith("}"):
 body = source[body_start:source.rfind("}")]
 if "use super::*;" not in body:
     raise SystemExit("workspace tests do not import parent module")
+# Moving the inline module one directory deeper changes include_str! resolution.
+body = body.replace(
+    'include_str!("../../fixtures/project with spaces/project-manifest.json")',
+    'include_str!("../../../fixtures/project with spaces/project-manifest.json")',
+)
 production = source[:start].rstrip() + "\n\n#[cfg(test)]\nmod workspace_tests;\n"
 tests_path.parent.mkdir(parents=True, exist_ok=True)
 tests_path.write_text(body.lstrip())
