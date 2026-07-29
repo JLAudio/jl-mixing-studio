@@ -87,7 +87,7 @@ export function WorkspaceContent({ snapshot }: { snapshot: WorkspaceSnapshot }) 
             {snapshot.counts.issues} workspace{" "}
             {snapshot.counts.issues === 1 ? "item needs" : "items need"} attention
           </strong>
-          <span>Valid clients and projects remain available below.</span>
+          <span>Your available clients and projects are still here below.</span>
           <a href="#workspace-issues">Review issues</a>
         </section>
       )}
@@ -95,30 +95,30 @@ export function WorkspaceContent({ snapshot }: { snapshot: WorkspaceSnapshot }) 
       {snapshot.status === "unavailable" && (
         <section className="empty-state">
           <p className="kicker">Setup required</p>
-          <h2>Workspace not found</h2>
-          <p>Install JL Mixing Automation and run <code>new-studio</code> to create the default workspace.</p>
+          <h2>Your studio workspace isn’t ready yet</h2>
+          <p>Set up your studio workspace to get started.</p>
         </section>
       )}
 
       {snapshot.status === "invalid" && (
         <section className="empty-state error">
-          <p className="kicker">Configuration problem</p>
-          <h2>The workspace cannot be read safely</h2>
-          <p>Review the issue details before trying again.</p>
+          <p className="kicker">Something doesn’t look right</p>
+          <h2>We can’t read this studio setup yet</h2>
+          <p>Check the details below, then try again.</p>
         </section>
       )}
 
       {snapshot.status === "empty" && (
         <section className="empty-state">
-          <p className="kicker">Workspace ready</p>
-          <h2>No clients or projects yet</h2>
-          <p>Use <strong>New client</strong> to create the first client safely.</p>
+          <p className="kicker">You’re ready to go</p>
+          <h2>Your studio is ready for its first client</h2>
+          <p>Choose <strong>New client</strong> when you’re ready to get started.</p>
         </section>
       )}
 
       {snapshot.issues.length > 0 && (
         <section className="issues" id="workspace-issues" aria-labelledby="issues-heading">
-          <p className="kicker">Recovery guidance</p>
+          <p className="kicker">A few things to check</p>
           <h2 id="issues-heading">Workspace issues</h2>
           <ul>
             {snapshot.issues.map((issue, index) => (
@@ -298,10 +298,10 @@ export function Dashboard({
     <>
       <section className="summary-grid" aria-label="Workspace summary">
         <article className="summary-card accent-blue">
-          <span>Clients</span><strong>{snapshot?.counts.clients ?? "—"}</strong><small>Validated workspace clients</small>
+          <span>Clients</span><strong>{snapshot?.counts.clients ?? "—"}</strong><small>Clients in your studio</small>
         </article>
         <article className="summary-card accent-violet">
-          <span>Projects</span><strong>{snapshot?.counts.projects ?? "—"}</strong><small>Validated project manifests</small>
+          <span>Projects</span><strong>{snapshot?.counts.projects ?? "—"}</strong><small>Projects in your studio</small>
         </article>
         <article className="summary-card accent-amber">
           <span>Awaiting review</span><strong>{snapshot ? awaitingReview : "—"}</strong><small>Current revision differs from approved</small>
@@ -316,7 +316,7 @@ export function Dashboard({
       )}
       {workspace.status === "error" && (
         <section className="notice error" role="alert">
-          <strong>Workspace discovery failed</strong>
+          <strong>We couldn’t open your studio workspace</strong>
           <span>{workspace.message}</span>
           <button type="button" onClick={onRefresh}>Try again</button>
         </section>
@@ -325,10 +325,10 @@ export function Dashboard({
       <div className="dashboard-grid">
         <section className="panel today-panel" aria-labelledby="today-heading">
           <div className="panel-heading">
-            <div><p className="kicker">Today’s work</p><h2 id="today-heading">Recommended priorities</h2></div>
+            <div><p className="kicker">On deck</p><h2 id="today-heading">What needs your attention</h2></div>
             <button type="button" className="table-link" onClick={onTasks}>View all</button>
           </div>
-          {snapshot && snapshot.tasks.length > 0 ? <div className="derived-list">{snapshot.tasks.slice(0, 4).map((task) => <TaskSummary key={task.id} task={task} onOpenProject={onOpenProject} />)}</div> : <div className="planned-message"><strong>No derived actions need attention.</strong><p>Refresh rebuilds priorities from authoritative state.</p></div>}
+          {snapshot && snapshot.tasks.length > 0 ? <div className="derived-list">{snapshot.tasks.slice(0, 4).map((task) => <TaskSummary key={task.id} task={task} onOpenProject={onOpenProject} />)}</div> : <div className="planned-message"><strong>Nothing needs your attention right now.</strong><p>Refresh anytime to check for new work.</p></div>}
         </section>
 
         <section className="panel health-panel" aria-labelledby="health-heading">
@@ -344,7 +344,7 @@ export function Dashboard({
         </section>
 
         <section className="panel quick-actions" aria-labelledby="actions-heading">
-          <div className="panel-heading"><div><p className="kicker">Quick actions</p><h2 id="actions-heading">Start safely</h2></div></div>
+          <div className="panel-heading"><div><p className="kicker">Quick actions</p><h2 id="actions-heading">Start something new</h2></div></div>
           <div className="action-grid">
             <button type="button" onClick={onNewClient} disabled={!clientCreationAvailable} aria-describedby="new-client-help">New client</button>
             <button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} title={projectCreationHelp}>New project</button>
@@ -354,8 +354,8 @@ export function Dashboard({
         </section>
 
         <section className="panel activity-panel" aria-labelledby="activity-heading">
-          <div className="panel-heading"><div><p className="kicker">Recent activity</p><h2 id="activity-heading">Persisted project events</h2></div><button type="button" className="table-link" onClick={onActivity}>View all</button></div>
-          {snapshot && snapshot.activity.length > 0 ? <div className="derived-list">{snapshot.activity.slice(0, 5).map((event) => <ActivitySummary key={event.id} event={event} onOpenProject={onOpenProject} />)}</div> : <div className="planned-message compact"><strong>No supported persisted events found.</strong><p>Only validated creation, revision, approval, and delivery timestamps appear here.</p></div>}
+          <div className="panel-heading"><div><p className="kicker">Recent activity</p><h2 id="activity-heading">What’s been happening</h2></div><button type="button" className="table-link" onClick={onActivity}>View all</button></div>
+          {snapshot && snapshot.activity.length > 0 ? <div className="derived-list">{snapshot.activity.slice(0, 5).map((event) => <ActivitySummary key={event.id} event={event} onOpenProject={onOpenProject} />)}</div> : <div className="planned-message compact"><strong>No recent project activity yet.</strong><p>New clients, projects, revisions, approvals, and deliveries will show up here.</p></div>}
         </section>
       </div>
 
@@ -380,9 +380,9 @@ export function RouteIssues({ snapshot }: { snapshot: WorkspaceSnapshot }) {
   if (snapshot.issues.length === 0) return null;
   return (
     <section className="issues route-issues" aria-labelledby="route-issues-heading">
-      <p className="kicker">Recovery guidance</p>
+      <p className="kicker">A few things to check</p>
       <h2 id="route-issues-heading">Some workspace data is unavailable</h2>
-      <p className="route-supporting-copy">Only validated clients and projects are shown.</p>
+      <p className="route-supporting-copy">The clients and projects we can read are still available.</p>
       <ul>
         {snapshot.issues.map((issue, index) => (
           <IssueDetail key={[issue.relativePath ?? issue.scope, issue.code, index].join("-")} issue={issue} />
@@ -393,17 +393,17 @@ export function RouteIssues({ snapshot }: { snapshot: WorkspaceSnapshot }) {
 }
 
 export function TasksRoute({ workspace, loading, onRefresh, onOpenProject }: { workspace: ResourceState<WorkspaceSnapshot>; loading: boolean; onRefresh: () => void; onOpenProject: (clientId: string, projectId: string) => void }) {
-  if (workspace.status === "loading") return <section className="notice">Deriving tasks…</section>;
-  if (workspace.status === "error") return <section className="notice error"><strong>Tasks could not be derived</strong><span>{workspace.message}</span></section>;
+  if (workspace.status === "loading") return <section className="notice">Checking what needs attention…</section>;
+  if (workspace.status === "error") return <section className="notice error"><strong>We couldn’t load your tasks</strong><span>{workspace.message}</span></section>;
   const snapshot = workspace.value;
-  return <><section className="directory-toolbar"><div><p className="kicker">Authoritative workspace</p><h2>{snapshot.tasks.length} derived {snapshot.tasks.length === 1 ? "task" : "tasks"}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section><ContextSearch label="Tasks" />{snapshot.tasks.length === 0 ? <section className="empty-state"><h2>No derived tasks</h2><p>No validated condition currently requires attention.</p></section> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Priority</th><th>Task</th><th>Project</th><th>Reason</th><th>Recommended action</th></tr></thead><tbody>{snapshot.tasks.map((task) => <tr key={task.id}><td><span className={`priority-pill ${task.priority}`}>{taskPriorityLabel[task.priority]}</span></td><td><strong>{task.title}</strong>{task.deadline && <small className="table-detail">Deadline {task.deadline}</small>}</td><td>{task.clientId && task.projectId ? <button type="button" className="table-link" onClick={() => onOpenProject(task.clientId!, task.projectId!)}>{task.projectName}</button> : task.projectName ?? "Workspace"}</td><td>{task.reason}</td><td>{task.recommendedAction}</td></tr>)}</tbody></table></div></section>}<aside className="route-note"><strong>Derived on refresh</strong><span>Tasks have no manual completion state or application-owned database.</span></aside></>;
+  return <><section className="directory-toolbar"><div><p className="kicker">Studio work</p><h2>{snapshot.tasks.length} {snapshot.tasks.length === 1 ? "task" : "tasks"}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section><ContextSearch label="Tasks" />{snapshot.tasks.length === 0 ? <section className="empty-state"><h2>Nothing needs your attention</h2><p>You’re all caught up for now.</p></section> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Priority</th><th>Task</th><th>Project</th><th>Reason</th><th>Recommended action</th></tr></thead><tbody>{snapshot.tasks.map((task) => <tr key={task.id}><td><span className={`priority-pill ${task.priority}`}>{taskPriorityLabel[task.priority]}</span></td><td><strong>{task.title}</strong>{task.deadline && <small className="table-detail">Deadline {task.deadline}</small>}</td><td>{task.clientId && task.projectId ? <button type="button" className="table-link" onClick={() => onOpenProject(task.clientId!, task.projectId!)}>{task.projectName}</button> : task.projectName ?? "Workspace"}</td><td>{task.reason}</td><td>{task.recommendedAction}</td></tr>)}</tbody></table></div></section>}<aside className="route-note"><strong>Updated when you refresh</strong><span>Tasks are based on the current state of your studio and projects.</span></aside></>;
 }
 
 export function ActivityRoute({ workspace, loading, onRefresh, onOpenProject }: { workspace: ResourceState<WorkspaceSnapshot>; loading: boolean; onRefresh: () => void; onOpenProject: (clientId: string, projectId: string) => void }) {
-  if (workspace.status === "loading") return <section className="notice">Deriving activity…</section>;
-  if (workspace.status === "error") return <section className="notice error"><strong>Activity could not be derived</strong><span>{workspace.message}</span></section>;
+  if (workspace.status === "loading") return <section className="notice">Loading recent activity…</section>;
+  if (workspace.status === "error") return <section className="notice error"><strong>We couldn’t load recent activity</strong><span>{workspace.message}</span></section>;
   const snapshot = workspace.value;
-  return <><section className="directory-toolbar"><div><p className="kicker">Persisted timestamps</p><h2>{snapshot.activity.length} derived {snapshot.activity.length === 1 ? "event" : "events"}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section><ContextSearch label="Activity" />{snapshot.activity.length === 0 ? <section className="empty-state"><h2>No supported activity events</h2><p>No validated event timestamps are available.</p></section> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Timestamp</th><th>Event</th><th>Project or client</th><th>Persisted source</th></tr></thead><tbody>{snapshot.activity.map((event) => <tr key={event.id}><td><time dateTime={event.timestamp}>{formatEventTimestamp(event.timestamp)}</time></td><td>{activityEventLabel[event.eventType]}{event.revision !== null && <small className="table-detail">Revision {event.revision}</small>}</td><td>{event.projectId ? <button type="button" className="table-link" onClick={() => onOpenProject(event.clientId, event.projectId!)}>{event.projectName}</button> : event.clientName}</td><td><code>{event.persistedSource}</code></td></tr>)}</tbody></table></div></section>}<aside className="route-note"><strong>Derived event feed</strong><span>This is not a complete audit log. It includes only timestamps persisted by JL Mixing Automation.</span></aside></>;
+  return <><section className="directory-toolbar"><div><p className="kicker">Recent studio activity</p><h2>{snapshot.activity.length} {snapshot.activity.length === 1 ? "event" : "events"}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section><ContextSearch label="Activity" />{snapshot.activity.length === 0 ? <section className="empty-state"><h2>No recent activity yet</h2><p>Project activity will appear here as work moves forward.</p></section> : <section className="panel"><div className="table-scroll"><table><thead><tr><th>Timestamp</th><th>Event</th><th>Project or client</th><th>Source</th></tr></thead><tbody>{snapshot.activity.map((event) => <tr key={event.id}><td><time dateTime={event.timestamp}>{formatEventTimestamp(event.timestamp)}</time></td><td>{activityEventLabel[event.eventType]}{event.revision !== null && <small className="table-detail">Revision {event.revision}</small>}</td><td>{event.projectId ? <button type="button" className="table-link" onClick={() => onOpenProject(event.clientId, event.projectId!)}>{event.projectName}</button> : event.clientName}</td><td><code>{event.persistedSource}</code></td></tr>)}</tbody></table></div></section>}<aside className="route-note"><strong>Activity history</strong><span>This view shows supported project milestones recorded by JL Mixing Automation.</span></aside></>;
 }
 
 export function ClientsRoute({
@@ -430,7 +430,7 @@ export function ClientsRoute({
   return (
     <>
       <section className="directory-toolbar" aria-labelledby="client-directory-heading">
-        <div><p className="kicker">Validated workspace</p><h2 id="client-directory-heading">{snapshot.counts.clients} {snapshot.counts.clients === 1 ? "client" : "clients"}</h2></div>
+        <div><p className="kicker">Your studio</p><h2 id="client-directory-heading">{snapshot.counts.clients} {snapshot.counts.clients === 1 ? "client" : "clients"}</h2></div>
         <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" onClick={onNewClient} disabled={!clientCreationAvailable} aria-describedby="clients-new-client-help">New client</button></div>
       </section>
       <p id="clients-new-client-help" className="action-help directory-help">{clientCreationHelp}</p>
@@ -490,12 +490,12 @@ export function ClientDetails({
         <article><span>Default artist</span><strong>{client.defaultArtist || "Not set"}</strong></article>
         <article><span>Projects</span><strong>{client.projects.length}</strong></article>
       </section>
-      <aside className="route-note"><strong>Read only</strong><span>Client editing is unavailable because JL Mixing Automation v1.3.1 has no approved client-edit command.</span></aside>
+      <aside className="route-note"><strong>Read only</strong><span>Client editing isn’t available yet.</span></aside>
       <section className="detail-section" aria-labelledby="client-projects-heading">
         <div className="panel-heading"><div><p className="kicker">Client projects</p><h2 id="client-projects-heading">Projects for {client.clientName}</h2></div><div className="directory-actions"><button type="button" disabled className="planned-action">Edit client <span>Planned</span></button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="client-new-project-help">New project</button></div></div>
         <p id="client-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
         {client.projects.length === 0 ? (
-          <div className="planned-message compact"><strong>No projects for this client.</strong><p>Create the first project with the guided JL Mixing Automation workflow.</p></div>
+          <div className="planned-message compact"><strong>No projects for this client.</strong><p>Create the first project when you’re ready.</p></div>
         ) : (
           <div className="table-scroll">
             <table>
@@ -544,7 +544,7 @@ export function ProjectsRoute({
   return (
     <>
       <section className="directory-toolbar" aria-labelledby="project-directory-heading">
-        <div><p className="kicker">Validated workspace</p><h2 id="project-directory-heading">{entries.length} {entries.length === 1 ? "project" : "projects"}</h2></div>
+        <div><p className="kicker">Your studio</p><h2 id="project-directory-heading">{entries.length} {entries.length === 1 ? "project" : "projects"}</h2></div>
         <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="projects-new-project-help">New project</button></div>
       </section>
       <p id="projects-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
@@ -627,13 +627,13 @@ export function ProjectOverview({
       </section>
       <div className="project-detail-grid">
         <section className="panel" aria-labelledby="project-information-heading">
-          <div className="panel-heading"><div><p className="kicker">Project information</p><h2 id="project-information-heading">Authoritative metadata</h2></div></div>
+          <div className="panel-heading"><div><p className="kicker">Project information</p><h2 id="project-information-heading">Project details</h2></div></div>
           <dl className="metadata-list">
             <div><dt>Client</dt><dd>{client.clientName}</dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Deadline</dt><dd>{project.deadline ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate / 1000} kHz / {project.bitDepth}-bit / {project.fileFormat}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Created with</dt><dd>{project.createdWith}</dd></div>
           </dl>
         </section>
         <section className="panel" aria-labelledby="project-actions-heading">
-          <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Workflow controls</h2></div></div>
+          <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Keep the project moving</h2></div></div>
           <div className="action-stack"><button type="button" disabled>Open DAW — Planned</button><button type="button" onClick={onIntake}>Validate intake</button><button type="button" onClick={onNewRevision} disabled={!revisionCreationAvailable || loading}>New revision</button><button type="button" onClick={onRevisions}>View revisions</button></div>
           <FolderControl location="project" clientId={client.clientId} projectId={project.projectId} />
           <p className="action-help">{revisionCreationHelp}</p>
@@ -721,10 +721,10 @@ export function IntakeView({
       <p className="action-help directory-help">{validationHelp}</p>
       <FolderControl location="intake" clientId={client.clientId} projectId={project.projectId} label="Open intake folder" />
       {actionError && <div className="notice error" role="alert">{actionError}</div>}
-      {(reportState.status === "idle" || reportState.status === "loading") && <section className="empty-state"><h2>Loading intake report</h2><p>Reading the Automation-managed report from the validated project.</p></section>}
+      {(reportState.status === "idle" || reportState.status === "loading") && <section className="empty-state"><h2>Loading intake report</h2><p>Reading the latest intake report for this project.</p></section>}
       {reportState.status === "error" && <section className="notice error" role="alert"><strong>Report unavailable</strong><span>{reportState.message}</span></section>}
       {result && !result.ok && <section className="notice error" role="alert"><strong>Report unavailable</strong><span>{result.message}</span></section>}
-      {result?.ok && !result.report && <section className="empty-state"><h2>Intake validation has not been run</h2><p>Preview the default Automation validation before updating the managed report section.</p></section>}
+      {result?.ok && !result.report && <section className="empty-state"><h2>Intake validation has not been run</h2><p>Preview the intake check before updating the report.</p></section>}
       {result?.ok && result.report && <IntakeReportContent report={result.report} />}
     </>
   );
@@ -790,7 +790,7 @@ export function RevisionsView({
       <FolderControl location="revisions" clientId={client.clientId} projectId={project.projectId} label="Open revisions folder" />
       {actionError && <div className="notice error" role="alert">{actionError}</div>}
       {revisions.length === 0 ? (
-        <section className="empty-state"><h2>No revisions recorded</h2><p>The project manifest does not contain a revision yet.</p></section>
+        <section className="empty-state"><h2>No revisions recorded</h2><p>This project doesn’t have a revision yet.</p></section>
       ) : (
         <div className="revision-history-layout">
           <nav className="revision-list panel" aria-label="Revision history">
@@ -807,10 +807,10 @@ export function RevisionsView({
               <dl className="metadata-list">
                 <div><dt>Created</dt><dd><time dateTime={selected.createdAt}>{formatRevisionTimestamp(selected.createdAt)}</time></dd></div>
                 <div><dt>Revision ID</dt><dd><code>{selected.revisionId}</code></dd></div>
-                <div><dt>Manifest description</dt><dd>{selected.description}</dd></div>
+                <div><dt>Description</dt><dd>{selected.description}</dd></div>
                 <div><dt>Approval</dt><dd>{selected.approvedAt && selected.approvedBy ? <><span>Approved by {selected.approvedBy}</span><small><time dateTime={selected.approvedAt}>{formatRevisionTimestamp(selected.approvedAt)}</time></small></> : "Not approved"}</dd></div>
               </dl>
-              <aside className="route-note"><strong>Authoritative record</strong><span>Details come from <code>00_Admin/project-manifest.json</code>. No project files were scanned or changed.</span></aside>
+              <aside className="route-note"><strong>Revision details</strong><span>These details come from the project record. No project files were scanned or changed.</span></aside>
             </section>
           )}
         </div>
@@ -831,9 +831,9 @@ export function ProjectArtifactsView({ active, client, project, onSelectView }: 
   const intake = report?.ok ? report.report : null;
   return <>
     <ProjectWorkflowTabs active={active} onSelect={onSelectView} />
-    <section className="directory-toolbar"><div><p className="kicker">{client.clientName}</p><h2>{active === "reports" ? "Project reports" : active === "files" ? "Authoritative files" : "Project metadata"}</h2></div></section>
-    {active === "reports" && <div className="project-detail-grid"><section className="panel"><h3>Intake validation report</h3><p>{intake ? `${intake.filesDiscovered} files · ${intake.blockingErrors} blocking errors · ${intake.warnings} warnings` : "No readable intake report is recorded."}</p>{intake && <code>{intake.source}</code>}</section><section className="panel"><h3>Delivery manifest</h3><p>{project.delivery ? `Revision ${project.delivery.revision} · ${project.delivery.files.length} files · ${project.delivery.method}` : "No validated delivery manifest is recorded."}</p>{project.delivery && <code>05_Final_Delivery/delivery-manifest.json</code>}</section></div>}
-    {active === "files" && <section className="panel"><div className="table-scroll"><table><thead><tr><th>File</th><th>Source</th><th>Details</th></tr></thead><tbody>{intake?.inventory.map((file) => <tr key={`intake-${file.file}`}><td><code>{file.file}</code></td><td>Intake report</td><td>{file.technicalDetails}</td></tr>)}{project.delivery?.files.map((file) => <tr key={`delivery-${file.path}`}><td><code>{file.path}</code></td><td>Delivery manifest</td><td>{file.deliverableType.replace(/_/g, " ")} · {file.sizeBytes.toLocaleString()} bytes</td></tr>)}{!intake?.inventory.length && !project.delivery?.files.length && <tr><td colSpan={3}>No files are recorded by supported authoritative reports.</td></tr>}</tbody></table></div></section>}
+    <section className="directory-toolbar"><div><p className="kicker">{client.clientName}</p><h2>{active === "reports" ? "Project reports" : active === "files" ? "Project files" : "Project metadata"}</h2></div></section>
+    {active === "reports" && <div className="project-detail-grid"><section className="panel"><h3>Intake validation report</h3><p>{intake ? `${intake.filesDiscovered} files · ${intake.blockingErrors} blocking errors · ${intake.warnings} warnings` : "No readable intake report is recorded."}</p>{intake && <code>{intake.source}</code>}</section><section className="panel"><h3>Delivery details</h3><p>{project.delivery ? `Revision ${project.delivery.revision} · ${project.delivery.files.length} files · ${project.delivery.method}` : "No delivery package has been recorded yet."}</p>{project.delivery && <code>05_Final_Delivery/delivery-manifest.json</code>}</section></div>}
+    {active === "files" && <section className="panel"><div className="table-scroll"><table><thead><tr><th>File</th><th>Source</th><th>Details</th></tr></thead><tbody>{intake?.inventory.map((file) => <tr key={`intake-${file.file}`}><td><code>{file.file}</code></td><td>Intake report</td><td>{file.technicalDetails}</td></tr>)}{project.delivery?.files.map((file) => <tr key={`delivery-${file.path}`}><td><code>{file.path}</code></td><td>Delivery details</td><td>{file.deliverableType.replace(/_/g, " ")} · {file.sizeBytes.toLocaleString()} bytes</td></tr>)}{!intake?.inventory.length && !project.delivery?.files.length && <tr><td colSpan={3}>No files are recorded in the available project reports.</td></tr>}</tbody></table></div></section>}
     {active === "metadata" && <section className="panel"><dl className="metadata-list"><div><dt>Client ID</dt><dd><code>{client.clientId}</code></dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Project</dt><dd>{project.projectName}</dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Created</dt><dd>{project.createdAt}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate} Hz · {project.bitDepth}-bit {project.fileFormat}</dd></div><div><dt>Delivery method</dt><dd>{project.deliveryMethod}</dd></div><div><dt>Current / approved / delivered</dt><dd>{project.currentRevision} / {project.approvedRevision ?? "—"} / {project.deliveredRevision ?? "—"}</dd></div></dl></section>}
     <FolderControl location="project" clientId={client.clientId} projectId={project.projectId} />
   </>;
@@ -842,7 +842,7 @@ export function ProjectArtifactsView({ active, client, project, onSelectView }: 
 export function ReportsRoute({ workspace, onOpenProject }: { workspace: ResourceState<WorkspaceSnapshot>; onOpenProject: (clientId: string, projectId: string) => void }) {
   if (workspace.status !== "ready") return <section className="empty-state"><h2>Loading reports</h2></section>;
   const deliveries = workspace.value.clients.flatMap((client) => client.projects.filter((project) => project.delivery).map((project) => ({ client, project })));
-  return <section className="panel"><div className="panel-heading"><div><p className="kicker">Validated report index</p><h2>Reports</h2></div></div><p>Delivery manifests are indexed from validated workspace state. Intake reports remain available from each project's Reports tab.</p><div className="table-scroll"><table><thead><tr><th>Report</th><th>Project</th><th>Updated</th></tr></thead><tbody>{deliveries.map(({ client, project }) => <tr key={`${client.clientId}-${project.projectId}`}><td>Delivery manifest</td><td><button className="table-link" type="button" onClick={() => onOpenProject(client.clientId, project.projectId)}>{project.projectName}</button></td><td>{project.delivery!.createdAt}</td></tr>)}{deliveries.length === 0 && <tr><td colSpan={3}>No validated delivery reports are recorded.</td></tr>}</tbody></table></div></section>;
+  return <section className="panel"><div className="panel-heading"><div><p className="kicker">Studio reports</p><h2>Reports</h2></div></div><p>Delivery reports are collected here. Intake reports are available from each project’s Reports tab.</p><div className="table-scroll"><table><thead><tr><th>Report</th><th>Project</th><th>Updated</th></tr></thead><tbody>{deliveries.map(({ client, project }) => <tr key={`${client.clientId}-${project.projectId}`}><td>Delivery details</td><td><button className="table-link" type="button" onClick={() => onOpenProject(client.clientId, project.projectId)}>{project.projectName}</button></td><td>{project.delivery!.createdAt}</td></tr>)}{deliveries.length === 0 && <tr><td colSpan={3}>No delivery reports yet.</td></tr>}</tbody></table></div></section>;
 }
 
 export function DeliveryView({ clientId, project, loading, actionError, creationAvailable, creationHelp, onOverview, onCreate, onRefresh, onSelectView }: {
@@ -896,30 +896,30 @@ export function DeliveryView({ clientId, project, loading, actionError, creation
   const readiness = project.approvedRevision === null
     ? { title: "Approval required", detail: "Approve a revision before creating a delivery package." }
     : delivery === null
-      ? { title: "Ready for first delivery", detail: `Approved Revision ${project.approvedRevision} can be packaged with the guided workflow.` }
+      ? { title: "Ready for first delivery", detail: `Approved Revision ${project.approvedRevision} is ready to package.` }
       : project.approvedRevision === project.deliveredRevision
-        ? { title: "Delivery is current", detail: `The recorded package represents approved Revision ${project.deliveredRevision}.` }
-        : { title: "Replacement review required", detail: `The existing package represents Revision ${project.deliveredRevision}; approved Revision ${project.approvedRevision} requires an explicit replacement workflow.` };
+        ? { title: "Delivery is current", detail: `The current package contains approved Revision ${project.deliveredRevision}.` }
+        : { title: "New delivery available", detail: `The current package contains Revision ${project.deliveredRevision}; approved Revision ${project.approvedRevision} is ready for a replacement delivery.` };
   return <>
     <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Delivery</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
     <ProjectWorkflowTabs active="delivery" onSelect={onSelectView} />
-    <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Authoritative package state</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : delivery ? "Rebuild delivery" : "Create delivery"}</button></section>
+    <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Delivery status</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : delivery ? "Rebuild delivery" : "Create delivery"}</button></section>
     <p className="action-help">{creationHelp}</p>
     <FolderControl location="delivery" clientId={clientId} projectId={project.projectId} label="Open delivery folder" />
     {actionError && <div className="form-error" role="alert">{actionError}</div>}
     <section className="notice" role="status"><strong>{readiness.title}</strong><span>{readiness.detail}</span></section>
-    {!delivery ? <section className="empty-state"><h2>No delivery package recorded</h2><p>Studio found no validated delivery manifest for this project.</p></section> : <>
-      <section className="panel"><div className="panel-heading"><div><p className="kicker">Delivery manifest</p><h2>Revision {delivery.revision}</h2></div></div><dl className="metadata-list">
+    {!delivery ? <section className="empty-state"><h2>No delivery package yet</h2><p>No delivery package has been created for this project yet.</p></section> : <>
+      <section className="panel"><div className="panel-heading"><div><p className="kicker">Delivery details</p><h2>Revision {delivery.revision}</h2></div></div><dl className="metadata-list">
         <div><dt>Created</dt><dd><time dateTime={delivery.createdAt}>{formatRevisionTimestamp(delivery.createdAt)}</time></dd></div><div><dt>Method</dt><dd>{delivery.method}</dd></div><div><dt>Approved by</dt><dd>{delivery.approvedBy}</dd></div><div><dt>Files</dt><dd>{delivery.files.length}</dd></div><div><dt>Total bytes</dt><dd>{totalBytes.toLocaleString()}</dd></div><div><dt>Document ID</dt><dd><code>{delivery.documentId}</code></dd></div>
       </dl></section>
-      <section className="panel"><div className="panel-heading"><div><p className="kicker">Recorded checksums</p><h2>{delivery.files.length} delivered {delivery.files.length === 1 ? "file" : "files"}</h2></div></div><div className="table-scroll"><table><thead><tr><th>Path</th><th>Type</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>{delivery.files.map((file) => <tr key={file.path}><td><code>{file.path}</code></td><td>{file.deliverableType.replace(/_/g, " ")}</td><td>{file.sizeBytes.toLocaleString()}</td><td><code>{file.sha256}</code></td></tr>)}</tbody></table></div></section>
+      <section className="panel"><div className="panel-heading"><div><p className="kicker">File verification</p><h2>{delivery.files.length} delivered {delivery.files.length === 1 ? "file" : "files"}</h2></div></div><div className="table-scroll"><table><thead><tr><th>Path</th><th>Type</th><th>Size</th><th>SHA-256</th></tr></thead><tbody>{delivery.files.map((file) => <tr key={file.path}><td><code>{file.path}</code></td><td>{file.deliverableType.replace(/_/g, " ")}</td><td>{file.sizeBytes.toLocaleString()}</td><td><code>{file.sha256}</code></td></tr>)}</tbody></table></div></section>
       <section className="panel"><div className="panel-heading"><div><p className="kicker">Package document</p><h2>Delivery Notes</h2></div>{notes.status === "ready" && <span>{new TextEncoder().encode(notesDraft).length.toLocaleString()} / {notes.value.maxBytes.toLocaleString()} bytes</span>}</div>
         {notes.status === "loading" && <p>Reading <code>Delivery_Notes.md</code>…</p>}
         {notes.status === "error" && <div className="form-error" role="alert">{notes.message}</div>}
         {notes.status === "ready" && <><label className="field"><span>Markdown content</span><textarea aria-label="Delivery Notes Markdown content" rows={12} value={notesDraft} onChange={(event) => { setNotesDraft(event.target.value); setNotesMessage(null); }} /></label><div className="dialog-actions"><button type="button" onClick={saveNotes} disabled={notesSaving || notesDraft === notes.value.content || new TextEncoder().encode(notesDraft).length > notes.value.maxBytes} aria-busy={notesSaving}>{notesSaving ? "Saving…" : "Save Delivery Notes"}</button></div></>}
         {notesMessage && <p role="status">{notesMessage}</p>}
       </section>
-      <aside className="route-note"><strong>Manifest record</strong><span>Checksums are the values recorded and verified by JL Mixing Automation when this package was created. Studio did not re-hash delivery files.</span></aside>
+      <aside className="route-note"><strong>Delivery details</strong><span>JL Mixing Automation recorded and verified these checksums when the package was created. Studio did not re-check the delivery files.</span></aside>
     </>}
   </>;
 }
