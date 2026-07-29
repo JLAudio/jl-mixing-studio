@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Triggered after the branch-local workflow exists so this one-time codemod runs reliably.
 replacements = {
     Path("src/AppViews.tsx"): {
         "Valid clients and projects remain available below.": "Your available clients and projects are still here below.",
