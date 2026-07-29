@@ -1,16 +1,13 @@
-use std::io;
 use std::path::Path;
 
 use crate::automation_api::{
-    invoke_api, resolve_command, ApiCallError, ApiStatus, ProcessRunner, SystemProcessRunner,
+    invoke_api, ApiCallError, ApiStatus, ProcessRunner, SystemProcessRunner,
 };
 use crate::models::{
     ApprovalOperationCode, ApprovalOperationResult, RevisionApprovalRequest,
     RevisionApprovalSummary, RevisionCreationRequest, RevisionCreationSummary,
     RevisionOperationCode, RevisionOperationResult,
 };
-
-pub(super) const APPROVAL_EXECUTABLE: &str = "approve-mix";
 
 pub fn preflight_revision_creation(
     home: &Path,
@@ -252,7 +249,7 @@ pub fn preflight_revision_approval(
     project_directory: &Path,
     request: RevisionApprovalRequest,
 ) -> ApprovalOperationResult {
-    run_approval_operation(
+    run_revision_approval_operation(
         home,
         project_directory,
         request,
@@ -266,7 +263,7 @@ pub fn approve_revision(
     project_directory: &Path,
     request: RevisionApprovalRequest,
 ) -> ApprovalOperationResult {
-    run_approval_operation(
+    run_revision_approval_operation(
         home,
         project_directory,
         request,
@@ -293,7 +290,7 @@ pub(super) enum ApprovalOperation {
     Approve,
 }
 
-pub(super) fn run_approval_operation<R: ProcessRunner>(
+pub(super) fn run_revision_approval_operation<R: ProcessRunner>(
     home: &Path,
     project_directory: &Path,
     request: RevisionApprovalRequest,
@@ -320,31 +317,31 @@ pub(super) fn run_approval_operation<R: ProcessRunner>(
             &version.message,
         );
     }
-
-    let Some(executable) = resolve_command(home, APPROVAL_EXECUTABLE) else {
+    if !version.revision_approval_supported {
         return blocked_approval_operation(
-            ApprovalOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation approve-mix command was not found",
+            ApprovalOperationCode::Rejected,
+            "JL Mixing Automation does not advertise the revision.approve capability required by Studio",
         );
-    };
-    let arguments = approval_arguments(&request, operation);
-    match runner.run(&executable, &arguments, Some(project_directory)) {
-        Ok(output) if output.success => {
-            let Some(approval) = parse_approval_output(&output.stdout, &request, operation) else {
-                return blocked_approval_operation(
-                    match operation {
-                        ApprovalOperation::Preflight => ApprovalOperationCode::Failed,
-                        ApprovalOperation::Approve => ApprovalOperationCode::Uncertain,
-                    },
-                    match operation {
-                        ApprovalOperation::Preflight => {
-                            "The JL Mixing Automation approval preview could not be verified"
-                        }
-                        ApprovalOperation::Approve => {
-                            "JL Mixing Automation reported success, but the approval identity could not be verified. The operation may have completed; do not retry automatically."
-                        }
-                    },
-                );
+    }
+
+    let arguments = approval_arguments(project_directory, &request, operation);
+    match invoke_api(
+        home,
+        "revision.approve",
+        &arguments,
+        Some(project_directory),
+        runner,
+    ) {
+        Ok(response)
+            if matches!(
+                (operation, response.status),
+                (ApprovalOperation::Preflight, ApiStatus::Planned)
+                    | (ApprovalOperation::Approve, ApiStatus::Success)
+            ) =>
+        {
+            let Some(approval) = approval_summary_from_api(&response.data, &request, operation)
+            else {
+                return unverifiable_approval_result(operation);
             };
             ApprovalOperationResult {
                 ok: true,
@@ -362,41 +359,41 @@ pub(super) fn run_approval_operation<R: ProcessRunner>(
                 approval: Some(approval),
             }
         }
-        Ok(output) => blocked_approval_operation(
+        Ok(response) => blocked_approval_operation(
             ApprovalOperationCode::Rejected,
-            &super::bounded_process_message(
-                &output.stderr,
-                &output.stdout,
-                &format!(
-                    "JL Mixing Automation rejected revision approval with exit code {}",
-                    output
-                        .exit_code
-                        .map_or_else(|| "unknown".into(), |code| code.to_string())
-                ),
+            &response
+                .errors
+                .first()
+                .map(|error| error.message.clone())
+                .unwrap_or_else(|| {
+                    format!(
+                        "JL Mixing Automation returned unexpected status {:?} for revision.approve",
+                        response.status
+                    )
+                }),
+        ),
+        Err(ApiCallError::Unavailable) => blocked_approval_operation(
+            ApprovalOperationCode::AutomationUnavailable,
+            "JL Mixing Automation was not found in its default install location or on PATH",
+        ),
+        Err(ApiCallError::IncompatibleVersion(version)) => blocked_approval_operation(
+            ApprovalOperationCode::UnsupportedVersion,
+            &format!(
+                "JL Mixing Automation returned API {}; Studio requires Automation API 1.0",
+                version
             ),
         ),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_approval_operation(
-            ApprovalOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation approve-mix command was not found",
-        ),
-        Err(_) => blocked_approval_operation(
+        Err(error) => blocked_approval_operation(
             match operation {
                 ApprovalOperation::Preflight => ApprovalOperationCode::Failed,
                 ApprovalOperation::Approve => ApprovalOperationCode::Uncertain,
             },
-            match operation {
-                ApprovalOperation::Preflight => {
-                    "The JL Mixing Automation approve-mix command could not be started"
-                }
-                ApprovalOperation::Approve => {
-                    "The revision-approval result could not be confirmed. The operation may have completed; do not retry automatically."
-                }
-            },
+            &error.message(),
         ),
     }
 }
 
-fn normalize_approval_request(
+pub(super) fn normalize_approval_request(
     request: RevisionApprovalRequest,
 ) -> Result<RevisionApprovalRequest, String> {
     let client_id = request.client_id.trim().to_owned();
@@ -423,10 +420,16 @@ fn normalize_approval_request(
 }
 
 fn approval_arguments(
+    project_directory: &Path,
     request: &RevisionApprovalRequest,
     operation: ApprovalOperation,
 ) -> Vec<String> {
     let mut arguments = vec![
+        "revision".into(),
+        "approve".into(),
+        "--json".into(),
+        "--project".into(),
+        project_directory.to_string_lossy().into_owned(),
         "--revision".into(),
         request.revision.to_string(),
         "--approved-by".into(),
@@ -438,42 +441,64 @@ fn approval_arguments(
     arguments
 }
 
-fn parse_approval_output(
-    stdout: &str,
+fn approval_summary_from_api(
+    data: &serde_json::Value,
     request: &RevisionApprovalRequest,
     operation: ApprovalOperation,
 ) -> Option<RevisionApprovalSummary> {
-    let field = |label: &str| {
-        stdout.lines().find_map(|line| {
-            let (candidate, value) = line.split_once(':')?;
-            (candidate.trim() == label).then(|| value.trim().to_owned())
-        })
-    };
-    let revision = field(match operation {
-        ApprovalOperation::Preflight => "Selected revision",
-        ApprovalOperation::Approve => "Approved revision",
-    })?
-    .parse::<u32>()
-    .ok()?;
-    let approved_by = field(match operation {
-        ApprovalOperation::Preflight => "Approver",
-        ApprovalOperation::Approve => "Approved by",
-    })?;
-    let approved_at = match operation {
-        ApprovalOperation::Preflight => None,
-        ApprovalOperation::Approve => Some(field("Approved at")?),
-    };
-    if revision != request.revision
+    let project_id = data.get("project")?.get("id")?.as_str()?;
+    let revision = data.get("revision")?;
+    let revision_number = revision.get("number")?.as_u64()?;
+    let revision_path = revision.get("path")?.as_str()?;
+    let approved_by = data.get("approved_by")?.as_str()?;
+    let approved_at = data.get("approved_at");
+
+    if project_id != request.project_id
+        || revision_number != u64::from(request.revision)
+        || revision_path.trim().is_empty()
         || approved_by != request.approved_by
-        || approved_at.as_ref().is_some_and(|value| value.is_empty())
     {
         return None;
     }
+
+    let approved_at = match operation {
+        ApprovalOperation::Preflight => {
+            if !approved_at.is_none_or(serde_json::Value::is_null) {
+                return None;
+            }
+            None
+        }
+        ApprovalOperation::Approve => {
+            let value = approved_at?.as_str()?;
+            if value.trim().is_empty() {
+                return None;
+            }
+            Some(value.to_owned())
+        }
+    };
+
     Some(RevisionApprovalSummary {
         client_id: request.client_id.clone(),
         project_id: request.project_id.clone(),
-        revision,
-        approved_by,
+        revision: request.revision,
+        approved_by: approved_by.to_owned(),
         approved_at,
     })
+}
+
+fn unverifiable_approval_result(operation: ApprovalOperation) -> ApprovalOperationResult {
+    blocked_approval_operation(
+        match operation {
+            ApprovalOperation::Preflight => ApprovalOperationCode::Failed,
+            ApprovalOperation::Approve => ApprovalOperationCode::Uncertain,
+        },
+        match operation {
+            ApprovalOperation::Preflight => {
+                "The JL Mixing Automation approval preview could not be verified"
+            }
+            ApprovalOperation::Approve => {
+                "JL Mixing Automation reported success, but the approval identity could not be verified. The operation may have completed; do not retry automatically."
+            }
+        },
+    )
 }

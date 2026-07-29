@@ -15,6 +15,10 @@ mod delivery;
 mod intake;
 mod project;
 mod revision;
+#[cfg(test)]
+mod revision_api_tests;
+#[cfg(test)]
+mod revision_legacy_testsupport;
 mod studio;
 
 pub use client::{blocked_client_operation, create_client, preflight_client_creation};
@@ -39,10 +43,9 @@ pub use revision::{
     preflight_revision_approval, preflight_revision_creation,
 };
 #[cfg(test)]
-use revision::{
-    run_approval_operation, run_revision_operation, ApprovalOperation, RevisionOperation,
-    APPROVAL_EXECUTABLE,
-};
+use revision::{run_revision_operation, RevisionOperation};
+#[cfg(test)]
+use revision_legacy_testsupport::{run_approval_operation, ApprovalOperation, APPROVAL_EXECUTABLE};
 pub use studio::{blocked_studio_operation, create_studio, preflight_studio_creation};
 #[cfg(test)]
 use studio::{run_studio_operation, StudioOperation, STUDIO_EXECUTABLE};
