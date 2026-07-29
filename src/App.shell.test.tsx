@@ -1,39 +1,20 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  mockedInvoke,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  beforeEach,
+  describe,
+  expect,
   mockedWriteText,
   version,
-  preflightResult,
-  createResult,
-  projectPreflightResult,
-  projectCreateResult,
-  revisionPreviewResult,
-  revisionCreateResult,
-  deliveryPreviewResult,
-  deliveryCreateResult,
-  approvalPreviewResult,
-  approvalResult,
-  intakeReport,
-  intakeNotRun,
   intakePreview,
   healthyWorkspace,
   respondWith,
   resetAppTestState
 } from "./App.testSupport";
 import App from "./App";
-import type {
-  ApprovalOperationResult,
-  ClientOperationResult,
-  DeliveryOperationResult,
-  IntakeOperationResult,
-  IntakeReport,
-  ProjectOperationResult,
-  RevisionOperationResult,
-  StudioOperationResult,
-  VersionCheck,
-  WorkspaceSnapshot,
-} from "./types";
 
 afterEach(cleanup);
 

@@ -9,16 +9,14 @@ import type {
   IntakeReport,
   ProjectOperationResult,
   RevisionOperationResult,
-  StudioOperationResult,
   VersionCheck,
-  WorkspaceSnapshot,
+  WorkspaceSnapshot
 } from "./types";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({ writeText: vi.fn() }));
 export const mockedInvoke = vi.mocked(invoke);
 export const mockedWriteText = vi.mocked(writeText);
-
 
 export const version: VersionCheck = {
   available: true,
