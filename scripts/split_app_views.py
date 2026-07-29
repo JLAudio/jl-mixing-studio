@@ -57,7 +57,17 @@ const revisionLabel = (revision: number | null) =>
 
 '''
 
-shell = shell_header + source[body_start:boundary].rstrip() + "\n"
+shell_body = source[body_start:boundary]
+shell_body = re.sub(
+    r'\nconst revisionLabel = \(revision: number \| null\) =>\n  revision === null \? "Not set" : `Revision \$\{revision\}`;\n',
+    "\n",
+    shell_body,
+    count=1,
+)
+if "const revisionLabel" in shell_body:
+    raise SystemExit("revisionLabel was not removed from shell module")
+
+shell = shell_header + shell_body.rstrip() + "\n"
 project = project_header + source[boundary + 1:].lstrip()
 barrel = 'export * from "./AppShellViews";\nexport * from "./AppProjectViews";\n'
 
