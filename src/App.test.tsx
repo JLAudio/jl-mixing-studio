@@ -1510,8 +1510,8 @@ describe("JL Mixing Studio", () => {
     await screen.findByRole("heading", { name: "Confirm new project" });
     fireEvent.click(screen.getByRole("button", { name: "Create project" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/workspace could not be refreshed/i);
-    expect(screen.getByRole("alert")).toHaveTextContent(/may have completed/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/studio could not be refreshed/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/result is uncertain/i);
     expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_project")).toHaveLength(1);
   });
 
@@ -1781,7 +1781,7 @@ describe("JL Mixing Studio", () => {
     await screen.findByRole("heading", { name: "Confirm new client" });
     fireEvent.click(screen.getByRole("button", { name: "Create client" }));
 
-    expect(await screen.findByText(/was created and added to the workspace/i)).toBeInTheDocument();
+    expect(await screen.findByText(/was added to your studio/i)).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "New Client" })).not.toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("create_client", {
       request: {
@@ -1850,7 +1850,7 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create client" }));
 
     expect(await screen.findByRole("heading", { name: "Creation needs verification" })).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(/may have completed/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/result is uncertain/i);
     expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_client")).toHaveLength(1);
   });
 
