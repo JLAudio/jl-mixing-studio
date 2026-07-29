@@ -13,10 +13,10 @@ Last updated: 2026-07-29
 ## Active development target
 
 - Target release: `v1.1.0`
-- Primary objective: Establish the JL Mixing Automation API as the stable compatibility contract between Studio and Automation.
+- Primary objective: Build on the completed Automation API `1.0` foundation with behavior-preserving maintainability cleanup and approved UI refinement.
 - Versioning policy: Studio and Automation retain independent product versions. Studio declares compatibility with a specific Automation API version rather than requiring matching product release numbers.
 - Studio v1.1 Automation API target: `1.0`.
-- Cross-repository dependency: JL Mixing Automation provider contract `JLAudio/jl-mixing#44` is complete. Studio owns its consumer policy and integration in `JLAudio/jl-mixing-studio#74` through `#77`.
+- Cross-repository provider dependency: JL Mixing Automation API `1.0` contract work is complete, including the `delivery.create` parity extension required by Studio.
 
 ## Release validation
 
@@ -26,9 +26,7 @@ Last updated: 2026-07-29
 - CI and release workflow: Passed
 - Known release blockers: None
 
-## Current work
-
-Complete the `v1.1.0` Studio consumer migration to Automation API `1.0` while preserving v1.0 user-visible behavior.
+## Completed v1.1 foundation work
 
 Automation-owned provider work:
 
@@ -36,25 +34,32 @@ Automation-owned provider work:
 - Provider capabilities available to Studio: `system.info`, `client.create`, `project.create`, `revision.create`, `intake.validate`, `revision.approve`, and `delivery.create`.
 - `delivery.create` rich result parity extension completed by Automation #66 / PR #67, including authoritative selected/excluded file data and clean-deletion inventory required by Studio.
 
-Studio-owned consumer work completed:
+Studio-owned consumer work:
 
 - Compatibility policy documented and implemented (#74).
-- Centralized Automation discovery, API-version validation, capability handling, and stable error mapping implemented (#76).
-- Studio-side Automation API invocation boundary established under #75.
+- Studio-side Automation API abstraction layer completed (#75).
+- Centralized Automation discovery, API-version validation, capability handling, and stable error mapping completed (#76).
+- Deterministic Automation API compatibility and failure-path coverage completed (#77 / PR #97).
 - `client.create`, `project.create`, `revision.create`, `intake.validate`, `revision.approve`, and `delivery.create` migrated to the structured API boundary.
 - Delivery clean-replacement confirmation revalidates the exact provider deletion inventory immediately before destructive execution (PR #96).
 - CLI runtime refactored into domain-focused modules (`studio`, `client`, `project`, `intake`, `revision`, and `delivery`) under #85 / PR #94.
 
-Studio-owned consumer work in progress:
+## Current work
 
-- Add deterministic Automation API compatibility/integration tests for supported and rejected API behavior (#77), including incomplete discovery responses and invocation-layer failure classes.
+Run the existing-code JL Audio coding-standards audit tracked by #93 now that the API/refactor sequence is stable.
+
+Initial audit findings and focused follow-up work:
+
+- #98: split the oversized `src-tauri/src/cli/tests.rs` regression test module into domain-focused modules without dropping coverage.
+- #99: split the oversized `src/App.tsx` React application module into cohesive route/workflow modules without changing user-visible behavior.
+- Keep legacy approval and delivery regression adapters test-only until equivalent structured API coverage fully replaces every remaining assertion, including ZIP naming and input-validation cases.
 
 ## Next work
 
-- Complete #77 compatibility and failure-path integration coverage and remove temporary legacy test adapters when equivalent structured-path regression coverage is confirmed.
-- Complete #75 once all Automation-backed Studio workflows and compatibility tests are consolidated on the abstraction layer.
-- Continue UI refinement toward the approved wireframes after the API foundation is stable.
-- Run the existing-code JL Audio coding-standards audit tracked by #93 after the current API/refactor sequence stabilizes.
+- Implement #98 first as the lower-risk behavior-preserving standards cleanup.
+- Implement #99 in focused extraction PRs rather than one oversized React rewrite.
+- Continue UI refinement toward the approved wireframes after structural cleanup has reduced the cost and risk of frontend changes.
+- Complete #93 once material standards deviations are corrected or explicitly documented with maintainability rationale.
 
 ## Maintenance strategy
 
@@ -79,5 +84,5 @@ JL Mixing Studio reached its first stable public release after RC4 acceptance, m
 
 ## Known issues and technical debt
 
-- Legacy approval and delivery regression tests remain isolated behind test-only support while the structured API paths are covered independently; remove the legacy test support when #77 confirms equivalent API-path coverage.
+- Legacy approval and delivery regression support remains intentionally test-only until all remaining parser-era assertions have explicit structured API equivalents; track final removal under #93/#98.
 - No known release-blocking defects. New defects should be recorded as GitHub issues and assigned to either the `v1.0.1` patch milestone or the appropriate future milestone.
