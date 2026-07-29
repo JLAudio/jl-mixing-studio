@@ -20,8 +20,8 @@ if "mod workflows;\n" not in source:
 
 imports_anchor = "use tauri::Manager;\n"
 workflow_import = (
-    "use workflows::{run_delivery_operation, verify_delivery_creation, "
-    "workspace_allows_delivery_creation};\n"
+    "use workflows::{list_delivery_entries, run_delivery_operation, verify_delivery_artifacts, "
+    "verify_delivery_creation, workspace_allows_delivery_creation};\n"
 )
 if workflow_import not in source:
     source = source.replace(imports_anchor, imports_anchor + workflow_import, 1)
@@ -46,7 +46,8 @@ workflows_dir.mkdir(parents=True, exist_ok=True)
 Path("src-tauri/src/workflows/mod.rs").write_text(
     "mod delivery;\n\n"
     "pub(super) use delivery::{\n"
-    "    run_delivery_operation, verify_delivery_creation, workspace_allows_delivery_creation,\n"
+    "    list_delivery_entries, run_delivery_operation, verify_delivery_artifacts,\n"
+    "    verify_delivery_creation, workspace_allows_delivery_creation,\n"
     "};\n"
 )
 Path("src-tauri/src/workflows/delivery.rs").write_text(
@@ -63,9 +64,11 @@ Path("src-tauri/src/workflows/delivery.rs").write_text(
     "};\n"
     "use crate::workspace;\n\n"
     "use super::super::{find_project_summary, resolve_home, validated_project_directory};\n\n"
-    + delivery_body.replace("fn run_delivery_operation(", "pub(super) fn run_delivery_operation(", 1)
-      .replace("fn verify_delivery_creation(", "pub(super) fn verify_delivery_creation(", 1)
-    + status_fn.replace("fn workspace_allows_delivery_creation(", "pub(super) fn workspace_allows_delivery_creation(")
+    + delivery_body.replace("fn run_delivery_operation(", "pub(crate) fn run_delivery_operation(", 1)
+      .replace("fn verify_delivery_artifacts(", "pub(crate) fn verify_delivery_artifacts(", 1)
+      .replace("fn list_delivery_entries(", "pub(crate) fn list_delivery_entries(", 1)
+      .replace("fn verify_delivery_creation(", "pub(crate) fn verify_delivery_creation(", 1)
+    + status_fn.replace("fn workspace_allows_delivery_creation(", "pub(crate) fn workspace_allows_delivery_creation(")
 )
 
 lib_path.write_text(source)
