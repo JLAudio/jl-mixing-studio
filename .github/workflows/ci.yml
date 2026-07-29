@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -30,10 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/issue-112-workspace-discovery-split
-      - name: Refactor workspace discovery
-        run: python scripts/refactor_workspace_discovery.py
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
@@ -44,19 +40,6 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
-      - name: Commit refactor and restore normal CI
-        if: success() && github.event_name == 'pull_request'
-        run: |
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add src-tauri/src/workspace.rs
-          git commit -m "Refactor workspace discovery helpers"
-          git fetch origin main:refs/remotes/origin/main
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm scripts/refactor_workspace_discovery.py
-          git add .github/workflows/ci.yml
-          git commit -m "Restore CI after workspace discovery refactor"
-          git push origin HEAD:agent/issue-112-workspace-discovery-split
 
   desktop-check:
     name: ${{ matrix.name }} compile check
@@ -73,10 +56,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/issue-112-workspace-discovery-split
-      - name: Refactor workspace discovery
-        run: python scripts/refactor_workspace_discovery.py
       - uses: dtolnay/rust-toolchain@stable
       - name: Check desktop compile
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-features
