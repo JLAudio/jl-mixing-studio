@@ -18,6 +18,14 @@ if end < 0:
     raise SystemExit("route context end not found")
 end += len(end_marker)
 
+navigation_block = '''  const openDerivedProject = (clientId: string, projectId: string) => {
+    setSelectedClientId(null); setSelectedProject({ clientId, projectId, fromClient: false });
+    setProjectView("overview"); setActiveRoute("projects"); setRouteNotice(null);
+  };
+'''
+if navigation_block not in source[start:end]:
+    raise SystemExit("openDerivedProject navigation block not found inside route context region")
+
 replacement = '''  const {
     resolvedClient,
     resolvedProjectClient,
@@ -34,13 +42,14 @@ replacement = '''  const {
     projectView,
     deliveryCreationSupported,
   );
-'''
+
+''' + navigation_block
 source = source[:start] + replacement + source[end:]
 
 for forbidden in ["const resolvedClient =", "const deliveryCreationHelp = (() =>", "const baseRouteDefinition ="]:
     if forbidden in source:
         raise SystemExit(f"inline route derivation remains: {forbidden}")
-for required in ["getAppRouteContext(", "resolvedProjectClient,", "activeRouteDefinition,"]:
+for required in ["getAppRouteContext(", "resolvedProjectClient,", "activeRouteDefinition,", "const openDerivedProject ="]:
     if required not in source:
         raise SystemExit(f"route context wiring missing: {required}")
 
