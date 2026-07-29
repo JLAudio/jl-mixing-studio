@@ -209,7 +209,7 @@ fn delivery_arguments(
     arguments
 }
 
-fn parse_delivery_output(
+pub(super) fn parse_delivery_output(
     stdout: &str,
     request: &DeliveryCreationRequest,
     operation: DeliveryOperation,
