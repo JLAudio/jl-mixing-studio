@@ -93,7 +93,7 @@ pub(super) fn run_delivery_operation<R: ProcessRunner>(
         && matches!(request.replacement_mode, DeliveryReplacementMode::Clean)
     {
         if let Err(result) = verify_clean_confirmation(home, project_directory, &request, runner) {
-            return result;
+            return *result;
         }
     }
 
@@ -105,12 +105,12 @@ fn verify_clean_confirmation<R: ProcessRunner>(
     project_directory: &Path,
     request: &DeliveryCreationRequest,
     runner: &R,
-) -> Result<(), DeliveryOperationResult> {
+) -> Result<(), Box<DeliveryOperationResult>> {
     if request.confirmed_deletions.is_empty() {
-        return Err(blocked_delivery_operation(
+        return Err(Box::new(blocked_delivery_operation(
             DeliveryOperationCode::InvalidInput,
             "Confirm the clean-deletion inventory before creating the delivery",
-        ));
+        )));
     }
 
     let arguments = delivery_arguments(project_directory, request, DeliveryOperation::Preflight);
@@ -125,24 +125,27 @@ fn verify_clean_confirmation<R: ProcessRunner>(
             let Some(preview) =
                 delivery_preview_from_api(&response.data, request, DeliveryOperation::Preflight)
             else {
-                return Err(blocked_delivery_operation(
+                return Err(Box::new(blocked_delivery_operation(
                     DeliveryOperationCode::Failed,
                     "The JL Mixing Automation clean-delivery preview could not be verified",
-                ));
+                )));
             };
             if preview.deletions != request.confirmed_deletions {
-                return Err(blocked_delivery_operation(
+                return Err(Box::new(blocked_delivery_operation(
                     DeliveryOperationCode::Rejected,
                     "The clean-deletion inventory changed after confirmation. Review the delivery preview again before continuing.",
-                ));
+                )));
             }
             Ok(())
         }
-        Ok(response) => Err(provider_rejection(
+        Ok(response) => Err(Box::new(provider_rejection(
             &response,
             "JL Mixing Automation rejected the clean-delivery verification",
-        )),
-        Err(error) => Err(api_error_result(error, DeliveryOperation::Preflight)),
+        ))),
+        Err(error) => Err(Box::new(api_error_result(
+            error,
+            DeliveryOperation::Preflight,
+        ))),
     }
 }
 
