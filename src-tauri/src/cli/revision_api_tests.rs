@@ -160,7 +160,10 @@ fn approval_preflight_uses_structured_api_and_dry_run() {
     assert_eq!(approval.approved_by, "Client Reviewer");
     assert_eq!(approval.approved_at, None);
     let invocations = runner.invocations.borrow();
-    assert_eq!(invocations[1].executable, home.path().join(".local/bin/jl-mixing"));
+    assert_eq!(
+        invocations[1].executable,
+        home.path().join(".local/bin/jl-mixing")
+    );
     assert_eq!(
         invocations[1].arguments,
         vec![
