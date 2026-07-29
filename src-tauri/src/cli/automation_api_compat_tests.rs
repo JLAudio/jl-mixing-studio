@@ -263,10 +263,7 @@ fn invocation_maps_missing_process_to_unavailable() {
         "client.create",
         &["client".into(), "create".into(), "--json".into()],
         None,
-        &FakeRunner::new(vec![Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            "gone",
-        ))]),
+        &FakeRunner::new(vec![Err(io::Error::new(io::ErrorKind::NotFound, "gone"))]),
     );
 
     assert_api_error(result, ApiCallError::Unavailable);
