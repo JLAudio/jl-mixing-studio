@@ -12,6 +12,10 @@ use std::io;
 
 mod client;
 mod delivery;
+#[cfg(test)]
+mod delivery_api_tests;
+#[cfg(test)]
+mod delivery_legacy_testsupport;
 mod intake;
 mod project;
 mod revision;
@@ -26,7 +30,7 @@ pub use client::{blocked_client_operation, create_client, preflight_client_creat
 use client::{run_client_operation, ClientOperation};
 pub use delivery::{blocked_delivery_operation, create_delivery, preflight_delivery_creation};
 #[cfg(test)]
-use delivery::{
+use delivery_legacy_testsupport::{
     parse_delivery_output, run_delivery_operation, DeliveryOperation, DELIVERY_EXECUTABLE,
 };
 pub use intake::{
