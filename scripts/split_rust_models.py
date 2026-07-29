@@ -15,6 +15,7 @@ workspace_start = source.index(workspace_marker)
 
 header_end = source.index("\n\n", source.index("use serde")) + 2
 imports = source[:header_end]
+serialize_import = "use serde::Serialize;\n\n"
 system_body = source[header_end:workflow_start]
 workflow_body = source[workflow_start:documents_start]
 documents_body = source[documents_start:workspace_start]
@@ -25,7 +26,7 @@ models_dir.joinpath("system.rs").write_text(imports + system_body)
 models_dir.joinpath("workflows.rs").write_text(imports + workflow_body)
 models_dir.joinpath("documents.rs").write_text(imports + documents_body)
 models_dir.joinpath("workspace.rs").write_text(
-    imports + "use super::documents::ProjectSummary;\n\n" + workspace_body
+    serialize_import + "use super::documents::ProjectSummary;\n\n" + workspace_body
 )
 
 models_path.write_text(
