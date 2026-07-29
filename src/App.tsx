@@ -48,27 +48,6 @@ import {
 import type { PrimaryRoute } from "./ui/routes";
 import { getAppRouteContext } from "./AppRouteContext";
 import {
-  ClientWorkflowState,
-  ClientFormValues,
-  ProjectWorkflowState,
-  ProjectFormValues,
-  IntakeWorkflowState,
-  RevisionWorkflowState,
-  RevisionFormValues,
-  ApprovalWorkflowState,
-  ApprovalFormValues,
-  DeliveryWorkflowState,
-  StudioWorkflowState,
-  StudioFormValues,
-  AppPreferences,
-  loadPreferences,
-  emptyClientForm,
-  emptyProjectForm,
-  emptyStudioForm,
-  emptyRevisionForm,
-  emptyApprovalForm,
-  clientIdPattern,
-  sameDeliveryPlan,
   DeliveryOptionsDialog,
   DeliveryDialog,
   RevisionDialog,
@@ -78,8 +57,31 @@ import {
   StudioDialog,
   SettingsRoute,
   ClientDialog,
-  ProjectDialog
+  ProjectDialog,
 } from "./AppWorkflows";
+import {
+  type ClientWorkflowState,
+  type ClientFormValues,
+  type ProjectWorkflowState,
+  type ProjectFormValues,
+  type IntakeWorkflowState,
+  type RevisionWorkflowState,
+  type RevisionFormValues,
+  type ApprovalWorkflowState,
+  type ApprovalFormValues,
+  type DeliveryWorkflowState,
+  type StudioWorkflowState,
+  type StudioFormValues,
+  type AppPreferences,
+  loadPreferences,
+  emptyClientForm,
+  emptyProjectForm,
+  emptyStudioForm,
+  emptyRevisionForm,
+  emptyApprovalForm,
+  clientIdPattern,
+  sameDeliveryPlan,
+} from "./AppWorkflowModels";
 import { getWorkflowAvailability } from "./AppWorkflowAvailability";
 import "./App.css";
 
