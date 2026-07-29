@@ -1,6 +1,8 @@
 use std::path::Path;
 
-use crate::automation_api::{invoke_api, ApiCallError, ApiStatus, ProcessRunner, SystemProcessRunner};
+use crate::automation_api::{
+    invoke_api, ApiCallError, ApiStatus, ProcessRunner, SystemProcessRunner,
+};
 use crate::intake as intake_report;
 use crate::intake::IntakeReportError;
 use crate::models::{IntakeOperationCode, IntakeOperationResult, IntakeRequest};
@@ -10,7 +12,10 @@ pub fn read_intake_report(
     request: IntakeRequest,
 ) -> IntakeOperationResult {
     match normalize_intake_request(request) {
-        Ok(request) => report_result(intake_report::read_report(project_directory, &request), false),
+        Ok(request) => report_result(
+            intake_report::read_report(project_directory, &request),
+            false,
+        ),
         Err(message) => blocked_intake_operation(IntakeOperationCode::InvalidInput, &message),
     }
 }
