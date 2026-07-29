@@ -1,6 +1,14 @@
 use crate::automation_api::{ProcessRunner, SystemProcessRunner};
 use crate::models::VersionCheck;
-use std::{io, path::Path};
+use std::path::Path;
+
+#[cfg(test)]
+use crate::models::{
+    ApprovalOperationCode, DeliveryCreationRequest, DeliveryOperationCode, IntakeOperationCode,
+    IntakeRequest, RevisionApprovalRequest, RevisionCreationRequest, RevisionOperationCode,
+};
+#[cfg(test)]
+use std::io;
 
 mod client;
 mod delivery;
@@ -14,7 +22,9 @@ pub use client::{blocked_client_operation, create_client, preflight_client_creat
 use client::{run_client_operation, ClientOperation};
 pub use delivery::{blocked_delivery_operation, create_delivery, preflight_delivery_creation};
 #[cfg(test)]
-use delivery::{run_delivery_operation, DeliveryOperation, DELIVERY_EXECUTABLE};
+use delivery::{
+    parse_delivery_output, run_delivery_operation, DeliveryOperation, DELIVERY_EXECUTABLE,
+};
 pub use intake::{
     blocked_intake_operation, preflight_intake_validation, read_intake_report,
     run_intake_validation,
