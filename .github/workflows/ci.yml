@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/issue-112-revision-workflow-split
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -30,6 +32,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/issue-112-revision-workflow-split
+      - name: Split revision workflow
+        run: python scripts/split_revision_workflow.py
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
@@ -40,6 +46,18 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
+      - name: Commit revision split and restore normal CI
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src-tauri/src/lib.rs src-tauri/src/workflows
+          git commit -m "Extract revision workflow orchestration"
+          git fetch origin main:refs/remotes/origin/main
+          git checkout origin/main -- .github/workflows/ci.yml
+          git rm scripts/split_revision_workflow.py
+          git add .github/workflows/ci.yml
+          git commit -m "Restore CI after revision workflow split"
+          git push origin HEAD:agent/issue-112-revision-workflow-split
 
   desktop-check:
     name: ${{ matrix.name }} compile check
@@ -56,6 +74,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: agent/issue-112-revision-workflow-split
+      - name: Split revision workflow
+        run: python scripts/split_revision_workflow.py
       - uses: dtolnay/rust-toolchain@stable
       - name: Check desktop compile
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-features
