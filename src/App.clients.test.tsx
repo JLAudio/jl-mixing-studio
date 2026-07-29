@@ -1,17 +1,6 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  beforeEach,
-  describe,
-  expect,
-  version,
-  preflightResult,
-  createResult,
-  healthyWorkspace,
-  resetAppTestState
-} from "./App.testSupport";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mockedInvoke, version, preflightResult, createResult, healthyWorkspace, resetAppTestState } from "./App.testSupport";
 import App from "./App";
 import type { ClientOperationResult } from "./types";
 
