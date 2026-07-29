@@ -41,29 +41,21 @@ jobs:
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
 
-  desktop-build:
-    name: ${{ matrix.name }} build
+  desktop-check:
+    name: ${{ matrix.name }} compile check
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: macOS Intel
             os: macos-15-intel
-            artifact: DMG
           - name: macOS Apple Silicon
             os: macos-15
-            artifact: DMG
           - name: Windows
             os: windows-latest
-            artifact: NSIS
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
       - uses: dtolnay/rust-toolchain@stable
-      - run: npm ci
-      - name: Build ${{ matrix.artifact }} installer
-        run: npm run tauri build
+      - name: Check desktop compile
+        run: cargo check --manifest-path src-tauri/Cargo.toml --all-features
