@@ -7,7 +7,7 @@ intake_path = Path("src-tauri/src/workflows/intake.rs")
 source = lib_path.read_text()
 
 old_report = '''#[tauri::command]\nfn get_intake_report(app: tauri::AppHandle, request: IntakeRequest) -> IntakeOperationResult {\n    let home = match resolve_home(&app) {\n        Ok(home) => home,\n        Err(message) => {\n            return cli::blocked_intake_operation(IntakeOperationCode::Failed, &message)\n        }\n    };\n    let workspace_path = home.join("Music").join("Mixes");\n    let snapshot = workspace::discover_workspace_at(&workspace_path);\n    if !workspace_allows_intake_report_read(snapshot.status) {\n        return cli::blocked_intake_operation(\n            IntakeOperationCode::ProjectUnavailable,\n            "The selected project is not available in the validated workspace",\n        );\n    }\n    let Some(project_directory) = validated_project_directory(\n        &workspace_path,\n        &snapshot,\n        &request.client_id,\n        &request.project_id,\n    ) else {\n        return cli::blocked_intake_operation(\n            IntakeOperationCode::ProjectUnavailable,\n            "The selected project directory could not be resolved safely",\n        );\n    };\n    cli::read_intake_report(&project_directory, request)\n}\n'''
-new_report = '''#[tauri::command]\nfn get_intake_report(app: tauri::AppHandle, request: IntakeRequest) -> IntakeOperationResult {\n    read_intake_report(&app, request)\n}\n'''
+new_report = '''#[tauri::command]\nfn get_intake_report(app: tauri::AppHandle, request: IntakeRequest) -> IntakeOperationResult {\n    read_intake_report(app, request)\n}\n'''
 if old_report not in source:
     raise RuntimeError("intake report command block not found")
 source = source.replace(old_report, new_report, 1)
@@ -27,11 +27,6 @@ for helper in (read_status, validation_status):
 source = source.replace(
     "FolderResult, IntakeOperationCode, IntakeOperationResult, IntakeRequest,",
     "FolderResult, IntakeOperationResult, IntakeRequest,",
-    1,
-)
-source = source.replace(
-    "DeliveryCreationPreview, DeliveryReplacementMode, RevisionApprovalSummary,\n    RevisionCreationSummary,",
-    "DeliveryCreationPreview, DeliveryReplacementMode, IntakeOperationCode, RevisionApprovalSummary,\n    RevisionCreationSummary,",
     1,
 )
 source = source.replace(
