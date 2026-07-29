@@ -547,7 +547,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText("Balance update")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New revision" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Approve revision" })).toBeDisabled();
-    expect(screen.getAllByText(/history remains readable/i)).toHaveLength(2);
+    expect(screen.getAllByText(/still read the revision history/i)).toHaveLength(2);
   });
 
   it("shows authoritative first-delivery readiness with guided creation available", async () => {
@@ -621,7 +621,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getAllByText("1,200")).toHaveLength(2);
     expect(screen.getByText(/did not re-check the delivery files/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rebuild delivery" })).toBeEnabled();
-    expect(screen.getByText(/same-path overwrite that preserves edited Delivery Notes/i)).toBeInTheDocument();
+    expect(screen.getByText(/same-path overwrite.*Delivery Notes/i)).toBeInTheDocument();
   });
 
   it("edits and verifies the fixed Delivery Notes document", async () => {
@@ -705,7 +705,7 @@ describe("JL Mixing Studio", () => {
 
     const options = await screen.findByRole("dialog", { name: "Rebuild delivery package" });
     expect(within(options).getByRole("checkbox", { name: /create delivery ZIP/i })).toBeChecked();
-    expect(within(options).getByText(/preserve Delivery Notes and unrelated package files/i)).toBeInTheDocument();
+    expect(within(options).getByText(/Delivery Notes and unrelated files stay in place/i)).toBeInTheDocument();
     fireEvent.click(within(options).getByRole("button", { name: "Preview package" }));
     const confirmation = await screen.findByRole("dialog", { name: "Confirm delivery package" });
     expect(within(confirmation).getByText("blue-sky-rev-01-YYYYMMDDHHMMSS.zip")).toBeInTheDocument();
@@ -764,7 +764,7 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rebuild delivery" }));
     const options = await screen.findByRole("dialog", { name: "Rebuild delivery package" });
     fireEvent.click(within(options).getByRole("radio", { name: /clean replacement/i }));
-    expect(within(options).getByText(/every file, folder, edited note, ZIP/i)).toBeInTheDocument();
+    expect(within(options).getByRole("alert")).toHaveTextContent(/everything currently inside 05_Final_Delivery/i);
     fireEvent.click(within(options).getByRole("button", { name: "Preview package" }));
 
     const confirmation = await screen.findByRole("dialog", { name: "Confirm delivery package" });
@@ -1039,8 +1039,8 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve revision" }));
     fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Review approval" }));
 
-    const warning = await screen.findByText("Review lifecycle impact");
-    expect(warning.parentElement).toHaveTextContent(/historical approval metadata.*older than current Revision 2/i);
+    const warning = await screen.findByText("Check what will change");
+    expect(warning.parentElement).toHaveTextContent(/existing approval record.*older than current Revision 2/i);
   });
 
   it("does not retry an uncertain revision-approval result", async () => {
@@ -1136,7 +1136,7 @@ describe("JL Mixing Studio", () => {
 
     expect(await screen.findByRole("heading", { name: "Confirm intake report update" })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole("button", { name: "Update intake report" })).toHaveFocus());
-    expect(screen.getByText(/intake source files will not be modified/i)).toBeInTheDocument();
+    expect(screen.getByText(/intake source files will not be changed/i)).toBeInTheDocument();
     expect(mockedInvoke).toHaveBeenCalledWith("preflight_intake_validation", {
       request: { clientId: "acme", projectId: "blue-sky" },
     });
@@ -1219,7 +1219,7 @@ describe("JL Mixing Studio", () => {
 
     expect(await screen.findByRole("heading", { name: "2 inspected files" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Preview validation" })).toBeDisabled();
-    expect(screen.getByText(/existing report remains readable/i)).toBeInTheDocument();
+    expect(screen.getByText(/still read the current report/i)).toBeInTheDocument();
   });
 
   it("does not retry an uncertain intake-validation result", async () => {
