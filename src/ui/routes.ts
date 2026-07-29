@@ -19,65 +19,65 @@ export interface RouteDefinition {
 /**
  * Central route metadata for the persistent application shell.
  *
- * These strings intentionally preserve the current UI behavior and wording.
- * User-facing copy refinement is tracked separately under #101 so the
- * structural extraction in #99 remains behavior-preserving.
+ * Normal route copy follows the approved #101 voice: creative collaborator +
+ * studio casual. Keep implementation terminology out of these strings; reserve
+ * technical language for Metadata and diagnostic views where it helps the user.
  */
 export const routes: RouteDefinition[] = [
   {
     id: "dashboard",
     label: "Dashboard",
-    eyebrow: "Workspace overview",
-    title: "What do I need to work on today?",
-    description: "Authoritative workspace status and the safest available next actions.",
+    eyebrow: "Studio overview",
+    title: "What’s happening today?",
+    description: "Here’s what’s happening in the studio and what needs your attention next.",
   },
   {
     id: "studio",
     label: "Studio",
-    eyebrow: "Studio workspace",
+    eyebrow: "Your studio",
     title: "Studio",
-    description: "Studio identity, defaults, workspace information, and approved diagnostics.",
+    description: "Your studio setup, mix defaults, workspace, and troubleshooting details.",
   },
   {
     id: "clients",
     label: "Clients",
-    eyebrow: "Client directory",
+    eyebrow: "Who you’re working with",
     title: "Clients",
-    description: "Find clients, review their defaults, and enter their project work.",
+    description: "Find a client, check their defaults, or jump into a project.",
   },
   {
     id: "projects",
     label: "Projects",
-    eyebrow: "Project directory",
+    eyebrow: "What you’re working on",
     title: "Projects",
-    description: "Inspect project lifecycle state across every client.",
+    description: "See every project and where each mix stands.",
   },
   {
     id: "tasks",
     label: "Tasks",
-    eyebrow: "Derived work",
+    eyebrow: "Up next",
     title: "Tasks",
-    description: "Actionable work derived from authoritative project state.",
+    description: "A quick look at what needs your attention.",
   },
   {
     id: "reports",
     label: "Reports",
-    eyebrow: "Generated output",
+    eyebrow: "Project reports",
     title: "Reports",
-    description: "Find supported reports without duplicating their state.",
+    description: "Find intake, delivery, and other project reports in one place.",
   },
   {
     id: "activity",
     label: "Activity Log",
-    eyebrow: "Derived events",
+    eyebrow: "Recent activity",
     title: "Activity Log",
-    description: "Supported project events reconstructed from persisted timestamps.",
+    description: "See the latest project updates across the studio.",
   },
   {
     id: "settings",
     label: "Settings",
-    eyebrow: "Application preferences",
+    eyebrow: "Make it yours",
     title: "Settings",
-    description: "Application preferences kept separate from project metadata.",
+    description: "Adjust how JL Mixing Studio looks and behaves.",
   },
 ];
