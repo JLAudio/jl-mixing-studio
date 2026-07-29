@@ -6,9 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::automation_api::{ProcessResult, ProcessRunner};
-use crate::models::{
-    DeliveryCreationRequest, DeliveryOperationCode, DeliveryReplacementMode,
-};
+use crate::models::{DeliveryCreationRequest, DeliveryOperationCode, DeliveryReplacementMode};
 
 use super::delivery::{run_delivery_operation, DeliveryOperation};
 
@@ -118,7 +116,12 @@ fn request(mode: DeliveryReplacementMode) -> DeliveryCreationRequest {
     }
 }
 
-fn response(status: &str, mode: &str, delivered_revision: Option<u32>, deletions: &[&str]) -> io::Result<ProcessResult> {
+fn response(
+    status: &str,
+    mode: &str,
+    delivered_revision: Option<u32>,
+    deletions: &[&str],
+) -> io::Result<ProcessResult> {
     success(
         &serde_json::json!({
             "api_version": "1.0",
@@ -172,7 +175,10 @@ fn response(status: &str, mode: &str, delivered_revision: Option<u32>, deletions
 #[test]
 fn delivery_preflight_uses_structured_api_and_preserves_plan() {
     let home = installed_home();
-    let runner = FakeRunner::new(vec![success("help"), response("planned", "default", None, &[])]);
+    let runner = FakeRunner::new(vec![
+        success("help"),
+        response("planned", "default", None, &[]),
+    ]);
     let project_directory = Path::new("/fixed/project");
 
     let result = run_delivery_operation(
@@ -191,7 +197,10 @@ fn delivery_preflight_uses_structured_api_and_preserves_plan() {
     assert_eq!(delivery.selected.len(), 2);
     assert_eq!(delivery.excluded[0].reason, "revision notes");
     let invocations = runner.invocations.borrow();
-    assert_eq!(invocations[1].executable, home.path().join(".local/bin/jl-mixing"));
+    assert_eq!(
+        invocations[1].executable,
+        home.path().join(".local/bin/jl-mixing")
+    );
     assert_eq!(
         invocations[1].arguments,
         vec![
@@ -203,7 +212,10 @@ fn delivery_preflight_uses_structured_api_and_preserves_plan() {
             "--dry-run"
         ]
     );
-    assert_eq!(invocations[1].current_directory, Some(project_directory.to_owned()));
+    assert_eq!(
+        invocations[1].current_directory,
+        Some(project_directory.to_owned())
+    );
 }
 
 #[test]
@@ -239,7 +251,9 @@ fn confirmed_clean_revalidates_exact_inventory_before_execution() {
     assert_eq!(result.code, DeliveryOperationCode::Created);
     let invocations = runner.invocations.borrow();
     assert_eq!(invocations.len(), 3);
-    assert!(invocations[1].arguments.ends_with(&["--clean".into(), "--dry-run".into()]));
+    assert!(invocations[1]
+        .arguments
+        .ends_with(&["--clean".into(), "--dry-run".into()]));
     assert!(invocations[2].arguments.ends_with(&["--clean".into()]));
 }
 
