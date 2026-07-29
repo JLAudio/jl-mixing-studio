@@ -24,7 +24,9 @@ models_dir.mkdir(parents=True, exist_ok=True)
 models_dir.joinpath("system.rs").write_text(imports + system_body)
 models_dir.joinpath("workflows.rs").write_text(imports + workflow_body)
 models_dir.joinpath("documents.rs").write_text(imports + documents_body)
-models_dir.joinpath("workspace.rs").write_text(imports + workspace_body)
+models_dir.joinpath("workspace.rs").write_text(
+    imports + "use super::documents::ProjectSummary;\n\n" + workspace_body
+)
 
 models_path.write_text(
     "//! Serialized application contracts grouped by ownership.\n"
