@@ -5,7 +5,8 @@ use std::path::Path;
 
 use crate::automation_api::{resolve_command, ProcessRunner};
 use crate::models::{
-    ApprovalOperationCode, ApprovalOperationResult, RevisionApprovalRequest, RevisionApprovalSummary,
+    ApprovalOperationCode, ApprovalOperationResult, RevisionApprovalRequest,
+    RevisionApprovalSummary,
 };
 
 pub(super) const APPROVAL_EXECUTABLE: &str = "approve-mix";
