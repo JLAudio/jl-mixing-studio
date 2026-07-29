@@ -34,6 +34,7 @@ jobs:
               raise SystemExit('target assertion not found')
           path.write_text(text.replace(marker, replacement, 1))
           PY
+          git fetch origin main:refs/remotes/origin/main
           git checkout origin/main -- .github/workflows/ci.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
