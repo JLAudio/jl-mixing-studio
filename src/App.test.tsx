@@ -1511,7 +1511,7 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create project" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/studio could not be refreshed/i);
-    expect(screen.getByRole("alert")).toHaveTextContent(/may have completed/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/result is uncertain/i);
     expect(mockedInvoke.mock.calls.filter(([command]) => command === "create_project")).toHaveLength(1);
   });
 
