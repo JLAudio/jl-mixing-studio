@@ -1033,7 +1033,7 @@ export default function App() {
     invoke<StudioOperationResult>("preflight_studio_creation", { request }).then((result) => {
       if (result.ok && result.code === "ready" && result.studio) setStudioWorkflow({ status: "confirming", request, preview: result.studio });
       else setStudioWorkflow({ status: "editing", error: result.message });
-    }).catch((error: unknown) => setStudioWorkflow({ status: "editing", error: safeError(error, "Studio preflight could not be completed.") }));
+    }).catch((error: unknown) => setStudioWorkflow({ status: "editing", error: safeError(error, "The studio setup could not be reviewed.") }));
   };
   const confirmStudioCreation = async () => {
     if (studioWorkflow.status !== "confirming") return;
@@ -1178,7 +1178,7 @@ export default function App() {
       .catch((error: unknown) => {
         setClientWorkflow({
           status: "editing",
-          error: safeError(error, "Client preflight could not be completed."),
+          error: safeError(error, "The client details could not be reviewed."),
         });
       });
   };
@@ -1205,18 +1205,18 @@ export default function App() {
           if (!discovered) {
             setClientWorkflow({
               status: "uncertain",
-              message: "JL Mixing Automation reported success, but the new client was not found after refresh. The operation may have completed.",
+              message: "The client creation completed, but the new client was not found after refresh. The result is uncertain.",
             });
             return;
           }
-          setCreationNotice(`${request.clientName} was created and added to the workspace.`);
+          setCreationNotice(`${request.clientName} was added to your studio.`);
           setClientWorkflow({ status: "closed" });
         } catch (error: unknown) {
           setClientWorkflow({
             status: "uncertain",
             message: safeError(
               error,
-              "JL Mixing Automation reported success, but the workspace could not be refreshed. The operation may have completed.",
+              "The client was created, but the studio could not be refreshed. The result is uncertain.",
             ),
           });
         }
@@ -1265,7 +1265,7 @@ export default function App() {
           status: "editing",
           lockedClientId,
           fromClient,
-          error: safeError(error, "Project preflight could not be completed."),
+          error: safeError(error, "The project details could not be reviewed."),
         });
       });
   };
@@ -1297,7 +1297,7 @@ export default function App() {
         ) {
           setProjectWorkflow({
             status: "uncertain",
-            message: "JL Mixing Automation reported success, but the created project identity did not match the preflight. The operation may have completed.",
+            message: "The project was created, but its details did not match what you reviewed. The result is uncertain.",
           });
           return;
         }
@@ -1310,7 +1310,7 @@ export default function App() {
           if (!client || !project) {
             setProjectWorkflow({
               status: "uncertain",
-              message: "JL Mixing Automation reported success, but the new project was not found after refresh. The operation may have completed.",
+              message: "The project was created, but it was not found after refresh. The result is uncertain.",
             });
             return;
           }
@@ -1324,7 +1324,7 @@ export default function App() {
           const detail = safeError(error, "");
           setProjectWorkflow({
             status: "uncertain",
-            message: `JL Mixing Automation reported success, but the workspace could not be refreshed. The operation may have completed.${detail ? ` ${detail}` : ""}`,
+            message: `The client was created, but the studio could not be refreshed. The result is uncertain.${detail ? ` ${detail}` : ""}`,
           });
         }
       })
@@ -1413,7 +1413,7 @@ export default function App() {
           setDeliveryWorkflow({ status: "confirming", request, preview: result.delivery });
         } else {
           setDeliveryWorkflow({ status: "closed" });
-          setDeliveryActionError(result.ok ? "The delivery preview did not match the authoritative project state." : result.message);
+          setDeliveryActionError(result.ok ? "The delivery preview no longer matches the current project. Refresh the project and review the delivery again." : result.message);
         }
       })
       .catch((error: unknown) => {
@@ -1447,7 +1447,7 @@ export default function App() {
           return;
         }
         if (!sameDeliveryPlan(preview, result.delivery) || result.delivery.deliveredRevision !== preview.approvedRevision) {
-          setDeliveryWorkflow({ status: "uncertain", message: "JL Mixing Automation reported success, but the created delivery did not match the confirmed preview. The operation may have completed; do not retry automatically." });
+          setDeliveryWorkflow({ status: "uncertain", message: "The delivery was created, but it did not match what you confirmed. The result is uncertain; do not retry automatically." });
           return;
         }
         try {
@@ -1456,13 +1456,13 @@ export default function App() {
           const client = refreshed.clients.find((item) => item.clientId === request.clientId);
           const project = client?.projects.find((item) => item.projectId === request.projectId);
           if (!project?.delivery || project.deliveredRevision !== preview.approvedRevision) {
-            setDeliveryWorkflow({ status: "uncertain", message: "The delivery command succeeded, but the refreshed authoritative package did not match the preview. The operation may have completed; do not retry automatically." });
+            setDeliveryWorkflow({ status: "uncertain", message: "The delivery was created, but the refreshed delivery details did not match what you confirmed. The result is uncertain; do not retry automatically." });
             return;
           }
           setDeliveryNotice(`Revision ${project.deliveredRevision} was packaged and verified with ${project.delivery.files.length} delivered ${project.delivery.files.length === 1 ? "file" : "files"}.`);
           setDeliveryWorkflow({ status: "closed" });
         } catch (error: unknown) {
-          setDeliveryWorkflow({ status: "uncertain", message: safeError(error, "The delivery command succeeded, but the workspace could not be refreshed. The operation may have completed; do not retry automatically.") });
+          setDeliveryWorkflow({ status: "uncertain", message: safeError(error, "The delivery was created, but the studio could not be refreshed. The result is uncertain; do not retry automatically.") });
         }
       })
       .catch((error: unknown) => {
@@ -1507,7 +1507,7 @@ export default function App() {
         ) {
           setRevisionWorkflow({ status: "confirming", request, preview: result.revision });
         } else {
-          setRevisionWorkflow({ status: "editing", error: result.ok ? "The revision preview did not match the authoritative project state." : result.message });
+          setRevisionWorkflow({ status: "editing", error: result.ok ? "The revision preview no longer matches the current project. Refresh Revisions and review it again." : result.message });
         }
       })
       .catch((error: unknown) => {
@@ -1533,7 +1533,7 @@ export default function App() {
           result.revision.number !== preview.number ||
           result.revision.description !== preview.description
         ) {
-          setRevisionWorkflow({ status: "uncertain", message: "JL Mixing Automation reported success, but the created revision did not match the preview. The operation may have completed; do not retry automatically." });
+          setRevisionWorkflow({ status: "uncertain", message: "The revision was created, but it did not match what you reviewed. The result is uncertain; do not retry automatically." });
           return;
         }
         try {
@@ -1543,14 +1543,14 @@ export default function App() {
           const project = client?.projects.find((item) => item.projectId === request.projectId);
           const revision = project?.revisions.find((item) => item.number === preview.number);
           if (!project || project.currentRevision !== preview.number || !revision || revision.description !== preview.description) {
-            setRevisionWorkflow({ status: "uncertain", message: "The revision command succeeded, but the refreshed authoritative history did not match the preview. The operation may have completed; do not retry automatically." });
+            setRevisionWorkflow({ status: "uncertain", message: "The revision was created, but the refreshed revision history did not match what you reviewed. The result is uncertain; do not retry automatically." });
             return;
           }
           setProjectView("revisions");
           setRevisionNotice(`Revision ${revision.number} was created and verified.`);
           setRevisionWorkflow({ status: "closed" });
         } catch (error: unknown) {
-          setRevisionWorkflow({ status: "uncertain", message: safeError(error, "The revision command succeeded, but the workspace could not be refreshed. The operation may have completed; do not retry automatically.") });
+          setRevisionWorkflow({ status: "uncertain", message: safeError(error, "The revision was created, but the studio could not be refreshed. The result is uncertain; do not retry automatically.") });
         }
       })
       .catch((error: unknown) => {
@@ -1602,7 +1602,7 @@ export default function App() {
         ) {
           setApprovalWorkflow({ status: "confirming", revision, request, preview: result.approval });
         } else {
-          setApprovalWorkflow({ status: "editing", revision, error: result.ok ? "The approval preview did not match the authoritative revision state." : result.message });
+          setApprovalWorkflow({ status: "editing", revision, error: result.ok ? "The approval preview no longer matches the current revision history. Refresh Revisions and review the approval again." : result.message });
         }
       })
       .catch((error: unknown) => {
@@ -1629,7 +1629,7 @@ export default function App() {
           result.approval.approvedBy !== preview.approvedBy ||
           !result.approval.approvedAt
         ) {
-          setApprovalWorkflow({ status: "uncertain", revision, message: "JL Mixing Automation reported success, but the approval did not match the preview. The operation may have completed; do not retry automatically." });
+          setApprovalWorkflow({ status: "uncertain", revision, message: "The approval was recorded, but it did not match what you reviewed. The result is uncertain; do not retry automatically." });
           return;
         }
         try {
@@ -1645,13 +1645,13 @@ export default function App() {
             approved.approvedBy !== result.approval.approvedBy ||
             approved.approvedAt !== result.approval.approvedAt
           ) {
-            setApprovalWorkflow({ status: "uncertain", revision, message: "The approval command succeeded, but the refreshed authoritative state did not match its result. The operation may have completed; do not retry automatically." });
+            setApprovalWorkflow({ status: "uncertain", revision, message: "The approval was recorded, but the refreshed project approval did not match the result. The result is uncertain; do not retry automatically." });
             return;
           }
           setApprovalNotice(`Revision ${approved.number} was approved by ${approved.approvedBy} and verified.`);
           setApprovalWorkflow({ status: "closed" });
         } catch (error: unknown) {
-          setApprovalWorkflow({ status: "uncertain", revision, message: safeError(error, "The approval command succeeded, but the workspace could not be refreshed. The operation may have completed; do not retry automatically.") });
+          setApprovalWorkflow({ status: "uncertain", revision, message: safeError(error, "The approval was recorded, but the studio could not be refreshed. The result is uncertain; do not retry automatically.") });
         }
       })
       .catch((error: unknown) => {
