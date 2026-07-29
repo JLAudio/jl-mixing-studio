@@ -16,7 +16,8 @@ pub use delivery::{blocked_delivery_operation, create_delivery, preflight_delive
 #[cfg(test)]
 use delivery::{run_delivery_operation, DeliveryOperation, DELIVERY_EXECUTABLE};
 pub use intake::{
-    blocked_intake_operation, preflight_intake_validation, read_intake_report, run_intake_validation,
+    blocked_intake_operation, preflight_intake_validation, read_intake_report,
+    run_intake_validation,
 };
 #[cfg(test)]
 use intake::{run_intake_operation, IntakeOperation};
