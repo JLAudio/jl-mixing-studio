@@ -34,11 +34,10 @@ for index, name in enumerate(order[:-1]):
 
 source_path.unlink()
 
-# Guardrails: every original test name must still appear exactly once across the split tree.
+# Guardrail: every original test name must remain exactly once after redistribution.
 import re
-original_tests = re.findall(r'(?m)^fn ([a-zA-Z0-9_]+)\(\) \{', source)
-# Only count functions directly preceded by #[test].
 original_tests = re.findall(r'(?m)^#\[test\]\nfn ([a-zA-Z0-9_]+)\(\)', source)
 split_text = '\n'.join(path.read_text() for path in sorted(out_dir.glob('*.rs')))
 split_tests = re.findall(r'(?m)^#\[test\]\nfn ([a-zA-Z0-9_]+)\(\)', split_text)
-assert original_tests == split_tests, (original_tests, split_tests)
+assert sorted(original_tests) == sorted(split_tests), (original_tests, split_tests)
+assert len(original_tests) == len(set(split_tests))
