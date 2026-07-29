@@ -8,7 +8,7 @@ app = app_path.read_text()
 model_start = workflows.index("export type ClientWorkflowState =")
 component_start = workflows.index("export function DeliveryOptionsDialog")
 
-workflows_header = '''import { type FormEvent, useEffect, useRef, useState } from "react";\nimport type {\n  ClientSummary,\n  DeliveryCreationRequest,\n  ProjectSummary,\n  VersionCheck,\n  WorkspaceSnapshot,\n} from "./types";\nimport { FolderControl, IntakeReportContent, RouteIssues, type ResourceState } from "./AppViews";\nimport type {\n  ApprovalFormValues,\n  ApprovalWorkflowState,\n  AppPreferences,\n  ClientFormValues,\n  ClientWorkflowState,\n  DeliveryWorkflowState,\n  IntakeWorkflowState,\n  ProjectFormValues,\n  ProjectWorkflowState,\n  RevisionFormValues,\n  RevisionWorkflowState,\n  StudioFormValues,\n  StudioWorkflowState,\n} from "./AppWorkflowModels";\nimport { defaultPreferences } from "./AppWorkflowModels";\n\n'''
+workflows_header = '''import { type FormEvent, useEffect, useRef, useState } from "react";\nimport type {\n  ClientSummary,\n  DeliveryCreationRequest,\n  ProjectSummary,\n  VersionCheck,\n  WorkspaceSnapshot,\n} from "./types";\nimport { FolderControl, IntakeReportContent, RouteIssues, type ResourceState } from "./AppViews";\nimport type {\n  ApprovalFormValues,\n  ApprovalWorkflowState,\n  AppPreferences,\n  ClientFormValues,\n  ClientWorkflowState,\n  DeliveryWorkflowState,\n  IntakeWorkflowState,\n  ProjectFormValues,\n  ProjectWorkflowState,\n  RevisionFormValues,\n  RevisionWorkflowState,\n  StudioFormValues,\n  StudioWorkflowState,\n} from "./AppWorkflowModels";\n\n'''
 workflows = workflows_header + workflows[component_start:]
 
 old_import_start = app.index('import {\n  ClientWorkflowState,')
