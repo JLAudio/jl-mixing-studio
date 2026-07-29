@@ -45,7 +45,8 @@ import {
   type ProjectView,
   type ResourceState,
 } from "./AppViews";
-import { routes, type PrimaryRoute, type RouteDefinition } from "./ui/routes";
+import type { PrimaryRoute } from "./ui/routes";
+import { getAppRouteContext } from "./AppRouteContext";
 import {
   ClientWorkflowState,
   ClientFormValues,
@@ -852,52 +853,27 @@ export default function App() {
     setRouteNotice(null);
   };
 
-  const resolvedClient = workspace.status === "ready" && selectedClientId
-    ? workspace.value.clients.find((client) => client.clientId === selectedClientId) ?? null
-    : null;
-  const resolvedProjectClient = workspace.status === "ready" && selectedProject
-    ? workspace.value.clients.find((client) => client.clientId === selectedProject.clientId) ?? null
-    : null;
-  const resolvedProject = resolvedProjectClient && selectedProject
-    ? resolvedProjectClient.projects.find((project) => project.projectId === selectedProject.projectId) ?? null
-    : null;
+  const {
+    resolvedClient,
+    resolvedProjectClient,
+    resolvedProject,
+    deliveryCreationAvailable,
+    deliveryCreationHelp,
+    activeRouteDefinition,
+  } = getAppRouteContext(
+    workspace,
+    version,
+    selectedClientId,
+    selectedProject,
+    activeRoute,
+    projectView,
+    deliveryCreationSupported,
+  );
+
   const openDerivedProject = (clientId: string, projectId: string) => {
     setSelectedClientId(null); setSelectedProject({ clientId, projectId, fromClient: false });
     setProjectView("overview"); setActiveRoute("projects"); setRouteNotice(null);
   };
-  const deliveryCreationAvailable =
-    deliveryCreationSupported &&
-    resolvedProject !== null &&
-    resolvedProject.approvedRevision !== null &&
-    ((resolvedProject.deliveredRevision === null && resolvedProject.delivery === null) ||
-      (resolvedProject.deliveredRevision !== null && resolvedProject.delivery !== null));
-  const deliveryCreationHelp = (() => {
-    if (!resolvedProject) return "Select a project before creating a delivery.";
-    if (workspace.status !== "ready" || version.status !== "ready") return "Finishing the studio checks first…";
-    if (workspace.value.status !== "healthy") return "You can still read the delivery history, but fix the studio setup issues before creating a package.";
-    if (!version.value.deliveryCreationSupported) return version.value.message;
-    if (resolvedProject.approvedRevision === null) return "Approve a revision before creating the first delivery package.";
-    if (resolvedProject.deliveredRevision !== null && resolvedProject.delivery !== null) return "Preview a same-path overwrite that preserves edited Delivery Notes and unrelated package files; optionally rebuild the ZIP.";
-    return "Preview the first delivery package, then create it with SHA-256 file verification and an optional ZIP.";
-  })();
-  const baseRouteDefinition = routes.find((route) => route.id === activeRoute) ?? routes[0];
-  const activeRouteDefinition: RouteDefinition = resolvedProject
-    ? {
-        id: "projects",
-        label: "Projects",
-        eyebrow: projectView === "intake" ? "Project intake" : projectView === "revisions" ? "Project revisions" : projectView === "delivery" ? "Project delivery" : "Project overview",
-        title: resolvedProject.projectName,
-        description: projectView === "intake" ? `${resolvedProject.artist} · Check the files before mixing.` : projectView === "revisions" ? `${resolvedProject.artist} · Revisions, approvals, and mix history.` : projectView === "delivery" ? `${resolvedProject.artist} · Final files and delivery status.` : `${resolvedProject.artist} · Project details and next steps.`,
-      }
-    : resolvedClient
-      ? {
-          id: "clients",
-          label: "Clients",
-          eyebrow: "Client details",
-          title: resolvedClient.clientName,
-          description: "Client details, defaults, and projects in your studio.",
-        }
-      : baseRouteDefinition;
 
   return (
     <div className={`app-shell${preferences.compactLayout ? " compact-layout" : ""}${preferences.reduceMotion ? " reduce-motion" : ""}`}>
