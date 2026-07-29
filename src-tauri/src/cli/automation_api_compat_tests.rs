@@ -72,19 +72,32 @@ fn success(stdout: &str) -> io::Result<ProcessResult> {
     process(true, Some(0), stdout)
 }
 
-fn discovery(api_version: Option<&str>, application: Option<&str>, capabilities: Option<&str>) -> String {
-    format!(
-        "{{{}{}{} }}",
-        api_version
-            .map(|value| format!("\"api_version\":\"{value}\","))
-            .unwrap_or_default(),
-        application
-            .map(|value| format!("\"application\":{value},"))
-            .unwrap_or_default(),
-        capabilities
-            .map(|value| format!("\"capabilities\":{value}"))
-            .unwrap_or_default()
-    )
+fn discovery(
+    api_version: Option<&str>,
+    application: Option<serde_json::Value>,
+    capabilities: Option<Vec<&str>>,
+) -> String {
+    let mut document = serde_json::Map::new();
+    if let Some(api_version) = api_version {
+        document.insert("api_version".into(), api_version.into());
+    }
+    if let Some(application) = application {
+        document.insert("application".into(), application);
+    }
+    if let Some(capabilities) = capabilities {
+        document.insert("capabilities".into(), serde_json::json!(capabilities));
+    }
+    serde_json::Value::Object(document).to_string()
+}
+
+fn assert_api_error(
+    result: Result<crate::automation_api::ApiResponse, ApiCallError>,
+    expected: ApiCallError,
+) {
+    match result {
+        Err(error) => assert_eq!(error, expected),
+        Ok(_) => panic!("expected Automation API invocation to fail"),
+    }
 }
 
 #[test]
@@ -92,24 +105,30 @@ fn discovery_without_api_version_is_unavailable() {
     let home = installed_home();
     let document = discovery(
         None,
-        Some(r#"{"name":"jl-mixing","version":"1.3.1"}"#),
-        Some(r#"["system.info"]"#),
+        Some(serde_json::json!({"name": "jl-mixing", "version": "1.3.1"})),
+        Some(vec!["system.info"]),
     );
-    let result = check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
+    let result =
+        check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
 
     assert!(!result.available);
     assert!(!result.supported);
-    assert!(result.message.contains("did not declare an Automation API version"));
+    assert!(result
+        .message
+        .contains("did not declare an Automation API version"));
 }
 
 #[test]
 fn discovery_without_provider_identity_is_unavailable() {
     let home = installed_home();
-    let document = discovery(Some("1.0"), None, Some(r#"["system.info"]"#));
-    let result = check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
+    let document = discovery(Some("1.0"), None, Some(vec!["system.info"]));
+    let result =
+        check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
 
     assert!(!result.available);
-    assert!(result.message.contains("did not identify the provider application"));
+    assert!(result
+        .message
+        .contains("did not identify the provider application"));
 }
 
 #[test]
@@ -117,10 +136,11 @@ fn discovery_with_wrong_provider_identity_is_unavailable() {
     let home = installed_home();
     let document = discovery(
         Some("1.0"),
-        Some(r#"{"name":"other-tool","version":"1.3.1"}"#),
-        Some(r#"["system.info"]"#),
+        Some(serde_json::json!({"name": "other-tool", "version": "1.3.1"})),
+        Some(vec!["system.info"]),
     );
-    let result = check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
+    let result =
+        check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
 
     assert!(!result.available);
     assert!(result.message.contains("valid provider application"));
@@ -131,13 +151,16 @@ fn discovery_without_capabilities_is_unavailable() {
     let home = installed_home();
     let document = discovery(
         Some("1.0"),
-        Some(r#"{"name":"jl-mixing","version":"1.3.1"}"#),
+        Some(serde_json::json!({"name": "jl-mixing", "version": "1.3.1"})),
         None,
     );
-    let result = check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
+    let result =
+        check_automation_compatibility(home.path(), &FakeRunner::new(vec![success(&document)]));
 
     assert!(!result.available);
-    assert!(result.message.contains("did not declare provider capabilities"));
+    assert!(result
+        .message
+        .contains("did not declare provider capabilities"));
 }
 
 #[test]
@@ -194,7 +217,7 @@ fn invocation_rejects_malformed_response() {
         &FakeRunner::new(vec![success("not-json")]),
     );
 
-    assert_eq!(result.expect_err("malformed response"), ApiCallError::Malformed);
+    assert_api_error(result, ApiCallError::Malformed);
 }
 
 #[test]
@@ -210,10 +233,7 @@ fn invocation_rejects_incompatible_api_version() {
         )]),
     );
 
-    assert_eq!(
-        result.expect_err("incompatible API"),
-        ApiCallError::IncompatibleVersion("2.0".into())
-    );
+    assert_api_error(result, ApiCallError::IncompatibleVersion("2.0".into()));
 }
 
 #[test]
@@ -229,9 +249,9 @@ fn invocation_rejects_unexpected_operation() {
         )]),
     );
 
-    assert_eq!(
-        result.expect_err("unexpected operation"),
-        ApiCallError::UnexpectedOperation("project.create".into())
+    assert_api_error(
+        result,
+        ApiCallError::UnexpectedOperation("project.create".into()),
     );
 }
 
@@ -243,10 +263,13 @@ fn invocation_maps_missing_process_to_unavailable() {
         "client.create",
         &["client".into(), "create".into(), "--json".into()],
         None,
-        &FakeRunner::new(vec![Err(io::Error::new(io::ErrorKind::NotFound, "gone"))]),
+        &FakeRunner::new(vec![Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            "gone",
+        ))]),
     );
 
-    assert_eq!(result.expect_err("missing process"), ApiCallError::Unavailable);
+    assert_api_error(result, ApiCallError::Unavailable);
 }
 
 #[test]
@@ -263,5 +286,5 @@ fn invocation_maps_other_start_errors_to_start_failed() {
         ))]),
     );
 
-    assert_eq!(result.expect_err("start failure"), ApiCallError::StartFailed);
+    assert_api_error(result, ApiCallError::StartFailed);
 }
