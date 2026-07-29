@@ -547,7 +547,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText("Balance update")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New revision" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Approve revision" })).toBeDisabled();
-    expect(screen.getAllByText(/history remains readable/i)).toHaveLength(2);
+    expect(screen.getAllByText(/still read the revision history/i)).toHaveLength(2);
   });
 
   it("shows authoritative first-delivery readiness with guided creation available", async () => {
@@ -621,7 +621,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getAllByText("1,200")).toHaveLength(2);
     expect(screen.getByText(/did not re-check the delivery files/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rebuild delivery" })).toBeEnabled();
-    expect(screen.getByText(/same-path overwrite that preserves edited Delivery Notes/i)).toBeInTheDocument();
+    expect(screen.getByText(/same-path overwrite.*Delivery Notes/i)).toBeInTheDocument();
   });
 
   it("edits and verifies the fixed Delivery Notes document", async () => {

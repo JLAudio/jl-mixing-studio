@@ -264,12 +264,12 @@ function DeliveryOptionsDialog({ request, projectName, onChange, onPreview, onCl
 }) {
   const replacing = request.replacementMode === "overwrite";
   const cleaning = request.replacementMode === "clean";
-  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">Guided delivery</p><h2 id="delivery-options-title">{request.replacementMode === "default" ? "Create delivery package" : "Rebuild delivery package"}</h2><p className="dialog-intro">Choose the supported package output for <strong>{projectName}</strong>. Studio will preview the exact Automation plan before making changes.</p>
-    {request.replacementMode !== "default" && <fieldset className="delivery-mode"><legend>Replacement mode</legend><label><input type="radio" name="delivery-mode" checked={replacing} onChange={() => onChange({ ...request, replacementMode: "overwrite", confirmedDeletions: [] })} /><span><strong>Same-path overwrite</strong><small>Preserves Delivery Notes and unrelated files; rejects a changed delivered path set.</small></span></label><label><input type="radio" name="delivery-mode" checked={cleaning} onChange={() => onChange({ ...request, replacementMode: "clean", confirmedDeletions: [] })} /><span><strong>Clean replacement</strong><small>Deletes every existing item in 05_Final_Delivery before rebuilding it.</small></span></label></fieldset>}
-    <dl className="confirmation-list"><div><dt>Replacement mode</dt><dd>{cleaning ? "Clean — delete all existing contents" : replacing ? "Overwrite — same delivered path set only" : "None — first package"}</dd></div><div><dt>Delivery Notes</dt><dd>{cleaning ? "Deleted and recreated from template" : replacing ? "Preserved" : "Created from the Automation template"}</dd></div></dl>
+  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">Guided delivery</p><h2 id="delivery-options-title">{request.replacementMode === "default" ? "Create delivery package" : "Rebuild delivery package"}</h2><p className="dialog-intro">Choose how to package <strong>{projectName}</strong>. You’ll review the exact files and changes before anything happens.</p>
+    {request.replacementMode !== "default" && <fieldset className="delivery-mode"><legend>Replacement mode</legend><label><input type="radio" name="delivery-mode" checked={replacing} onChange={() => onChange({ ...request, replacementMode: "overwrite", confirmedDeletions: [] })} /><span><strong>Same-path overwrite</strong><small>Replaces only the same delivered file paths and keeps Delivery Notes and unrelated files. If the delivered path set changed, the rebuild stops.</small></span></label><label><input type="radio" name="delivery-mode" checked={cleaning} onChange={() => onChange({ ...request, replacementMode: "clean", confirmedDeletions: [] })} /><span><strong>Clean replacement</strong><small>Deletes everything currently inside 05_Final_Delivery before creating the new delivery.</small></span></label></fieldset>}
+    <dl className="confirmation-list"><div><dt>Replacement mode</dt><dd>{cleaning ? "Clean — delete all existing contents" : replacing ? "Overwrite — same delivered path set only" : "None — first package"}</dd></div><div><dt>Delivery Notes</dt><dd>{cleaning ? "Deleted and recreated from template" : replacing ? "Preserved" : "Created from the standard delivery template"}</dd></div></dl>
     <label className="setting-row"><span><strong>Create delivery ZIP</strong><small>Create a revisioned, local-time-stamped <code>{request.projectId}-rev-NN-YYYYMMDDHHMMSS.zip</code> archive. Rebuilding includes the current edited Delivery Notes.</small></span><input type="checkbox" checked={request.createZip} onChange={(event) => onChange({ ...request, createZip: event.target.checked })} /></label>
-    {replacing && <div className="notice warning" role="status"><strong>Non-destructive replacement</strong><span>Automation will replace only the same manifest-recorded delivery paths and preserve Delivery Notes and unrelated package files. A changed path set is rejected.</span></div>}
-    {cleaning && <div className="form-error" role="alert"><strong>Destructive replacement.</strong> Every file, folder, edited note, ZIP, and unrelated item currently inside 05_Final_Delivery will be deleted. The next screen lists the exact deletion preview.</div>}
+    {replacing && <div className="notice warning" role="status"><strong>Non-destructive replacement</strong><span>Only the same delivered file paths will be replaced. Delivery Notes and unrelated files stay in place. If the delivered paths changed, nothing is replaced.</span></div>}
+    {cleaning && <div className="form-error" role="alert"><strong>Destructive replacement.</strong> Everything currently inside 05_Final_Delivery—including files, folders, edited Delivery Notes, ZIPs, and unrelated items—will be deleted before the new delivery is created. The next screen lists every item.</div>}
     <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button type="button" onClick={onPreview}>Preview package</button></div>
   </section></div>;
 }
@@ -297,10 +297,10 @@ function DeliveryDialog({
         <h2 id="delivery-dialog-title">{state.status === "uncertain" ? "Delivery needs verification" : "Confirm delivery package"}</h2>
         {state.status === "uncertain" ? <>
           <div className="form-error" role="alert">{state.message}</div>
-          <p className="dialog-intro">Do not submit the request again automatically. Close this message and refresh the authoritative delivery state.</p>
+          <p className="dialog-intro">Do not run delivery again automatically. Close this message, refresh Delivery, and verify the result before trying again.</p>
           <div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div>
         </> : <>
-          <p className="dialog-intro">{state.preview.replacementMode === "overwrite" ? "Rebuild" : "Create"} the final-delivery package for <strong>{state.preview.projectName}</strong>. Automation will verify every copied file with SHA-256 and update the delivered pointer transactionally.</p>
+          <p className="dialog-intro">{state.preview.replacementMode === "overwrite" ? "Rebuild" : "Create"} the final-delivery package for <strong>{state.preview.projectName}</strong>. Each copied file will be verified with SHA-256 before the project’s delivery status is updated.</p>
           <dl className="confirmation-list">
             <div><dt>Approved revision</dt><dd>Revision {state.preview.approvedRevision}</dd></div>
             <div><dt>Current revision</dt><dd>Revision {state.preview.currentRevision}</dd></div>
@@ -310,9 +310,9 @@ function DeliveryDialog({
             <div><dt>ZIP</dt><dd>{state.preview.createZip ? `${state.preview.projectId}-rev-${String(state.preview.approvedRevision).padStart(2, "0")}-YYYYMMDDHHMMSS.zip` : "Not created"}</dd></div>
           </dl>
           <div className="table-scroll"><table><thead><tr><th>Source</th><th>Type</th><th>Destination</th></tr></thead><tbody>{state.preview.selected.map((file) => <tr key={`${file.sourceName}:${file.path}`}><td>{file.sourceName}</td><td>{file.deliverableType.replace(/_/g, " ")}</td><td><code>{file.path}</code></td></tr>)}</tbody></table></div>
-          {state.preview.excluded.length > 0 && <section className="route-note"><strong>Excluded by Automation defaults</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
-          {state.preview.replacementMode === "clean" && <section className="panel"><h3>Every existing item Automation will delete</h3><ul className="plain-list">{state.preview.deletions.map((path) => <li key={path}><code>{path}</code></li>)}</ul><label className="field"><span>Type <strong>{cleanPhrase}</strong> to authorize this destructive replacement</span><input aria-label="Clean replacement confirmation" value={cleanConfirmation} onChange={(event) => setCleanConfirmation(event.target.value)} autoComplete="off" /></label></section>}
-          <div className="notice warning" role="status"><strong>Workspace change</strong><span>This {state.preview.replacementMode === "clean" ? "deletes every previewed item and rebuilds" : state.preview.replacementMode === "overwrite" ? "rebuilds" : "creates"} files in 05_Final_Delivery and sets state.delivered_revision to Revision {state.preview.approvedRevision}.{state.preview.replacementMode === "overwrite" ? " Edited Delivery Notes and unrelated files are preserved." : state.preview.replacementMode === "clean" ? " Delivery Notes are recreated from the Automation template." : ""} Custom filters are not enabled.</span></div>
+          {state.preview.excluded.length > 0 && <section className="route-note"><strong>Not included in this delivery</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
+          {state.preview.replacementMode === "clean" && <section className="panel"><h3>These items will be deleted</h3><ul className="plain-list">{state.preview.deletions.map((path) => <li key={path}><code>{path}</code></li>)}</ul><label className="field"><span>Type <strong>{cleanPhrase}</strong> to authorize this destructive replacement</span><input aria-label="Clean replacement confirmation" value={cleanConfirmation} onChange={(event) => setCleanConfirmation(event.target.value)} autoComplete="off" /></label></section>}
+          <div className="notice warning" role="status"><strong>What will change</strong><span>This {state.preview.replacementMode === "clean" ? "deletes every item listed above, then rebuilds" : state.preview.replacementMode === "overwrite" ? "rebuilds" : "creates"} the files in 05_Final_Delivery and marks Revision {state.preview.approvedRevision} as delivered.{state.preview.replacementMode === "overwrite" ? " Edited Delivery Notes and unrelated files are preserved." : state.preview.replacementMode === "clean" ? " Delivery Notes are recreated from the standard template." : ""} Custom filters are not enabled.</span></div>
           <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending || (state.preview.replacementMode === "clean" && cleanConfirmation !== cleanPhrase)}>{pending ? "Creating…" : state.preview.replacementMode === "clean" ? "Clean and rebuild delivery" : state.preview.replacementMode === "overwrite" ? "Rebuild delivery" : "Create delivery"}</button></div>
         </>}
       </section>
@@ -360,19 +360,19 @@ function RevisionDialog({
         </h2>
         {(state.status === "editing" || state.status === "preflighting") && (
           <form onSubmit={onPreflight} noValidate>
-            <p className="dialog-intro">Create the next revision for <strong>{project.projectName}</strong>. Automation will derive the number, ID, timestamp, folder, and notes template.</p>
+            <p className="dialog-intro">Create the next revision for <strong>{project.projectName}</strong>. JL Mixing Studio will create the next revision number, folder, ID, timestamp, and notes file.</p>
             {state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}
             <label>
               Revision description <span>(optional)</span>
               <input ref={descriptionInput} name="revisionDescription" value={values.description} onChange={(event) => onChange({ description: event.target.value })} placeholder={`Revision ${project.currentRevision + 1}`} autoComplete="off" disabled={pending} />
-              <small>Leave blank to use the Automation default. Source files are added manually in this milestone.</small>
+              <small>Leave blank to use the default description. Source files are still added manually.</small>
             </label>
             <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review revision"}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "creating") && (
           <div>
-            <p className="dialog-intro">Preflight passed without changing the project. Confirm to create exactly one new revision. Existing approved and delivered pointers will be preserved.</p>
+            <p className="dialog-intro">Nothing has changed yet. Confirm to create one new revision. The currently approved and delivered revisions will stay unchanged.</p>
             <dl className="confirmation-list">
               <div><dt>Project</dt><dd>{project.projectName}</dd></div>
               <div><dt>Current revision</dt><dd>Revision {project.currentRevision}</dd></div>
@@ -383,7 +383,7 @@ function RevisionDialog({
           </div>
         )}
         {state.status === "uncertain" && (
-          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not submit the request again automatically. Close this message and refresh the authoritative revision history.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
+          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not create another revision automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
         )}
       </section>
     </div>
@@ -433,19 +433,19 @@ function ApprovalDialog({
         </h2>
         {(state.status === "editing" || state.status === "preflighting") && (
           <form onSubmit={onPreflight} noValidate>
-            <p className="dialog-intro">Record approval for <strong>Revision {state.revision.number}</strong> of <strong>{project.projectName}</strong>. Automation will use the current time when approval is confirmed.</p>
+            <p className="dialog-intro">Record approval for <strong>Revision {state.revision.number}</strong> of <strong>{project.projectName}</strong>. The current time will be recorded when you confirm the approval.</p>
             {state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}
             <label>
               Approved by
               <input ref={approverInput} name="approvedBy" value={values.approvedBy} onChange={(event) => onChange({ approvedBy: event.target.value })} autoComplete="name" disabled={pending} />
-              <small>This identity is written to the authoritative project manifest.</small>
+              <small>This name is saved with the project approval.</small>
             </label>
             <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review approval"}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "approving") && (
           <div>
-            <p className="dialog-intro">Preflight passed without changing the project. Confirm to move the approved pointer and record new approval metadata for the selected revision.</p>
+            <p className="dialog-intro">Nothing has changed yet. Confirm to make the selected revision the approved revision and save the new approval details.</p>
             <dl className="confirmation-list">
               <div><dt>Project</dt><dd>{project.projectName}</dd></div>
               <div><dt>Selected revision</dt><dd>Revision {state.preview.revision}</dd></div>
@@ -453,8 +453,8 @@ function ApprovalDialog({
               <div><dt>Approved by</dt><dd>{state.preview.approvedBy}</dd></div>
               <div><dt>Approval time</dt><dd>Current time at execution</dd></div>
             </dl>
-            {(replacingHistoricalApproval || olderThanCurrent || deliveryWillDiffer) && <div className="notice warning" role="status"><strong>Review lifecycle impact</strong><span>{[
-              replacingHistoricalApproval ? `Revision ${state.revision.number} has historical approval metadata that will be replaced.` : null,
+            {(replacingHistoricalApproval || olderThanCurrent || deliveryWillDiffer) && <div className="notice warning" role="status"><strong>Check what will change</strong><span>{[
+              replacingHistoricalApproval ? `Revision ${state.revision.number} has an existing approval record that will be replaced.` : null,
               olderThanCurrent ? `Revision ${state.revision.number} is older than current Revision ${project.currentRevision}.` : null,
               deliveryWillDiffer ? `The existing delivery remains on Revision ${project.deliveredRevision}.` : null,
             ].filter(Boolean).join(" ")}</span></div>}
@@ -462,7 +462,7 @@ function ApprovalDialog({
           </div>
         )}
         {state.status === "uncertain" && (
-          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not submit the approval again automatically. Close this message and refresh the authoritative revision history.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
+          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not approve the revision again automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
         )}
       </section>
     </div>
@@ -488,8 +488,8 @@ function IntakeDialog({
       <section className="client-dialog intake-dialog" role="dialog" aria-modal="true" aria-labelledby="intake-dialog-title">
         <p className="kicker">Guided validation</p>
         <h2 id="intake-dialog-title">{state.status === "uncertain" ? "Validation needs verification" : "Confirm intake report update"}</h2>
-        {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not run validation again automatically. Close this message and refresh the authoritative report.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></> : <>
-          <p className="dialog-intro">The dry-run preview below did not change the project. Confirm to replace only the Automation-managed section of <code>00_Admin/Intake_Report.md</code>. Intake source files will not be modified.</p>
+        {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not run intake validation again automatically. Close this message, refresh Intake, and verify the report before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></> : <>
+          <p className="dialog-intro">The preview below did not change the project. Confirm to update only the generated section of <code>00_Admin/Intake_Report.md</code>. Your intake source files will not be changed.</p>
           <IntakeReportContent report={state.preview} compact />
           <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Updating report…" : "Update intake report"}</button></div>
         </>}
@@ -513,14 +513,14 @@ function StudioRoute({ workspace, version, loading, setupAvailable, setupHelp, o
   if (!snapshot.studio) {
     const unavailable = snapshot.status === "unavailable";
     return <section className="planned-route" aria-labelledby="studio-state-heading">
-      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? "Not configured" : "Recovery required"}</span><h2 id="studio-state-heading">{unavailable ? "Create the default studio workspace" : "Studio configuration is not readable"}</h2><p>{unavailable ? "Use the guided JL Mixing Automation v1.3.1 workflow to create ~/Music/Mixes." : "Review the validated discovery issues below before changing the workspace."}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">New studio</button></div>
+      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? "Not configured" : "Recovery required"}</span><h2 id="studio-state-heading">{unavailable ? "Create the default studio workspace" : "Studio configuration is not readable"}</h2><p>{unavailable ? "Use guided setup to create your studio workspace at ~/Music/Mixes." : "Check the setup issues below before making changes."}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">New studio</button></div>
       <p id="studio-setup-help" className="action-help">{setupHelp}</p>
       {snapshot.issues.length > 0 && <RouteIssues snapshot={snapshot} />}
     </section>;
   }
   const studio = snapshot.studio;
   return <section className="planned-route" aria-labelledby="studio-details-heading">
-    <div className="panel-heading"><div><p className="kicker">Validated studio</p><h2 id="studio-details-heading">{studio.studioName}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>Refresh</button></div>
+    <div className="panel-heading"><div><p className="kicker">Your studio</p><h2 id="studio-details-heading">{studio.studioName}</h2></div><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>Refresh</button></div>
     <div className="planned-section-grid">
       <article className="planned-section"><h3>Identity</h3><dl className="confirmation-list"><div><dt>Studio ID</dt><dd><code>{studio.studioId}</code></dd></div><div><dt>Mix engineer</dt><dd>{studio.mixEngineer || "Not set"}</dd></div><div><dt>Created</dt><dd>{studio.createdAt}</dd></div></dl></article>
       <article className="planned-section"><h3>Audio defaults</h3><dl className="confirmation-list"><div><dt>Sample rate</dt><dd>{studio.sampleRate.toLocaleString()} Hz</dd></div><div><dt>Bit depth</dt><dd>{studio.bitDepth}-bit</dd></div><div><dt>Format</dt><dd>{studio.fileFormat}</dd></div></dl></article>
@@ -543,9 +543,9 @@ function StudioDialog({ state, values, onChange, onPreflight, onConfirm, onBack,
 }) {
   const pending = state.status === "preflighting" || state.status === "creating";
   return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="studio-dialog-title"><p className="kicker">Guided setup</p><h2 id="studio-dialog-title">{state.status === "confirming" || state.status === "creating" ? "Confirm new studio" : state.status === "uncertain" ? "Creation needs verification" : "New studio"}</h2>
-    {(state.status === "editing" || state.status === "preflighting") && <form onSubmit={onPreflight} noValidate><p className="dialog-intro">Creates the default workspace at <code>~/Music/Mixes</code>. No custom path or command options are accepted.</p>{state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}<label>Studio name<input aria-label="Studio name" value={values.studioName} onChange={(e) => onChange({...values, studioName:e.target.value})} required disabled={pending}/></label><label>Mix engineer <span>(optional)</span><input aria-label="Mix engineer" value={values.mixEngineer} onChange={(e) => onChange({...values, mixEngineer:e.target.value})} disabled={pending}/></label><label>Sample rate<select aria-label="Sample rate" value={values.sampleRate} onChange={(e) => onChange({...values, sampleRate:e.target.value})} disabled={pending}>{[44100,48000,88200,96000,176400,192000].map(v=><option key={v} value={v}>{v.toLocaleString()} Hz</option>)}</select></label><label>Bit depth<select aria-label="Bit depth" value={values.bitDepth} onChange={(e) => onChange({...values, bitDepth:e.target.value})} disabled={pending}>{[16,24,32].map(v=><option key={v} value={v}>{v}-bit</option>)}</select></label><label>File format<select aria-label="File format" value={values.fileFormat} onChange={(e) => onChange({...values, fileFormat:e.target.value})} disabled={pending}><option>WAV</option><option>AIFF</option></select></label><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review studio"}</button></div></form>}
-    {(state.status === "confirming" || state.status === "creating") && <div><p className="dialog-intro">Preflight passed without changing the filesystem. Confirm to create the default workspace.</p><dl className="confirmation-list"><div><dt>Studio</dt><dd>{state.preview.studioName}</dd></div><div><dt>Engineer</dt><dd>{state.preview.mixEngineer ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{state.preview.sampleRate.toLocaleString()} Hz · {state.preview.bitDepth}-bit {state.preview.fileFormat}</dd></div><div><dt>Location</dt><dd><code>~/Music/Mixes</code></dd></div></dl><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create studio"}</button></div></div>}
-    {state.status === "uncertain" && <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not submit again automatically. Close and refresh the authoritative workspace.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>}
+    {(state.status === "editing" || state.status === "preflighting") && <form onSubmit={onPreflight} noValidate><p className="dialog-intro">Creates your studio workspace at <code>~/Music/Mixes</code>. This setup uses the standard location.</p>{state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}<label>Studio name<input aria-label="Studio name" value={values.studioName} onChange={(e) => onChange({...values, studioName:e.target.value})} required disabled={pending}/></label><label>Mix engineer <span>(optional)</span><input aria-label="Mix engineer" value={values.mixEngineer} onChange={(e) => onChange({...values, mixEngineer:e.target.value})} disabled={pending}/></label><label>Sample rate<select aria-label="Sample rate" value={values.sampleRate} onChange={(e) => onChange({...values, sampleRate:e.target.value})} disabled={pending}>{[44100,48000,88200,96000,176400,192000].map(v=><option key={v} value={v}>{v.toLocaleString()} Hz</option>)}</select></label><label>Bit depth<select aria-label="Bit depth" value={values.bitDepth} onChange={(e) => onChange({...values, bitDepth:e.target.value})} disabled={pending}>{[16,24,32].map(v=><option key={v} value={v}>{v}-bit</option>)}</select></label><label>File format<select aria-label="File format" value={values.fileFormat} onChange={(e) => onChange({...values, fileFormat:e.target.value})} disabled={pending}><option>WAV</option><option>AIFF</option></select></label><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review studio"}</button></div></form>}
+    {(state.status === "confirming" || state.status === "creating") && <div><p className="dialog-intro">Nothing has been created yet. Confirm to create your studio workspace at the standard location.</p><dl className="confirmation-list"><div><dt>Studio</dt><dd>{state.preview.studioName}</dd></div><div><dt>Engineer</dt><dd>{state.preview.mixEngineer ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{state.preview.sampleRate.toLocaleString()} Hz · {state.preview.bitDepth}-bit {state.preview.fileFormat}</dd></div><div><dt>Location</dt><dd><code>~/Music/Mixes</code></dd></div></dl><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create studio"}</button></div></div>}
+    {state.status === "uncertain" && <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not create the studio again automatically. Close this message, refresh Studio, and verify the workspace before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>}
   </section></div>;
 }
 
@@ -554,7 +554,7 @@ function SettingsRoute({ preferences, onChange, workspace, version }: { preferen
     localStorage.setItem("jl-mixing-studio.preferences", JSON.stringify(value));
     onChange(value);
   };
-  return <section className="planned-route" aria-labelledby="settings-heading"><div className="panel-heading"><div><p className="kicker">Studio-owned preferences</p><h2 id="settings-heading">Settings</h2></div></div>
+  return <section className="planned-route" aria-labelledby="settings-heading"><div className="panel-heading"><div><p className="kicker">Studio preferences</p><h2 id="settings-heading">Settings</h2></div></div>
     <div className="project-detail-grid"><section className="panel"><h3>Appearance</h3><label className="setting-row"><span><strong>Compact layout</strong><small>Reduce spacing in the application shell and data panels.</small></span><input type="checkbox" checked={preferences.compactLayout} onChange={(event) => update({...preferences, compactLayout:event.target.checked})} /></label><label className="setting-row"><span><strong>Reduce motion</strong><small>Disable interface scrolling and transition animation.</small></span><input type="checkbox" checked={preferences.reduceMotion} onChange={(event) => update({...preferences, reduceMotion:event.target.checked})} /></label></section>
       <section className="panel"><h3>Read-only diagnostics</h3><dl className="metadata-list"><div><dt>Workspace</dt><dd>{workspace.status === "ready" ? <code>{workspace.value.workspacePath}</code> : workspace.status}</dd></div><div><dt>Workspace status</dt><dd>{workspace.status === "ready" ? workspace.value.status : "Unavailable"}</dd></div><div><dt>Automation</dt><dd>{version.status === "ready" ? version.value.message : "Check unavailable"}</dd></div><div><dt>Supported contract</dt><dd>JL Mixing Automation 1.3.1</dd></div></dl></section></div>
     <aside className="route-note"><strong>Settings boundary</strong><span>These preferences are local to JL Mixing Studio. They do not edit <code>studio.json</code>, client or project metadata, delivery defaults, or JL Mixing Automation.</span></aside>
@@ -1007,10 +1007,10 @@ export default function App() {
     version.status === "ready" &&
     version.value.studioCreationSupported;
   const studioCreationHelp = (() => {
-    if (workspace.status !== "ready" || version.status !== "ready") return "Workspace and automation checks must finish first.";
-    if (workspace.value.status !== "unavailable") return workspace.value.studio ? "The validated studio workspace already exists." : "Resolve the existing workspace issue before setup.";
+    if (workspace.status !== "ready" || version.status !== "ready") return "Finishing the studio checks first…";
+    if (workspace.value.status !== "unavailable") return workspace.value.studio ? "Your studio workspace is already set up." : "Fix the studio setup issue before continuing.";
     if (!version.value.studioCreationSupported) return version.value.message;
-    return "Preview and confirm creation of the default ~/Music/Mixes workspace.";
+    return "Review the setup, then create your studio workspace at ~/Music/Mixes.";
   })();
 
   const openStudioWorkflow = () => {
@@ -1058,63 +1058,63 @@ export default function App() {
 
   const clientCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
-      return "Workspace and automation checks must finish first.";
+      return "Finishing the studio checks first…";
     }
     if (!workspaceAllowsCreation) {
-      return "Resolve workspace issues before creating a client.";
+      return "Fix the studio setup issues before adding a client.";
     }
     if (!version.value.clientCreationSupported) {
       return version.value.message;
     }
-    return "Preview and confirm a new client using JL Mixing Automation v1.3.1.";
+    return "Review the client details, then add them to your studio.";
   })();
 
   const projectCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
-      return "Workspace and automation checks must finish first.";
+      return "Finishing the studio checks first…";
     }
     if (!workspaceAllowsProjectCreation) {
       return workspace.value.status === "empty"
         ? "Create a client before creating a project."
-        : "Resolve workspace issues before creating a project.";
+        : "Fix the studio setup issues before starting a project.";
     }
     if (!version.value.projectCreationSupported) {
       return version.value.message;
     }
-    return "Preview and confirm a new project using JL Mixing Automation v1.3.1.";
+    return "Review the project details, then create it.";
   })();
 
   const intakeValidationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
-      return "Workspace and automation checks must finish first.";
+      return "Finishing the studio checks first…";
     }
     if (workspace.value.status !== "healthy") {
-      return "The existing report remains readable, but workspace issues must be resolved before validation can run.";
+      return "You can still read the current report, but fix the studio setup issues before running intake again.";
     }
     if (!version.value.intakeValidationSupported) return version.value.message;
-    return "Preview the Automation v1.3.1 defaults, then confirm the managed report update.";
+    return "Preview the intake check, then update the report when everything looks right.";
   })();
 
   const revisionCreationHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
-      return "Workspace and automation checks must finish first.";
+      return "Finishing the studio checks first…";
     }
     if (workspace.value.status !== "healthy") {
-      return "Revision history remains readable, but workspace issues must be resolved before creating a revision.";
+      return "You can still read the revision history, but fix the studio setup issues before creating a new revision.";
     }
     if (!version.value.revisionCreationSupported) return version.value.message;
-    return "Preview and confirm the next revision using JL Mixing Automation v1.3.1.";
+    return "Review the next revision, then create it when you’re ready.";
   })();
 
   const revisionApprovalHelp = (() => {
     if (workspace.status !== "ready" || version.status !== "ready") {
-      return "Workspace and automation checks must finish first.";
+      return "Finishing the studio checks first…";
     }
     if (workspace.value.status !== "healthy") {
-      return "Revision history remains readable, but workspace issues must be resolved before recording approval.";
+      return "You can still read the revision history, but fix the studio setup issues before approving a revision.";
     }
     if (!version.value.revisionApprovalSupported) return version.value.message;
-    return "Select a revision, review the lifecycle impact, and confirm its approval through JL Mixing Automation v1.3.1.";
+    return "Choose a revision, review what will change, then approve it.";
   })();
 
   const openClientWorkflow = () => {
@@ -1745,12 +1745,12 @@ export default function App() {
       (resolvedProject.deliveredRevision !== null && resolvedProject.delivery !== null));
   const deliveryCreationHelp = (() => {
     if (!resolvedProject) return "Select a project before creating a delivery.";
-    if (workspace.status !== "ready" || version.status !== "ready") return "Workspace and automation checks must finish first.";
-    if (workspace.value.status !== "healthy") return "Delivery history remains readable, but workspace issues must be resolved before creating a package.";
+    if (workspace.status !== "ready" || version.status !== "ready") return "Finishing the studio checks first…";
+    if (workspace.value.status !== "healthy") return "You can still read the delivery history, but fix the studio setup issues before creating a package.";
     if (!version.value.deliveryCreationSupported) return version.value.message;
     if (resolvedProject.approvedRevision === null) return "Approve a revision before creating the first delivery package.";
     if (resolvedProject.deliveredRevision !== null && resolvedProject.delivery !== null) return "Preview a same-path overwrite that preserves edited Delivery Notes and unrelated package files; optionally rebuild the ZIP.";
-    return "Preview and confirm the first package using Automation defaults with mandatory SHA-256 verification and optional ZIP output.";
+    return "Preview the first delivery package, then create it with SHA-256 file verification and an optional ZIP.";
   })();
   const baseRouteDefinition = routes.find((route) => route.id === activeRoute) ?? routes[0];
   const activeRouteDefinition: RouteDefinition = resolvedProject
@@ -1759,7 +1759,7 @@ export default function App() {
         label: "Projects",
         eyebrow: projectView === "intake" ? "Project intake" : projectView === "revisions" ? "Project revisions" : projectView === "delivery" ? "Project delivery" : "Project overview",
         title: resolvedProject.projectName,
-        description: projectView === "intake" ? `${resolvedProject.artist} · Automation-managed intake validation.` : projectView === "revisions" ? `${resolvedProject.artist} · Authoritative revision history.` : projectView === "delivery" ? `${resolvedProject.artist} · Authoritative delivery state.` : `${resolvedProject.artist} · Authoritative project state.`,
+        description: projectView === "intake" ? `${resolvedProject.artist} · Check the files before mixing.` : projectView === "revisions" ? `${resolvedProject.artist} · Revisions, approvals, and mix history.` : projectView === "delivery" ? `${resolvedProject.artist} · Final files and delivery status.` : `${resolvedProject.artist} · Project details and next steps.`,
       }
     : resolvedClient
       ? {
@@ -1767,7 +1767,7 @@ export default function App() {
           label: "Clients",
           eyebrow: "Client details",
           title: resolvedClient.clientName,
-          description: "Validated client defaults and projects from the current workspace.",
+          description: "Client details, defaults, and projects in your studio.",
         }
       : baseRouteDefinition;
 
