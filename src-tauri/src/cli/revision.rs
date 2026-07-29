@@ -5,8 +5,9 @@ use crate::automation_api::{
     invoke_api, resolve_command, ApiCallError, ApiStatus, ProcessRunner, SystemProcessRunner,
 };
 use crate::models::{
-    ApprovalOperationCode, ApprovalOperationResult, RevisionApprovalRequest, RevisionApprovalSummary,
-    RevisionCreationRequest, RevisionCreationSummary, RevisionOperationCode, RevisionOperationResult,
+    ApprovalOperationCode, ApprovalOperationResult, RevisionApprovalRequest,
+    RevisionApprovalSummary, RevisionCreationRequest, RevisionCreationSummary,
+    RevisionOperationCode, RevisionOperationResult,
 };
 
 pub(super) const APPROVAL_EXECUTABLE: &str = "approve-mix";
