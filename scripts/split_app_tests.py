@@ -20,7 +20,7 @@ for index, match in enumerate(block_matches):
     blocks.append((match.group(1), body[start:end].strip()))
 
 original_titles = [title for title, _ in blocks]
-assert len(original_titles) == 61, f"expected 61 tests, found {len(original_titles)}"
+assert len(original_titles) == 65, f"expected 65 tests, found {len(original_titles)}"
 
 markers = {
     "mix_workflows": "opens authoritative revision history and selects an older approved revision",
@@ -112,4 +112,4 @@ split_titles = []
 for path in sorted(Path("src").glob("App.*.test.tsx")):
     split_titles.extend(re.findall(r'(?m)^  it\("([^"]+)"', path.read_text()))
 assert sorted(original_titles) == sorted(split_titles), (original_titles, split_titles)
-assert len(split_titles) == len(set(split_titles)) == 61, "test titles must remain unique and complete"
+assert len(split_titles) == len(set(split_titles)) == 65, "test titles must remain unique and complete"
