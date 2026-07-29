@@ -366,13 +366,13 @@ fn discovery_output() -> ProcessResult {
     }
 }
 
-mod studio;
-mod client;
-mod project;
-mod revision;
 mod approval;
+mod client;
 mod delivery;
 mod intake;
+mod project;
+mod revision;
+mod studio;
 
 #[test]
 fn bounds_process_error_output() {
