@@ -336,7 +336,7 @@ describe("JL Mixing Studio", () => {
     snapshot.tasks = [{ id: "task", priority: "review", title: "Review current revision", reason: "Current differs from approved.", recommendedAction: "Open Revisions.", clientId: "acme", clientName: "Acme Records", projectId: "blue-sky", projectName: "Blue Sky", deadline: null }];
     respondWith(snapshot); render(<App />); await screen.findByText("JL Mix Studio");
     fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
-    expect(screen.getByRole("heading", { name: "1 derived task" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "1 task" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
     expect(screen.getByRole("heading", { name: "Blue Sky", level: 1 })).toBeInTheDocument();
   });
@@ -346,16 +346,16 @@ describe("JL Mixing Studio", () => {
     snapshot.activity = [{ id: "event", eventType: "clientCreated", timestamp: "2026-07-15T12:00:00Z", clientId: "acme", clientName: "Acme Records", projectId: null, projectName: null, revision: null, persistedSource: "client metadata.created_at" }];
     respondWith(snapshot); render(<App />); await screen.findByText("JL Mix Studio");
     fireEvent.click(screen.getByRole("button", { name: "Activity Log" }));
-    expect(screen.getByRole("heading", { name: "1 derived event" })).toBeInTheDocument();
-    expect(screen.getByText(/not a complete audit log/i)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "1 event" })).toBeInTheDocument();
+    expect(screen.getByText(/supported project milestones/i)).toBeInTheDocument();
   });
 
   it("shows honest empty derived-route states", async () => {
     render(<App />); await screen.findByText("JL Mix Studio");
     fireEvent.click(screen.getByRole("button", { name: "Tasks" }));
-    expect(screen.getByRole("heading", { name: "No derived tasks" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Nothing needs your attention" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Activity Log" }));
-    expect(screen.getByRole("heading", { name: "No supported activity events" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No recent activity yet" })).toBeInTheDocument();
   });
 
   it("navigates to the functional project directory with a programmatic active state", async () => {
@@ -395,7 +395,7 @@ describe("JL Mixing Studio", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Acme Records" }));
     expect(screen.getByRole("heading", { name: "Acme Records", level: 1 })).toBeInTheDocument();
-    expect(screen.getByText(/no approved client-edit command/i)).toBeInTheDocument();
+    expect(screen.getByText(/client editing.*available yet/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Blue Sky" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
@@ -485,7 +485,7 @@ describe("JL Mixing Studio", () => {
     expect(await screen.findByRole("heading", { name: "Project reports" })).toBeInTheDocument();
     expect(screen.getByText(/2 files · 0 blocking errors/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Files" }));
-    expect(screen.getByRole("heading", { name: "Authoritative files" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Project files" })).toBeInTheDocument();
     expect(screen.getByText("one/song.wav")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Metadata" }));
     expect(screen.getByRole("heading", { name: "Project metadata" })).toBeInTheDocument();
@@ -504,7 +504,7 @@ describe("JL Mixing Studio", () => {
     await screen.findByText("JL Mix Studio");
     fireEvent.click(screen.getByRole("button", { name: "Reports" }));
     expect(screen.getByRole("heading", { name: "Reports", level: 1 })).toBeInTheDocument();
-    expect(screen.getByText("Delivery manifest")).toBeInTheDocument();
+    expect(screen.getByText("Delivery details")).toBeInTheDocument();
     expect(screen.queryByText(/report browsing is planned/i)).not.toBeInTheDocument();
   });
 
@@ -560,7 +560,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByRole("heading", { name: "Delivery", level: 2 })).toBeInTheDocument();
     expect(screen.getByText("Ready for first delivery")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create delivery" })).toBeEnabled();
-    expect(screen.getByText("No delivery package recorded")).toBeInTheDocument();
+    expect(screen.getByText("No delivery package yet")).toBeInTheDocument();
   });
 
   it("previews the fixed first-delivery plan and cancels without creating", async () => {
@@ -619,7 +619,7 @@ describe("JL Mixing Studio", () => {
     expect(screen.getByText("Blue Sky Main Mix.wav")).toBeInTheDocument();
     expect(screen.getByText("main mix")).toBeInTheDocument();
     expect(screen.getAllByText("1,200")).toHaveLength(2);
-    expect(screen.getByText(/did not re-hash delivery files/i)).toBeInTheDocument();
+    expect(screen.getByText(/did not re-check the delivery files/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Rebuild delivery" })).toBeEnabled();
     expect(screen.getByText(/same-path overwrite that preserves edited Delivery Notes/i)).toBeInTheDocument();
   });
@@ -849,8 +849,8 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
     fireEvent.click(screen.getByRole("button", { name: "Blue Sky" }));
     fireEvent.click(screen.getByRole("button", { name: "Delivery" }));
-    expect(screen.getByText("Replacement review required")).toBeInTheDocument();
-    expect(screen.getByText(/existing package represents Revision 1.*approved Revision 2/i)).toBeInTheDocument();
+    expect(screen.getByText("New delivery available")).toBeInTheDocument();
+    expect(screen.getByText(/current package contains Revision 1.*approved Revision 2/i)).toBeInTheDocument();
   });
 
   it("preflights a trimmed revision description and cancels without creating", async () => {
@@ -1325,7 +1325,7 @@ describe("JL Mixing Studio", () => {
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
     expect(screen.getByRole("button", { name: "Blue Sky" })).toBeInTheDocument();
     expect(screen.getByText("Broken Project")).toBeInTheDocument();
-    expect(screen.getByText(/only validated clients and projects are shown/i)).toBeInTheDocument();
+    expect(screen.getByText(/clients and projects we can read are still available/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New project" })).toBeDisabled();
   });
 
@@ -1536,7 +1536,7 @@ describe("JL Mixing Studio", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Workspace not found" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your studio workspace isn’t ready yet" })).toBeInTheDocument();
     expect(screen.getByText(/run new-studio/i)).toBeInTheDocument();
   });
 
@@ -1574,7 +1574,7 @@ describe("JL Mixing Studio", () => {
       return Promise.reject(new Error("Unexpected command"));
     });
     render(<App />);
-    await screen.findByRole("heading", { name: "Workspace not found" });
+    await screen.findByRole("heading", { name: "Your studio workspace isn’t ready yet" });
     fireEvent.click(screen.getByRole("button", { name: "Studio" }));
     fireEvent.click(screen.getByRole("button", { name: "New studio" }));
     fireEvent.change(screen.getByLabelText("Studio name"), { target: { value: " New Studio " } });
@@ -1596,8 +1596,8 @@ describe("JL Mixing Studio", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "No clients or projects yet" })).toBeInTheDocument();
-    expect(screen.getByText(/create the first client/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Your studio is ready for its first client" })).toBeInTheDocument();
+    expect(screen.getByText(/ready to get started/i)).toBeInTheDocument();
   });
 
   it("blocks project presentation when studio configuration is invalid", async () => {
@@ -1618,7 +1618,7 @@ describe("JL Mixing Studio", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "The workspace cannot be read safely" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "We can’t read this studio setup yet" })).toBeInTheDocument();
     expect(screen.queryByText("Blue Sky")).not.toBeInTheDocument();
     expect(screen.getByText("Studio/studio.json")).toBeInTheDocument();
   });
