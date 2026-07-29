@@ -20,6 +20,7 @@ import type {
   FolderLocation,
   FolderRequest,
   FolderResult,
+  IntakeOperationResult,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
