@@ -92,12 +92,7 @@ pub(super) fn run_delivery_operation<R: ProcessRunner>(
     if matches!(operation, DeliveryOperation::Create)
         && matches!(request.replacement_mode, DeliveryReplacementMode::Clean)
     {
-        if let Err(result) = verify_clean_confirmation(
-            home,
-            project_directory,
-            &request,
-            runner,
-        ) {
+        if let Err(result) = verify_clean_confirmation(home, project_directory, &request, runner) {
             return result;
         }
     }
@@ -127,11 +122,9 @@ fn verify_clean_confirmation<R: ProcessRunner>(
         runner,
     ) {
         Ok(response) if response.status == ApiStatus::Planned => {
-            let Some(preview) = delivery_preview_from_api(
-                &response.data,
-                request,
-                DeliveryOperation::Preflight,
-            ) else {
+            let Some(preview) =
+                delivery_preview_from_api(&response.data, request, DeliveryOperation::Preflight)
+            else {
                 return Err(blocked_delivery_operation(
                     DeliveryOperationCode::Failed,
                     "The JL Mixing Automation clean-delivery preview could not be verified",
@@ -175,7 +168,8 @@ fn invoke_delivery_api<R: ProcessRunner>(
                     | (DeliveryOperation::Create, ApiStatus::Success)
             ) =>
         {
-            let Some(delivery) = delivery_preview_from_api(&response.data, request, operation) else {
+            let Some(delivery) = delivery_preview_from_api(&response.data, request, operation)
+            else {
                 return unverifiable_delivery_result(operation);
             };
             DeliveryOperationResult {
