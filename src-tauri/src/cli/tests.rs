@@ -10,7 +10,8 @@ use std::collections::VecDeque;
 use super::*;
 use crate::automation_api::ProcessResult;
 use crate::models::{
-    ClientCreationRequest, ClientOperationCode, StudioCreationRequest, StudioOperationCode,
+    ClientCreationRequest, ClientOperationCode, ProjectCreationRequest, ProjectCreationSummary,
+    ProjectOperationCode, StudioCreationRequest, StudioOperationCode,
 };
 
 #[derive(Debug, PartialEq, Eq)]
