@@ -10,6 +10,8 @@ use crate::models::{
 #[cfg(test)]
 use std::io;
 
+#[cfg(test)]
+mod automation_api_compat_tests;
 mod client;
 mod delivery;
 #[cfg(test)]
