@@ -45,9 +45,7 @@ pub use revision::{
 #[cfg(test)]
 use revision::{run_revision_operation, RevisionOperation};
 #[cfg(test)]
-use revision_legacy_testsupport::{
-    run_approval_operation, ApprovalOperation, APPROVAL_EXECUTABLE,
-};
+use revision_legacy_testsupport::{run_approval_operation, ApprovalOperation, APPROVAL_EXECUTABLE};
 pub use studio::{blocked_studio_operation, create_studio, preflight_studio_creation};
 #[cfg(test)]
 use studio::{run_studio_operation, StudioOperation, STUDIO_EXECUTABLE};
