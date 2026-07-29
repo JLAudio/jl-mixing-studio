@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 workspace_path = Path("src-tauri/src/workspace.rs")
 tests_path = Path("src-tauri/src/workspace/workspace_tests.rs")
@@ -17,5 +18,9 @@ production = source[:start].rstrip() + "\n\n#[cfg(test)]\nmod workspace_tests;\n
 tests_path.parent.mkdir(parents=True, exist_ok=True)
 tests_path.write_text(body.lstrip())
 workspace_path.write_text(production)
+subprocess.run(
+    ["cargo", "fmt", "--manifest-path", "src-tauri/Cargo.toml", "--", str(tests_path)],
+    check=True,
+)
 print(f"workspace.rs reduced to {len(production.splitlines())} lines")
-print(f"workspace/workspace_tests.rs contains {len(body.splitlines())} lines")
+print(f"workspace/workspace_tests.rs contains {len(tests_path.read_text().splitlines())} lines")
