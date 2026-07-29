@@ -34,27 +34,27 @@ Automation-owned provider work:
 
 - Automation API `1.0` discovery and workflow contract completed in `JLAudio/jl-mixing#44`.
 - Provider capabilities available to Studio: `system.info`, `client.create`, `project.create`, `revision.create`, `intake.validate`, `revision.approve`, and `delivery.create`.
+- `delivery.create` rich result parity extension completed by Automation #66 / PR #67, including authoritative selected/excluded file data and clean-deletion inventory required by Studio.
 
 Studio-owned consumer work completed:
 
 - Compatibility policy documented and implemented (#74).
 - Centralized Automation discovery, API-version validation, capability handling, and stable error mapping implemented (#76).
 - Studio-side Automation API invocation boundary established under #75.
-- `client.create`, `project.create`, `revision.create`, and `intake.validate` migrated to the structured API boundary.
+- `client.create`, `project.create`, `revision.create`, `intake.validate`, and `revision.approve` migrated to the structured API boundary.
 - CLI runtime refactored into domain-focused modules (`studio`, `client`, `project`, `intake`, `revision`, and `delivery`) under #85 / PR #94.
 
 Studio-owned consumer work in progress:
 
-- Migrate `revision.approve` from the legacy `approve-mix` output parser to Automation API `revision.approve` (#75).
-- Migrate `delivery.create` from the legacy `create-delivery` output parser to Automation API `delivery.create` (#75).
+- Migrate `delivery.create` from the legacy `create-delivery` output parser to Automation API `delivery.create` (#75), consuming the richer provider result from Automation PR #67.
+- Preserve clean-replacement confirmation safety by revalidating the exact provider deletion inventory before destructive execution.
 - Add deterministic Automation API compatibility/integration tests for supported and rejected API behavior (#77).
 
 ## Next work
 
-- Complete and merge the `revision.approve` API migration.
-- Migrate `delivery.create` to the structured Automation API boundary.
+- Complete and merge the `delivery.create` API migration.
 - Complete #75 once all Automation-backed Studio workflows use the abstraction layer.
-- Complete #77 compatibility and failure-path integration coverage.
+- Complete #77 compatibility and failure-path integration coverage and remove temporary legacy test adapters.
 - Continue UI refinement toward the approved wireframes after the API foundation is stable.
 - Run the existing-code JL Audio coding-standards audit tracked by #93 after the current API/refactor sequence stabilizes.
 
@@ -81,5 +81,5 @@ JL Mixing Studio reached its first stable public release after RC4 acceptance, m
 
 ## Known issues and technical debt
 
-- Legacy approval regression tests remain isolated behind test-only support while the new structured `revision.approve` path is covered independently; remove the legacy test support when #77 consolidates API integration coverage.
+- Legacy approval and delivery regression tests remain isolated behind test-only support while the structured API paths are covered independently; remove the legacy test support when #77 consolidates API integration coverage.
 - No known release-blocking defects. New defects should be recorded as GitHub issues and assigned to either the `v1.0.1` patch milestone or the appropriate future milestone.

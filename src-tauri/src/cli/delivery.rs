@@ -1,14 +1,13 @@
 use std::collections::HashSet;
-use std::io;
 use std::path::Path;
 
-use crate::automation_api::{resolve_command, ProcessRunner, SystemProcessRunner};
+use crate::automation_api::{
+    invoke_api, ApiCallError, ApiStatus, ProcessRunner, SystemProcessRunner,
+};
 use crate::models::{
     DeliveryCreationPreview, DeliveryCreationRequest, DeliveryOperationCode,
     DeliveryOperationResult, DeliveryReplacementMode, ExcludedDeliveryFile, PlannedDeliveryFile,
 };
-
-pub(super) const DELIVERY_EXECUTABLE: &str = "create-delivery";
 
 pub fn preflight_delivery_creation(
     home: &Path,
@@ -83,31 +82,98 @@ pub(super) fn run_delivery_operation<R: ProcessRunner>(
             &version.message,
         );
     }
-
-    let Some(executable) = resolve_command(home, DELIVERY_EXECUTABLE) else {
+    if !version.delivery_creation_supported {
         return blocked_delivery_operation(
-            DeliveryOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation create-delivery command was not found",
+            DeliveryOperationCode::Rejected,
+            "JL Mixing Automation does not advertise the delivery.create capability required by Studio",
         );
-    };
-    let arguments = delivery_arguments(&request, operation);
-    match runner.run(&executable, &arguments, Some(project_directory)) {
-        Ok(output) if output.success => {
-            let Some(delivery) = parse_delivery_output(&output.stdout, &request, operation) else {
-                return blocked_delivery_operation(
-                    match operation {
-                        DeliveryOperation::Preflight => DeliveryOperationCode::Failed,
-                        DeliveryOperation::Create => DeliveryOperationCode::Uncertain,
-                    },
-                    match operation {
-                        DeliveryOperation::Preflight => {
-                            "The JL Mixing Automation delivery preview could not be verified"
-                        }
-                        DeliveryOperation::Create => {
-                            "JL Mixing Automation reported success, but the delivery result could not be verified. The operation may have completed; do not retry automatically."
-                        }
-                    },
-                );
+    }
+
+    if matches!(operation, DeliveryOperation::Create)
+        && matches!(request.replacement_mode, DeliveryReplacementMode::Clean)
+    {
+        if let Err(result) = verify_clean_confirmation(home, project_directory, &request, runner) {
+            return *result;
+        }
+    }
+
+    invoke_delivery_api(home, project_directory, &request, operation, runner)
+}
+
+fn verify_clean_confirmation<R: ProcessRunner>(
+    home: &Path,
+    project_directory: &Path,
+    request: &DeliveryCreationRequest,
+    runner: &R,
+) -> Result<(), Box<DeliveryOperationResult>> {
+    if request.confirmed_deletions.is_empty() {
+        return Err(Box::new(blocked_delivery_operation(
+            DeliveryOperationCode::InvalidInput,
+            "Confirm the clean-deletion inventory before creating the delivery",
+        )));
+    }
+
+    let arguments = delivery_arguments(project_directory, request, DeliveryOperation::Preflight);
+    match invoke_api(
+        home,
+        "delivery.create",
+        &arguments,
+        Some(project_directory),
+        runner,
+    ) {
+        Ok(response) if response.status == ApiStatus::Planned => {
+            let Some(preview) =
+                delivery_preview_from_api(&response.data, request, DeliveryOperation::Preflight)
+            else {
+                return Err(Box::new(blocked_delivery_operation(
+                    DeliveryOperationCode::Failed,
+                    "The JL Mixing Automation clean-delivery preview could not be verified",
+                )));
+            };
+            if preview.deletions != request.confirmed_deletions {
+                return Err(Box::new(blocked_delivery_operation(
+                    DeliveryOperationCode::Rejected,
+                    "The clean-deletion inventory changed after confirmation. Review the delivery preview again before continuing.",
+                )));
+            }
+            Ok(())
+        }
+        Ok(response) => Err(Box::new(provider_rejection(
+            &response,
+            "JL Mixing Automation rejected the clean-delivery verification",
+        ))),
+        Err(error) => Err(Box::new(api_error_result(
+            error,
+            DeliveryOperation::Preflight,
+        ))),
+    }
+}
+
+fn invoke_delivery_api<R: ProcessRunner>(
+    home: &Path,
+    project_directory: &Path,
+    request: &DeliveryCreationRequest,
+    operation: DeliveryOperation,
+    runner: &R,
+) -> DeliveryOperationResult {
+    let arguments = delivery_arguments(project_directory, request, operation);
+    match invoke_api(
+        home,
+        "delivery.create",
+        &arguments,
+        Some(project_directory),
+        runner,
+    ) {
+        Ok(response)
+            if matches!(
+                (operation, response.status),
+                (DeliveryOperation::Preflight, ApiStatus::Planned)
+                    | (DeliveryOperation::Create, ApiStatus::Success)
+            ) =>
+        {
+            let Some(delivery) = delivery_preview_from_api(&response.data, request, operation)
+            else {
+                return unverifiable_delivery_result(operation);
             };
             DeliveryOperationResult {
                 ok: true,
@@ -125,38 +191,199 @@ pub(super) fn run_delivery_operation<R: ProcessRunner>(
                 delivery: Some(delivery),
             }
         }
-        Ok(output) => blocked_delivery_operation(
-            DeliveryOperationCode::Rejected,
-            &super::bounded_process_message(
-                &output.stderr,
-                &output.stdout,
-                &format!(
-                    "JL Mixing Automation rejected delivery creation with exit code {}",
-                    output
-                        .exit_code
-                        .map_or_else(|| "unknown".into(), |code| code.to_string())
-                ),
+        Ok(response) => provider_rejection(
+            &response,
+            "JL Mixing Automation returned an unexpected delivery.create result",
+        ),
+        Err(error) => api_error_result(error, operation),
+    }
+}
+
+fn provider_rejection(
+    response: &crate::automation_api::ApiResponse,
+    fallback: &str,
+) -> DeliveryOperationResult {
+    blocked_delivery_operation(
+        DeliveryOperationCode::Rejected,
+        &response
+            .errors
+            .first()
+            .map(|error| error.message.clone())
+            .unwrap_or_else(|| fallback.to_owned()),
+    )
+}
+
+fn api_error_result(error: ApiCallError, operation: DeliveryOperation) -> DeliveryOperationResult {
+    match error {
+        ApiCallError::Unavailable => blocked_delivery_operation(
+            DeliveryOperationCode::AutomationUnavailable,
+            "JL Mixing Automation was not found in its default install location or on PATH",
+        ),
+        ApiCallError::IncompatibleVersion(version) => blocked_delivery_operation(
+            DeliveryOperationCode::UnsupportedVersion,
+            &format!(
+                "JL Mixing Automation returned API {}; Studio requires Automation API 1.0",
+                version
             ),
         ),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => blocked_delivery_operation(
-            DeliveryOperationCode::AutomationUnavailable,
-            "The JL Mixing Automation create-delivery command was not found",
-        ),
-        Err(_) => blocked_delivery_operation(
+        error => blocked_delivery_operation(
             match operation {
                 DeliveryOperation::Preflight => DeliveryOperationCode::Failed,
                 DeliveryOperation::Create => DeliveryOperationCode::Uncertain,
             },
-            match operation {
-                DeliveryOperation::Preflight => {
-                    "The JL Mixing Automation create-delivery command could not be started"
-                }
-                DeliveryOperation::Create => {
-                    "The delivery-creation result could not be confirmed. The operation may have completed; do not retry automatically."
-                }
-            },
+            &error.message(),
         ),
     }
+}
+
+fn unverifiable_delivery_result(operation: DeliveryOperation) -> DeliveryOperationResult {
+    blocked_delivery_operation(
+        match operation {
+            DeliveryOperation::Preflight => DeliveryOperationCode::Failed,
+            DeliveryOperation::Create => DeliveryOperationCode::Uncertain,
+        },
+        match operation {
+            DeliveryOperation::Preflight => {
+                "The JL Mixing Automation delivery preview could not be verified"
+            }
+            DeliveryOperation::Create => {
+                "JL Mixing Automation reported success, but the delivery result could not be verified. The operation may have completed; do not retry automatically."
+            }
+        },
+    )
+}
+
+fn delivery_preview_from_api(
+    data: &serde_json::Value,
+    request: &DeliveryCreationRequest,
+    operation: DeliveryOperation,
+) -> Option<DeliveryCreationPreview> {
+    let project = data.get("project")?;
+    let project_id = project.get("id")?.as_str()?;
+    let project_name = project.get("name")?.as_str()?.trim();
+    let revision = data.get("revision")?;
+    let revision_number = as_revision(revision.get("number")?)?;
+    let current_revision = as_revision(data.get("current_revision")?)?;
+    let approved_revision = as_revision(data.get("approved_revision")?)?;
+    let delivered_revision = optional_revision(data.get("delivered_revision")?)?;
+    let delivery_method = data.get("delivery_method")?.as_str()?.trim();
+    let replacement_mode = replacement_mode_from_api(data.get("replacement_mode")?.as_str()?)?;
+    let create_zip = data.get("zip_requested")?.as_bool()?;
+    let provider_zip_name = optional_string(data.get("zip_name")?)?;
+
+    if project_id != request.project_id
+        || project_name.is_empty()
+        || delivery_method.is_empty()
+        || revision_number != approved_revision
+        || replacement_mode != request.replacement_mode
+        || create_zip != request.create_zip
+        || matches!(operation, DeliveryOperation::Create)
+            && delivered_revision != Some(approved_revision)
+    {
+        return None;
+    }
+
+    if create_zip {
+        let name = provider_zip_name.as_deref()?;
+        if !is_expected_delivery_zip_name(name, &request.project_id, approved_revision) {
+            return None;
+        }
+    } else if provider_zip_name.is_some() {
+        return None;
+    }
+
+    let selected = parse_selected(data.get("selected")?)?;
+    if selected.is_empty() {
+        return None;
+    }
+    let excluded = parse_excluded(data.get("excluded")?)?;
+    let deletions = parse_deletions(data.get("deletions")?)?;
+
+    if matches!(replacement_mode, DeliveryReplacementMode::Clean) {
+        if matches!(operation, DeliveryOperation::Create)
+            && deletions != request.confirmed_deletions
+        {
+            return None;
+        }
+    } else if !deletions.is_empty() || !request.confirmed_deletions.is_empty() {
+        return None;
+    }
+
+    Some(DeliveryCreationPreview {
+        client_id: request.client_id.clone(),
+        project_id: request.project_id.clone(),
+        project_name: project_name.to_owned(),
+        current_revision,
+        approved_revision,
+        delivered_revision,
+        delivery_method: delivery_method.to_owned(),
+        replacement_mode,
+        create_zip,
+        zip_name: if matches!(operation, DeliveryOperation::Create) {
+            provider_zip_name
+        } else {
+            None
+        },
+        selected,
+        excluded,
+        deletions,
+    })
+}
+
+fn parse_selected(value: &serde_json::Value) -> Option<Vec<PlannedDeliveryFile>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|item| {
+            let source_name = item.get("source_name")?.as_str()?.trim();
+            let deliverable_type = item.get("deliverable_type")?.as_str()?.trim();
+            let path = item.get("path")?.as_str()?.trim();
+            if source_name.is_empty() || deliverable_type.is_empty() || path.is_empty() {
+                return None;
+            }
+            Some(PlannedDeliveryFile {
+                source_name: source_name.to_owned(),
+                deliverable_type: deliverable_type.to_owned(),
+                path: path.to_owned(),
+            })
+        })
+        .collect()
+}
+
+fn parse_excluded(value: &serde_json::Value) -> Option<Vec<ExcludedDeliveryFile>> {
+    value
+        .as_array()?
+        .iter()
+        .map(|item| {
+            let name = item.get("name")?.as_str()?.trim();
+            let reason = item.get("reason")?.as_str()?.trim();
+            if name.is_empty() || reason.is_empty() {
+                return None;
+            }
+            Some(ExcludedDeliveryFile {
+                name: name.to_owned(),
+                reason: reason.to_owned(),
+            })
+        })
+        .collect()
+}
+
+fn parse_deletions(value: &serde_json::Value) -> Option<Vec<String>> {
+    let values = value.as_array()?;
+    if values.len() > 10_000 {
+        return None;
+    }
+    let mut unique = HashSet::new();
+    values
+        .iter()
+        .map(|value| {
+            let path = value.as_str()?;
+            if !is_safe_delivery_relative_path(path) || !unique.insert(path.to_owned()) {
+                return None;
+            }
+            Some(path.to_owned())
+        })
+        .collect()
 }
 
 fn normalize_delivery_request(
@@ -190,10 +417,17 @@ fn normalize_delivery_request(
 }
 
 fn delivery_arguments(
+    project_directory: &Path,
     request: &DeliveryCreationRequest,
     operation: DeliveryOperation,
 ) -> Vec<String> {
-    let mut arguments = Vec::new();
+    let mut arguments = vec![
+        "delivery".into(),
+        "create".into(),
+        "--json".into(),
+        "--project".into(),
+        project_directory.to_string_lossy().into_owned(),
+    ];
     if matches!(request.replacement_mode, DeliveryReplacementMode::Overwrite) {
         arguments.push("--overwrite".into());
     }
@@ -209,164 +443,35 @@ fn delivery_arguments(
     arguments
 }
 
-pub(super) fn parse_delivery_output(
-    stdout: &str,
-    request: &DeliveryCreationRequest,
-    operation: DeliveryOperation,
-) -> Option<DeliveryCreationPreview> {
-    let field = |label: &str| {
-        stdout.lines().find_map(|line| {
-            let (candidate, value) = line.split_once(':')?;
-            (candidate.trim() == label).then(|| value.trim().to_owned())
-        })
-    };
-    let project_name = field("Project")?;
-    let current_revision = field("Current revision")?.parse::<u32>().ok()?;
-    let approved_revision = field("Approved revision")?.parse::<u32>().ok()?;
-    let delivered_value = field("Delivered revision")?;
-    let delivered_revision = if delivered_value == "null" {
-        None
-    } else {
-        Some(delivered_value.parse::<u32>().ok()?)
-    };
-    let delivery_method = field("Delivery method")?;
-    let replacement_mode = match field("Replacement mode")?.as_str() {
-        "default" => DeliveryReplacementMode::Default,
-        "overwrite" => DeliveryReplacementMode::Overwrite,
-        "clean" => DeliveryReplacementMode::Clean,
-        _ => return None,
-    };
-    let create_zip = match field("Create ZIP")?.as_str() {
-        "yes" => true,
-        "no" => false,
-        _ => return None,
-    };
-    let zip_name = match (create_zip, operation) {
-        (true, DeliveryOperation::Create) => {
-            let name = field("ZIP")?;
-            is_expected_delivery_zip_name(&name, &request.project_id, approved_revision)
-                .then_some(name)
-        }
+fn replacement_mode_from_api(value: &str) -> Option<DeliveryReplacementMode> {
+    match value {
+        "default" => Some(DeliveryReplacementMode::Default),
+        "overwrite" => Some(DeliveryReplacementMode::Overwrite),
+        "clean" => Some(DeliveryReplacementMode::Clean),
         _ => None,
-    };
-    if create_zip && matches!(operation, DeliveryOperation::Create) && zip_name.is_none() {
-        return None;
     }
-    if project_name.is_empty()
-        || current_revision == 0
-        || approved_revision == 0
-        || delivery_method.is_empty()
-        || replacement_mode != request.replacement_mode
-        || create_zip != request.create_zip
-    {
-        return None;
-    }
+}
 
-    let lines: Vec<_> = stdout.lines().collect();
-    let selected_start = lines
-        .iter()
-        .position(|line| line.trim() == "Selected files:")?
-        + 1;
-    let mut selected = Vec::new();
-    let mut index = selected_start;
-    while index < lines.len() && !lines[index].trim().is_empty() {
-        let source_line = lines[index];
-        if !source_line.starts_with("  ") || source_line.starts_with("    ") {
-            return None;
-        }
-        let source_name = source_line.trim().to_owned();
-        let deliverable_type = lines
-            .get(index + 1)?
-            .trim()
-            .strip_prefix("Type: ")?
-            .to_owned();
-        let path = lines
-            .get(index + 2)?
-            .trim()
-            .strip_prefix("Destination: ")?
-            .to_owned();
-        if source_name.is_empty() || deliverable_type.is_empty() || path.is_empty() {
-            return None;
-        }
-        selected.push(PlannedDeliveryFile {
-            source_name,
-            deliverable_type,
-            path,
-        });
-        index += 3;
-    }
-    if selected.is_empty() {
-        return None;
-    }
+fn as_revision(value: &serde_json::Value) -> Option<u32> {
+    let value = value.as_u64()?;
+    (value > 0 && value <= u32::MAX as u64).then_some(value as u32)
+}
 
-    let mut excluded = Vec::new();
-    if let Some(excluded_start) = lines
-        .iter()
-        .position(|line| line.trim() == "Excluded:")
-        .map(|position| position + 1)
-    {
-        for line in lines.iter().skip(excluded_start) {
-            if line.trim().is_empty() {
-                break;
-            }
-            let (name, reason) = line.trim().rsplit_once("    ")?;
-            if name.is_empty() || reason.is_empty() {
-                return None;
-            }
-            excluded.push(ExcludedDeliveryFile {
-                name: name.to_owned(),
-                reason: reason.to_owned(),
-            });
-        }
+fn optional_revision(value: &serde_json::Value) -> Option<Option<u32>> {
+    if value.is_null() {
+        Some(None)
+    } else {
+        as_revision(value).map(Some)
     }
+}
 
-    let mut deletions = Vec::new();
-    let mut unique_deletions = HashSet::new();
-    if let Some(deletions_start) = lines
-        .iter()
-        .position(|line| line.trim() == "Would delete from 05_Final_Delivery/:")
-        .map(|position| position + 1)
-    {
-        for line in lines.iter().skip(deletions_start) {
-            if line.trim().is_empty() {
-                break;
-            }
-            let path = line.trim();
-            if !is_safe_delivery_relative_path(path)
-                || deletions.len() >= 10_000
-                || !unique_deletions.insert(path.to_owned())
-            {
-                return None;
-            }
-            deletions.push(path.to_owned());
-        }
+fn optional_string(value: &serde_json::Value) -> Option<Option<String>> {
+    if value.is_null() {
+        Some(None)
+    } else {
+        let value = value.as_str()?.trim();
+        (!value.is_empty()).then(|| Some(value.to_owned()))
     }
-    if matches!(replacement_mode, DeliveryReplacementMode::Clean) {
-        if deletions.is_empty() {
-            deletions = request.confirmed_deletions.clone();
-        }
-        if deletions.is_empty() {
-            return None;
-        }
-    } else if !deletions.is_empty() || !request.confirmed_deletions.is_empty() {
-        return None;
-    }
-
-    Some(DeliveryCreationPreview {
-        client_id: request.client_id.clone(),
-        project_id: request.project_id.clone(),
-        project_name,
-        current_revision,
-        approved_revision,
-        delivered_revision,
-        delivery_method,
-        replacement_mode,
-        create_zip,
-        zip_name,
-        selected,
-        excluded,
-        deletions,
-    })
 }
 
 fn is_expected_delivery_zip_name(value: &str, project_id: &str, revision: u32) -> bool {
