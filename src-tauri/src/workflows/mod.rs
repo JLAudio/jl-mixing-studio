@@ -1,4 +1,5 @@
 mod delivery;
+mod intake;
 mod revision;
 
 pub(super) use delivery::run_delivery_operation;
@@ -14,3 +15,7 @@ pub(super) use revision::{
     verify_revision_approval, verify_revision_creation, workspace_allows_revision_approval,
     workspace_allows_revision_creation,
 };
+
+pub(super) use intake::{read_intake_report, run_intake_operation};
+#[cfg(test)]
+pub(super) use intake::{workspace_allows_intake_report_read, workspace_allows_intake_validation};

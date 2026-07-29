@@ -10,11 +10,10 @@ use models::{
     ApprovalOperationResult, ClientCreationRequest, ClientOperationCode, ClientOperationResult,
     DeliveryCreationRequest, DeliveryNotesDocument, DeliveryNotesRequest,
     DeliveryNotesUpdateRequest, DeliveryOperationResult, FolderLocation, FolderRequest,
-    FolderResult, IntakeOperationCode, IntakeOperationResult, IntakeRequest,
-    ProjectCreationRequest, ProjectOperationCode, ProjectOperationResult, ProjectSummary,
-    RevisionApprovalRequest, RevisionCreationRequest, RevisionOperationResult,
-    StudioCreationRequest, StudioOperationCode, StudioOperationResult, SystemInfo, VersionCheck,
-    WorkspaceSnapshot, WorkspaceStatus,
+    FolderResult, IntakeOperationResult, IntakeRequest, ProjectCreationRequest,
+    ProjectOperationCode, ProjectOperationResult, ProjectSummary, RevisionApprovalRequest,
+    RevisionCreationRequest, RevisionOperationResult, StudioCreationRequest, StudioOperationCode,
+    StudioOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
 };
 #[cfg(test)]
 use models::{
@@ -28,9 +27,13 @@ use tauri::Manager;
 use workflows::{
     list_delivery_entries, verify_delivery_artifacts, verify_delivery_creation,
     verify_revision_approval, verify_revision_creation, workspace_allows_delivery_creation,
+    workspace_allows_intake_report_read, workspace_allows_intake_validation,
     workspace_allows_revision_approval, workspace_allows_revision_creation,
 };
-use workflows::{run_approval_operation, run_delivery_operation, run_revision_operation};
+use workflows::{
+    read_intake_report, run_approval_operation, run_delivery_operation, run_intake_operation,
+    run_revision_operation,
+};
 
 #[tauri::command]
 fn get_system_info() -> SystemInfo {
@@ -344,32 +347,7 @@ fn create_project(
 
 #[tauri::command]
 fn get_intake_report(app: tauri::AppHandle, request: IntakeRequest) -> IntakeOperationResult {
-    let home = match resolve_home(&app) {
-        Ok(home) => home,
-        Err(message) => {
-            return cli::blocked_intake_operation(IntakeOperationCode::Failed, &message)
-        }
-    };
-    let workspace_path = home.join("Music").join("Mixes");
-    let snapshot = workspace::discover_workspace_at(&workspace_path);
-    if !workspace_allows_intake_report_read(snapshot.status) {
-        return cli::blocked_intake_operation(
-            IntakeOperationCode::ProjectUnavailable,
-            "The selected project is not available in the validated workspace",
-        );
-    }
-    let Some(project_directory) = validated_project_directory(
-        &workspace_path,
-        &snapshot,
-        &request.client_id,
-        &request.project_id,
-    ) else {
-        return cli::blocked_intake_operation(
-            IntakeOperationCode::ProjectUnavailable,
-            "The selected project directory could not be resolved safely",
-        );
-    };
-    cli::read_intake_report(&project_directory, request)
+    read_intake_report(app, request)
 }
 
 #[tauri::command]
@@ -590,45 +568,6 @@ fn workspace_allows_project_creation(status: WorkspaceStatus) -> bool {
     matches!(status, WorkspaceStatus::Healthy)
 }
 
-fn run_intake_operation(
-    app: &tauri::AppHandle,
-    request: IntakeRequest,
-    operation: fn(&std::path::Path, &std::path::Path, IntakeRequest) -> IntakeOperationResult,
-) -> IntakeOperationResult {
-    if cfg!(target_os = "windows") {
-        return cli::blocked_intake_operation(
-            IntakeOperationCode::UnsupportedPlatform,
-            "Intake validation requires JL Mixing Automation on macOS or Linux",
-        );
-    }
-    let home = match resolve_home(app) {
-        Ok(home) => home,
-        Err(message) => {
-            return cli::blocked_intake_operation(IntakeOperationCode::Failed, &message)
-        }
-    };
-    let workspace_path = home.join("Music").join("Mixes");
-    let snapshot = workspace::discover_workspace_at(&workspace_path);
-    if !workspace_allows_intake_validation(snapshot.status) {
-        return cli::blocked_intake_operation(
-            IntakeOperationCode::WorkspaceBlocked,
-            "Resolve workspace issues before running intake validation",
-        );
-    }
-    let Some(project_directory) = validated_project_directory(
-        &workspace_path,
-        &snapshot,
-        &request.client_id,
-        &request.project_id,
-    ) else {
-        return cli::blocked_intake_operation(
-            IntakeOperationCode::ProjectUnavailable,
-            "The selected project directory could not be resolved safely",
-        );
-    };
-    operation(&home, &project_directory, request)
-}
-
 fn find_project_summary<'a>(
     snapshot: &'a WorkspaceSnapshot,
     client_id: &str,
@@ -659,14 +598,6 @@ fn validated_project_directory(
                 .any(|project| project.project_id == project_id)
     });
     exists.then(|| workspace::find_validated_project_path(workspace_path, client_id, project_id))?
-}
-
-fn workspace_allows_intake_report_read(status: WorkspaceStatus) -> bool {
-    matches!(status, WorkspaceStatus::Healthy | WorkspaceStatus::Partial)
-}
-
-fn workspace_allows_intake_validation(status: WorkspaceStatus) -> bool {
-    matches!(status, WorkspaceStatus::Healthy)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
