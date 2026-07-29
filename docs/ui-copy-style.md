@@ -29,3 +29,5 @@ The application should feel like a capable assistant in the room with the engine
 ## Implementation
 
 Copy changes should remain separate from workflow or API behavior changes. When wording changes, update corresponding UI tests so they continue to verify the user-visible contract.
+
+The v1.1 copy audit includes normal screens, dialogs, helper and disabled states, success notices, surfaced fallback errors, and uncertain-result guidance. Technical terminology should remain only where it helps with Metadata, diagnostics, troubleshooting, or decision-critical safety details.
