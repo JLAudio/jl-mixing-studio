@@ -339,7 +339,8 @@ pub(super) fn run_revision_approval_operation<R: ProcessRunner>(
                     | (ApprovalOperation::Approve, ApiStatus::Success)
             ) =>
         {
-            let Some(approval) = approval_summary_from_api(&response.data, &request, operation) else {
+            let Some(approval) = approval_summary_from_api(&response.data, &request, operation)
+            else {
                 return unverifiable_approval_result(operation);
             };
             ApprovalOperationResult {
