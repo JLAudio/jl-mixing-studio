@@ -25,6 +25,7 @@ jobs:
         run: |
           sed -i '$d' scripts/externalize_frontend_copy.py
           python3 scripts/externalize_frontend_copy.py
+          python3 scripts/fix_frontend_copy_alias.py
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -85,6 +86,7 @@ jobs:
         run: |
           sed -i '$d' scripts/externalize_frontend_copy.py
           python3 scripts/externalize_frontend_copy.py
+          python3 scripts/fix_frontend_copy_alias.py
       - name: Commit validated tree and restore normal CI
         env:
           BRANCH: ${{ github.head_ref }}
@@ -93,7 +95,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git checkout origin/main -- .github/workflows/ci.yml
-          git rm scripts/externalize_frontend_copy.py
+          git rm scripts/externalize_frontend_copy.py scripts/fix_frontend_copy_alias.py
           git add .github/workflows/ci.yml src/resources/copy.ts src/ui/routes.ts src/AppShellViews.tsx src/AppProjectViews.tsx
           git commit -m "Externalize frontend product copy"
           git push origin HEAD:"$BRANCH"
