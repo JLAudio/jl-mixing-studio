@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,31 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
-      - name: Apply remaining App controller wiring
-        if: github.event_name == 'pull_request'
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path("scripts/wire_app_domain_controllers.py")
-          text = path.read_text()
-          text = text.replace("from pathlib import Path\n", "from pathlib import Path\nimport re\n", 1)
-          text = text.replace(
-              "    if forbidden in app:\n        raise SystemExit(f\"unexpected legacy App workflow mutation remains: {forbidden}\")\n",
-              "    if re.search(rf'(?<![A-Za-z0-9_]){re.escape(forbidden)}', app):\n        raise SystemExit(f\"unexpected legacy App workflow mutation remains: {forbidden}\")\n",
-              1,
-          )
-          path.write_text(text)
-          PY
-          python scripts/wire_app_domain_controllers.py
-          if ! git diff --quiet src/App.tsx src/intake/controller.ts src/revision/controller.ts src/approval/controller.ts; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/App.tsx src/intake/controller.ts src/revision/controller.ts src/approval/controller.ts
-            git commit -m "Wire remaining workflow controllers in App"
-            git push origin HEAD:${{ github.event.pull_request.head.ref }}
-          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 24
