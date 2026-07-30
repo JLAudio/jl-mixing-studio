@@ -95,7 +95,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git checkout origin/main -- .github/workflows/ci.yml
-          git rm scripts/externalize_frontend_copy.py scripts/fix_frontend_copy_alias.py
+          git rm -f scripts/externalize_frontend_copy.py scripts/fix_frontend_copy_alias.py
           git add .github/workflows/ci.yml src/resources/copy.ts src/ui/routes.ts src/AppShellViews.tsx src/AppProjectViews.tsx
           git commit -m "Externalize frontend product copy"
           git push origin HEAD:"$BRANCH"
