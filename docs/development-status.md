@@ -43,6 +43,7 @@ Studio-owned consumer work:
 - `client.create`, `project.create`, `revision.create`, `intake.validate`, `revision.approve`, and `delivery.create` migrated to the structured API boundary.
 - Delivery clean-replacement confirmation revalidates the exact provider deletion inventory immediately before destructive execution (PR #96).
 - CLI runtime refactored into domain-focused modules under #85 / PR #94.
+- Tunable frontend presentation copy centralized into the typed `src/resources/copy.ts` domain resource layer under #134 / PRs #138–#141.
 
 ## Coding-standards audit
 
@@ -64,9 +65,20 @@ Intentional maintainability exceptions:
 - `delivery_legacy_testsupport.rs` remains test-only compatibility scaffolding and includes a >100-line legacy parser. It is intentionally not decomposed further because it will be removed once every remaining parser-era regression assertion has structured Automation API coverage.
 - `revision_legacy_testsupport.rs` remains test-only for the same compatibility purpose and is within normal size thresholds.
 
+## Copy and operational-message ownership
+
+JL Mixing Studio uses a deliberate resource boundary for user-facing wording:
+
+- Tunable frontend presentation text belongs in the typed, domain-oriented `src/resources/copy.ts` resource layer. Components reference resource keys rather than owning headings, labels, guidance, confirmation language, empty-state wording, and other copy expected to evolve.
+- Automation operation names, capability identifiers, schema/version identifiers, serialized field names, command/flag names, and filesystem contract literals remain in the domain code that owns those contracts. They are not presentation resources.
+- Rust operation result enums such as `*OperationCode` are the stable machine-facing error/operation contract. Their accompanying message is a human-readable fallback, not a parsing contract.
+- Rust fallback wording remains owned by the corresponding domain workflow or adapter (`src-tauri/src/workflows/*_workflow.rs` and related CLI boundary code). Exact shared messages should be consolidated when they represent the same semantic condition; domain-specific wording should remain with its owning workflow rather than being forced into a global string table.
+- Frontend code should map stable operation/error codes to product copy when practical. Rust-provided messages remain available for unmapped, degraded, or diagnostic fallback paths.
+- Future localization should evolve the typed frontend resource layer rather than moving machine/API contract strings into localization resources.
+
 ## Current work
 
-- Coding-standards audit complete; continue v1.1 UI refinement and approved feature work from the cleaned architecture.
+- Continue v1.1 UI refinement and approved feature work from the cleaned architecture and typed copy/resource boundary.
 
 ## Next work
 
