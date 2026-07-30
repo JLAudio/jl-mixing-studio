@@ -1,3 +1,4 @@
+mod client;
 mod delivery;
 mod intake;
 mod revision;
@@ -22,3 +23,7 @@ pub(super) use intake::{workspace_allows_intake_report_read, workspace_allows_in
 
 mod studio;
 pub(super) use studio::run_studio_operation;
+
+pub(super) use client::run_client_operation;
+#[cfg(test)]
+pub(super) use client::workspace_allows_client_creation;
