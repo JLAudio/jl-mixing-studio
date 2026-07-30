@@ -57,8 +57,7 @@ jobs:
           git fetch origin main
           git checkout origin/main -- .github/workflows/ci.yml
           git rm scripts/refactor_models_by_domain.py
-          git add src-tauri/src/models.rs src-tauri/src/models
-          git add .github/workflows/ci.yml scripts/refactor_models_by_domain.py
+          git add src-tauri/src/models.rs src-tauri/src/models .github/workflows/ci.yml
           git commit -m "Refactor Rust models by domain"
           git push origin HEAD:"$BRANCH"
 
