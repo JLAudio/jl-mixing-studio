@@ -7,6 +7,7 @@ import type {
   WorkspaceSnapshot,
 } from "./types";
 import { FolderControl, IntakeReportContent, RouteIssues, type ResourceState } from "./AppViews";
+import { copy as productCopy } from "./resources/copy";
 import type {
   ApprovalFormValues,
   ApprovalWorkflowState,
@@ -32,13 +33,13 @@ export function DeliveryOptionsDialog({ request, projectName, onChange, onPrevie
 }) {
   const replacing = request.replacementMode === "overwrite";
   const cleaning = request.replacementMode === "clean";
-  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">Guided delivery</p><h2 id="delivery-options-title">{request.replacementMode === "default" ? "Create delivery package" : "Rebuild delivery package"}</h2><p className="dialog-intro">Choose how to package <strong>{projectName}</strong>. You’ll review the exact files and changes before anything happens.</p>
-    {request.replacementMode !== "default" && <fieldset className="delivery-mode"><legend>Replacement mode</legend><label><input type="radio" name="delivery-mode" checked={replacing} onChange={() => onChange({ ...request, replacementMode: "overwrite", confirmedDeletions: [] })} /><span><strong>Same-path overwrite</strong><small>Replaces only the same delivered file paths and keeps Delivery Notes and unrelated files. If the delivered path set changed, the rebuild stops.</small></span></label><label><input type="radio" name="delivery-mode" checked={cleaning} onChange={() => onChange({ ...request, replacementMode: "clean", confirmedDeletions: [] })} /><span><strong>Clean replacement</strong><small>Deletes everything currently inside 05_Final_Delivery before creating the new delivery.</small></span></label></fieldset>}
-    <dl className="confirmation-list"><div><dt>Replacement mode</dt><dd>{cleaning ? "Clean — delete all existing contents" : replacing ? "Overwrite — same delivered path set only" : "None — first package"}</dd></div><div><dt>Delivery Notes</dt><dd>{cleaning ? "Deleted and recreated from template" : replacing ? "Preserved" : "Created from the standard delivery template"}</dd></div></dl>
-    <label className="setting-row"><span><strong>Create delivery ZIP</strong><small>Create a revisioned, local-time-stamped <code>{request.projectId}-rev-NN-YYYYMMDDHHMMSS.zip</code> archive. Rebuilding includes the current edited Delivery Notes.</small></span><input type="checkbox" checked={request.createZip} onChange={(event) => onChange({ ...request, createZip: event.target.checked })} /></label>
-    {replacing && <div className="notice warning" role="status"><strong>Non-destructive replacement</strong><span>Only the same delivered file paths will be replaced. Delivery Notes and unrelated files stay in place. If the delivered paths changed, nothing is replaced.</span></div>}
-    {cleaning && <div className="form-error" role="alert"><strong>Destructive replacement.</strong> Everything currently inside 05_Final_Delivery—including files, folders, edited Delivery Notes, ZIPs, and unrelated items—will be deleted before the new delivery is created. The next screen lists every item.</div>}
-    <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose}>Cancel</button><button type="button" onClick={onPreview}>Preview package</button></div>
+  return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape") onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-options-title"><p className="kicker">{productCopy.delivery.guided}</p><h2 id="delivery-options-title">{request.replacementMode === "default" ? productCopy.delivery.createPackage : productCopy.delivery.rebuildPackage}</h2><p className="dialog-intro">Choose how to package <strong>{projectName}</strong>. You’ll review the exact files and changes before anything happens.</p>
+    {request.replacementMode !== "default" && <fieldset className="delivery-mode"><legend>{productCopy.delivery.replacementMode}</legend><label><input type="radio" name="delivery-mode" checked={replacing} onChange={() => onChange({ ...request, replacementMode: "overwrite", confirmedDeletions: [] })} /><span><strong>{productCopy.delivery.samePathOverwrite}</strong><small>Replaces only the same delivered file paths and keeps Delivery Notes and unrelated files. If the delivered path set changed, the rebuild stops.</small></span></label><label><input type="radio" name="delivery-mode" checked={cleaning} onChange={() => onChange({ ...request, replacementMode: "clean", confirmedDeletions: [] })} /><span><strong>{productCopy.delivery.cleanReplacement}</strong><small>Deletes everything currently inside 05_Final_Delivery before creating the new delivery.</small></span></label></fieldset>}
+    <dl className="confirmation-list"><div><dt>{productCopy.delivery.replacementMode}</dt><dd>{cleaning ? productCopy.delivery.cleanModeSummary : replacing ? productCopy.delivery.overwriteModeSummary : productCopy.delivery.firstPackageSummary}</dd></div><div><dt>{productCopy.delivery.deliveryNotes}</dt><dd>{cleaning ? productCopy.delivery.notesDeleted : replacing ? productCopy.delivery.notesPreserved : productCopy.delivery.notesCreated}</dd></div></dl>
+    <label className="setting-row"><span><strong>{productCopy.delivery.createZip}</strong><small>Create a revisioned, local-time-stamped <code>{request.projectId}-rev-NN-YYYYMMDDHHMMSS.zip</code> archive. Rebuilding includes the current edited Delivery Notes.</small></span><input type="checkbox" checked={request.createZip} onChange={(event) => onChange({ ...request, createZip: event.target.checked })} /></label>
+    {replacing && <div className="notice warning" role="status"><strong>{productCopy.delivery.nonDestructiveReplacement}</strong><span>Only the same delivered file paths will be replaced. Delivery Notes and unrelated files stay in place. If the delivered paths changed, nothing is replaced.</span></div>}
+    {cleaning && <div className="form-error" role="alert"><strong>{productCopy.delivery.destructiveReplacement}</strong> Everything currently inside 05_Final_Delivery—including files, folders, edited Delivery Notes, ZIPs, and unrelated items—will be deleted before the new delivery is created. The next screen lists every item.</div>}
+    <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose}>{productCopy.common.cancel}</button><button type="button" onClick={onPreview}>{productCopy.delivery.previewPackage}</button></div>
   </section></div>;
 }
 
@@ -61,27 +62,27 @@ export function DeliveryDialog({
   return (
     <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
       <section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="delivery-dialog-title">
-        <p className="kicker">Guided delivery</p>
-        <h2 id="delivery-dialog-title">{state.status === "uncertain" ? "Delivery needs verification" : "Confirm delivery package"}</h2>
+        <p className="kicker">{productCopy.delivery.guided}</p>
+        <h2 id="delivery-dialog-title">{state.status === "uncertain" ? productCopy.delivery.needsVerification : productCopy.delivery.confirmPackage}</h2>
         {state.status === "uncertain" ? <>
           <div className="form-error" role="alert">{state.message}</div>
           <p className="dialog-intro">Do not run delivery again automatically. Close this message, refresh Delivery, and verify the result before trying again.</p>
-          <div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div>
+          <div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div>
         </> : <>
           <p className="dialog-intro">{state.preview.replacementMode === "overwrite" ? "Rebuild" : "Create"} the final-delivery package for <strong>{state.preview.projectName}</strong>. Each copied file will be verified with SHA-256 before the project’s delivery status is updated.</p>
           <dl className="confirmation-list">
-            <div><dt>Approved revision</dt><dd>Revision {state.preview.approvedRevision}</dd></div>
-            <div><dt>Current revision</dt><dd>Revision {state.preview.currentRevision}</dd></div>
-            <div><dt>Delivery method</dt><dd>{state.preview.deliveryMethod}</dd></div>
-            <div><dt>Files</dt><dd>{state.preview.selected.length}</dd></div>
-            <div><dt>Replacement mode</dt><dd>{state.preview.replacementMode === "clean" ? "Clean — delete all existing contents" : state.preview.replacementMode === "overwrite" ? "Overwrite — same path set" : "None — first package"}</dd></div>
-            <div><dt>ZIP</dt><dd>{state.preview.createZip ? `${state.preview.projectId}-rev-${String(state.preview.approvedRevision).padStart(2, "0")}-YYYYMMDDHHMMSS.zip` : "Not created"}</dd></div>
+            <div><dt>{productCopy.delivery.approvedRevision}</dt><dd>Revision {state.preview.approvedRevision}</dd></div>
+            <div><dt>{productCopy.common.currentRevision}</dt><dd>Revision {state.preview.currentRevision}</dd></div>
+            <div><dt>{productCopy.delivery.deliveryMethod}</dt><dd>{state.preview.deliveryMethod}</dd></div>
+            <div><dt>{productCopy.delivery.files}</dt><dd>{state.preview.selected.length}</dd></div>
+            <div><dt>{productCopy.delivery.replacementMode}</dt><dd>{state.preview.replacementMode === "clean" ? productCopy.delivery.cleanModeSummary : state.preview.replacementMode === "overwrite" ? productCopy.delivery.overwriteModeShort : productCopy.delivery.firstPackageSummary}</dd></div>
+            <div><dt>{productCopy.delivery.zip}</dt><dd>{state.preview.createZip ? `${state.preview.projectId}-rev-${String(state.preview.approvedRevision).padStart(2, "0")}-YYYYMMDDHHMMSS.zip` : productCopy.delivery.zipNotCreated}</dd></div>
           </dl>
-          <div className="table-scroll"><table><thead><tr><th>Source</th><th>Type</th><th>Destination</th></tr></thead><tbody>{state.preview.selected.map((file) => <tr key={`${file.sourceName}:${file.path}`}><td>{file.sourceName}</td><td>{file.deliverableType.replace(/_/g, " ")}</td><td><code>{file.path}</code></td></tr>)}</tbody></table></div>
-          {state.preview.excluded.length > 0 && <section className="route-note"><strong>Not included in this delivery</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
-          {state.preview.replacementMode === "clean" && <section className="panel"><h3>These items will be deleted</h3><ul className="plain-list">{state.preview.deletions.map((path) => <li key={path}><code>{path}</code></li>)}</ul><label className="field"><span>Type <strong>{cleanPhrase}</strong> to authorize this destructive replacement</span><input aria-label="Clean replacement confirmation" value={cleanConfirmation} onChange={(event) => setCleanConfirmation(event.target.value)} autoComplete="off" /></label></section>}
-          <div className="notice warning" role="status"><strong>What will change</strong><span>This {state.preview.replacementMode === "clean" ? "deletes every item listed above, then rebuilds" : state.preview.replacementMode === "overwrite" ? "rebuilds" : "creates"} the files in 05_Final_Delivery and marks Revision {state.preview.approvedRevision} as delivered.{state.preview.replacementMode === "overwrite" ? " Edited Delivery Notes and unrelated files are preserved." : state.preview.replacementMode === "clean" ? " Delivery Notes are recreated from the standard template." : ""} Custom filters are not enabled.</span></div>
-          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending || (state.preview.replacementMode === "clean" && cleanConfirmation !== cleanPhrase)}>{pending ? "Creating…" : state.preview.replacementMode === "clean" ? "Clean and rebuild delivery" : state.preview.replacementMode === "overwrite" ? "Rebuild delivery" : "Create delivery"}</button></div>
+          <div className="table-scroll"><table><thead><tr><th>{productCopy.delivery.source}</th><th>{productCopy.delivery.type}</th><th>{productCopy.delivery.destination}</th></tr></thead><tbody>{state.preview.selected.map((file) => <tr key={`${file.sourceName}:${file.path}`}><td>{file.sourceName}</td><td>{file.deliverableType.replace(/_/g, " ")}</td><td><code>{file.path}</code></td></tr>)}</tbody></table></div>
+          {state.preview.excluded.length > 0 && <section className="route-note"><strong>{productCopy.delivery.notIncluded}</strong><span>{state.preview.excluded.map((file) => `${file.name} (${file.reason})`).join(", ")}</span></section>}
+          {state.preview.replacementMode === "clean" && <section className="panel"><h3>{productCopy.delivery.deleteItems}</h3><ul className="plain-list">{state.preview.deletions.map((path) => <li key={path}><code>{path}</code></li>)}</ul><label className="field"><span>Type <strong>{cleanPhrase}</strong> to authorize this destructive replacement</span><input aria-label={productCopy.delivery.cleanConfirmationLabel} value={cleanConfirmation} onChange={(event) => setCleanConfirmation(event.target.value)} autoComplete="off" /></label></section>}
+          <div className="notice warning" role="status"><strong>{productCopy.delivery.whatWillChange}</strong><span>This {state.preview.replacementMode === "clean" ? "deletes every item listed above, then rebuilds" : state.preview.replacementMode === "overwrite" ? "rebuilds" : "creates"} the files in 05_Final_Delivery and marks Revision {state.preview.approvedRevision} as delivered.{state.preview.replacementMode === "overwrite" ? " Edited Delivery Notes and unrelated files are preserved." : state.preview.replacementMode === "clean" ? " Delivery Notes are recreated from the standard template." : ""} Custom filters are not enabled.</span></div>
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending || (state.preview.replacementMode === "clean" && cleanConfirmation !== cleanPhrase)}>{pending ? productCopy.delivery.creating : state.preview.replacementMode === "clean" ? productCopy.delivery.cleanAndRebuild : state.preview.replacementMode === "overwrite" ? productCopy.delivery.rebuildDelivery : productCopy.delivery.createDelivery}</button></div>
         </>}
       </section>
     </div>
@@ -135,7 +136,7 @@ export function RevisionDialog({
               <input ref={descriptionInput} name="revisionDescription" value={values.description} onChange={(event) => onChange({ description: event.target.value })} placeholder={`Revision ${project.currentRevision + 1}`} autoComplete="off" disabled={pending} />
               <small>Leave blank to use the default description. Source files are still added manually.</small>
             </label>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review revision"}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "creating") && (
@@ -143,15 +144,15 @@ export function RevisionDialog({
             <p className="dialog-intro">Nothing has changed yet. Confirm to create one new revision. The currently approved and delivered revisions will stay unchanged.</p>
             <dl className="confirmation-list">
               <div><dt>Project</dt><dd>{project.projectName}</dd></div>
-              <div><dt>Current revision</dt><dd>Revision {project.currentRevision}</dd></div>
+              <div><dt>{productCopy.common.currentRevision}</dt><dd>Revision {project.currentRevision}</dd></div>
               <div><dt>New revision</dt><dd>Revision {state.preview.number}</dd></div>
               <div><dt>Description</dt><dd>{state.preview.description}</dd></div>
             </dl>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create revision"}</button></div>
           </div>
         )}
         {state.status === "uncertain" && (
-          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not create another revision automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
+          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not create another revision automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></div>
         )}
       </section>
     </div>
@@ -208,7 +209,7 @@ export function ApprovalDialog({
               <input ref={approverInput} name="approvedBy" value={values.approvedBy} onChange={(event) => onChange({ approvedBy: event.target.value })} autoComplete="name" disabled={pending} />
               <small>This name is saved with the project approval.</small>
             </label>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review approval"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review approval"}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "approving") && (
@@ -226,11 +227,11 @@ export function ApprovalDialog({
               olderThanCurrent ? `Revision ${state.revision.number} is older than current Revision ${project.currentRevision}.` : null,
               deliveryWillDiffer ? `The existing delivery remains on Revision ${project.deliveredRevision}.` : null,
             ].filter(Boolean).join(" ")}</span></div>}
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Approving…" : "Approve revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Approving…" : "Approve revision"}</button></div>
           </div>
         )}
         {state.status === "uncertain" && (
-          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not approve the revision again automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>
+          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not approve the revision again automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></div>
         )}
       </section>
     </div>
@@ -256,10 +257,10 @@ export function IntakeDialog({
       <section className="client-dialog intake-dialog" role="dialog" aria-modal="true" aria-labelledby="intake-dialog-title">
         <p className="kicker">Guided validation</p>
         <h2 id="intake-dialog-title">{state.status === "uncertain" ? "Validation needs verification" : "Confirm intake report update"}</h2>
-        {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not run intake validation again automatically. Close this message, refresh Intake, and verify the report before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></> : <>
+        {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not run intake validation again automatically. Close this message, refresh Intake, and verify the report before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></> : <>
           <p className="dialog-intro">The preview below did not change the project. Confirm to update only the generated section of <code>00_Admin/Intake_Report.md</code>. Your intake source files will not be changed.</p>
           <IntakeReportContent report={state.preview} compact />
-          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Updating report…" : "Update intake report"}</button></div>
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Updating report…" : "Update intake report"}</button></div>
         </>}
       </section>
     </div>
@@ -311,9 +312,9 @@ export function StudioDialog({ state, values, onChange, onPreflight, onConfirm, 
 }) {
   const pending = state.status === "preflighting" || state.status === "creating";
   return <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}><section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="studio-dialog-title"><p className="kicker">Guided setup</p><h2 id="studio-dialog-title">{state.status === "confirming" || state.status === "creating" ? "Confirm new studio" : state.status === "uncertain" ? "Creation needs verification" : "New studio"}</h2>
-    {(state.status === "editing" || state.status === "preflighting") && <form onSubmit={onPreflight} noValidate><p className="dialog-intro">Creates your studio workspace at <code>~/Music/Mixes</code>. This setup uses the standard location.</p>{state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}<label>Studio name<input aria-label="Studio name" value={values.studioName} onChange={(e) => onChange({...values, studioName:e.target.value})} required disabled={pending}/></label><label>Mix engineer <span>(optional)</span><input aria-label="Mix engineer" value={values.mixEngineer} onChange={(e) => onChange({...values, mixEngineer:e.target.value})} disabled={pending}/></label><label>Sample rate<select aria-label="Sample rate" value={values.sampleRate} onChange={(e) => onChange({...values, sampleRate:e.target.value})} disabled={pending}>{[44100,48000,88200,96000,176400,192000].map(v=><option key={v} value={v}>{v.toLocaleString()} Hz</option>)}</select></label><label>Bit depth<select aria-label="Bit depth" value={values.bitDepth} onChange={(e) => onChange({...values, bitDepth:e.target.value})} disabled={pending}>{[16,24,32].map(v=><option key={v} value={v}>{v}-bit</option>)}</select></label><label>File format<select aria-label="File format" value={values.fileFormat} onChange={(e) => onChange({...values, fileFormat:e.target.value})} disabled={pending}><option>WAV</option><option>AIFF</option></select></label><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review studio"}</button></div></form>}
-    {(state.status === "confirming" || state.status === "creating") && <div><p className="dialog-intro">Nothing has been created yet. Confirm to create your studio workspace at the standard location.</p><dl className="confirmation-list"><div><dt>Studio</dt><dd>{state.preview.studioName}</dd></div><div><dt>Engineer</dt><dd>{state.preview.mixEngineer ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{state.preview.sampleRate.toLocaleString()} Hz · {state.preview.bitDepth}-bit {state.preview.fileFormat}</dd></div><div><dt>Location</dt><dd><code>~/Music/Mixes</code></dd></div></dl><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create studio"}</button></div></div>}
-    {state.status === "uncertain" && <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not create the studio again automatically. Close this message, refresh Studio, and verify the workspace before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div></div>}
+    {(state.status === "editing" || state.status === "preflighting") && <form onSubmit={onPreflight} noValidate><p className="dialog-intro">Creates your studio workspace at <code>~/Music/Mixes</code>. This setup uses the standard location.</p>{state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}<label>Studio name<input aria-label="Studio name" value={values.studioName} onChange={(e) => onChange({...values, studioName:e.target.value})} required disabled={pending}/></label><label>Mix engineer <span>(optional)</span><input aria-label="Mix engineer" value={values.mixEngineer} onChange={(e) => onChange({...values, mixEngineer:e.target.value})} disabled={pending}/></label><label>Sample rate<select aria-label="Sample rate" value={values.sampleRate} onChange={(e) => onChange({...values, sampleRate:e.target.value})} disabled={pending}>{[44100,48000,88200,96000,176400,192000].map(v=><option key={v} value={v}>{v.toLocaleString()} Hz</option>)}</select></label><label>Bit depth<select aria-label="Bit depth" value={values.bitDepth} onChange={(e) => onChange({...values, bitDepth:e.target.value})} disabled={pending}>{[16,24,32].map(v=><option key={v} value={v}>{v}-bit</option>)}</select></label><label>File format<select aria-label="File format" value={values.fileFormat} onChange={(e) => onChange({...values, fileFormat:e.target.value})} disabled={pending}><option>WAV</option><option>AIFF</option></select></label><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review studio"}</button></div></form>}
+    {(state.status === "confirming" || state.status === "creating") && <div><p className="dialog-intro">Nothing has been created yet. Confirm to create your studio workspace at the standard location.</p><dl className="confirmation-list"><div><dt>Studio</dt><dd>{state.preview.studioName}</dd></div><div><dt>Engineer</dt><dd>{state.preview.mixEngineer ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{state.preview.sampleRate.toLocaleString()} Hz · {state.preview.bitDepth}-bit {state.preview.fileFormat}</dd></div><div><dt>Location</dt><dd><code>~/Music/Mixes</code></dd></div></dl><div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create studio"}</button></div></div>}
+    {state.status === "uncertain" && <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not create the studio again automatically. Close this message, refresh Studio, and verify the workspace before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></div>}
   </section></div>;
 }
 
@@ -474,7 +475,7 @@ export function ClientDialog({
               Do not submit the request again automatically. Close this message and use Refresh to inspect the workspace.
             </p>
             <div className="dialog-actions">
-              <button type="button" onClick={onClose}>Close</button>
+              <button type="button" onClick={onClose}>{productCopy.common.close}</button>
             </div>
           </div>
         )}
@@ -595,7 +596,7 @@ export function ProjectDialog({
               />
             </label>
             <div className="dialog-actions">
-              <button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button>
+              <button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button>
               <button type="submit" disabled={pending}>{pending ? "Checking…" : "Review project"}</button>
             </div>
           </form>
@@ -614,7 +615,7 @@ export function ProjectDialog({
               <div><dt>Initial revision</dt><dd>Revision 1</dd></div>
             </dl>
             <div className="dialog-actions">
-              <button type="button" className="secondary" onClick={onClose} disabled={pending}>Cancel</button>
+              <button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button>
               <button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button>
               <button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>
                 {pending ? "Creating…" : "Create project"}
@@ -629,7 +630,7 @@ export function ProjectDialog({
             <p className="dialog-intro">
               Do not submit the request again automatically. Close this message and use Refresh to inspect the workspace.
             </p>
-            <div className="dialog-actions"><button type="button" onClick={onClose}>Close</button></div>
+            <div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div>
           </div>
         )}
       </section>
