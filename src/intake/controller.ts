@@ -61,6 +61,11 @@ export function useIntakeWorkflow({
     setActionError(null);
   };
 
+  const clear = () => {
+    reset();
+    setReportState({ status: "idle" });
+  };
+
   const preflight = async () => {
     const request = currentRequest();
     if (!request || !validationAvailable) return;
@@ -150,6 +155,7 @@ export function useIntakeWorkflow({
     notice,
     open,
     reset,
+    clear,
     reload,
     preflight,
     confirm,

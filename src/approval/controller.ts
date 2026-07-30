@@ -47,6 +47,11 @@ export function useApprovalWorkflow({
     setState({ status: "editing", revision });
   };
 
+  const reset = () => {
+    setState({ status: "closed" });
+    setActionError(null);
+  };
+
   const close = () => {
     if (state.status === "preflighting" || state.status === "approving") return;
     setState({ status: "closed" });
@@ -186,6 +191,7 @@ export function useApprovalWorkflow({
     actionError,
     notice,
     open,
+    reset,
     close,
     back,
     preflight,

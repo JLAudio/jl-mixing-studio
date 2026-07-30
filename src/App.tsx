@@ -1,24 +1,11 @@
 import {
-  type FormEvent,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import type {
-  ApprovalOperationResult,
-  DeliveryCreationRequest,
-  DeliveryOperationResult,
-  IntakeOperationResult,
-  IntakeRequest,
-  RevisionApprovalRequest,
-  RevisionCreationRequest,
-  RevisionOperationResult,
-  RevisionSummary,
-  VersionCheck,
-  WorkspaceSnapshot,
-} from "./types";
+import type { VersionCheck, WorkspaceSnapshot } from "./types";
 import {
   ActivityRoute,
   ClientDetails,
@@ -35,7 +22,6 @@ import {
   Sidebar,
   TasksRoute,
   safeError,
-  type IntakeReportState,
   type ProjectView,
   type ResourceState,
 } from "./AppViews";
@@ -54,22 +40,17 @@ import {
   ProjectDialog,
 } from "./AppWorkflows";
 import {
-  type IntakeWorkflowState,
-  type RevisionWorkflowState,
-  type RevisionFormValues,
-  type ApprovalWorkflowState,
-  type ApprovalFormValues,
-  type DeliveryWorkflowState,
   type AppPreferences,
   loadPreferences,
-  emptyRevisionForm,
-  emptyApprovalForm,
-  sameDeliveryPlan,
 } from "./AppWorkflowModels";
 import { getWorkflowAvailability } from "./AppWorkflowAvailability";
 import { useStudioWorkflow } from "./studio";
 import { useClientWorkflow } from "./client";
 import { useProjectWorkflow } from "./project";
+import { useIntakeWorkflow } from "./intake";
+import { useRevisionWorkflow } from "./revision";
+import { useApprovalWorkflow } from "./approval";
+import { useDeliveryWorkflow } from "./delivery";
 import "./App.css";
 
 /**
@@ -93,23 +74,8 @@ export default function App() {
   const [workspace, setWorkspace] = useState<ResourceState<WorkspaceSnapshot>>({ status: "loading" });
   const [version, setVersion] = useState<ResourceState<VersionCheck>>({ status: "loading" });
   const [projectView, setProjectView] = useState<ProjectView>("overview");
-  const [intakeReport, setIntakeReport] = useState<IntakeReportState>({ status: "idle" });
-  const [intakeWorkflow, setIntakeWorkflow] = useState<IntakeWorkflowState>({ status: "closed" });
-  const [intakeActionError, setIntakeActionError] = useState<string | null>(null);
-  const [revisionWorkflow, setRevisionWorkflow] = useState<RevisionWorkflowState>({ status: "closed" });
-  const [revisionForm, setRevisionForm] = useState<RevisionFormValues>(emptyRevisionForm);
-  const [revisionActionError, setRevisionActionError] = useState<string | null>(null);
-  const [approvalWorkflow, setApprovalWorkflow] = useState<ApprovalWorkflowState>({ status: "closed" });
-  const [approvalForm, setApprovalForm] = useState<ApprovalFormValues>(emptyApprovalForm);
-  const [approvalActionError, setApprovalActionError] = useState<string | null>(null);
-  const [deliveryWorkflow, setDeliveryWorkflow] = useState<DeliveryWorkflowState>({ status: "closed" });
-  const [deliveryActionError, setDeliveryActionError] = useState<string | null>(null);
   const [creationNotice, setCreationNotice] = useState<string | null>(null);
   const [projectCreationNotice, setProjectCreationNotice] = useState<string | null>(null);
-  const [intakeNotice, setIntakeNotice] = useState<string | null>(null);
-  const [revisionNotice, setRevisionNotice] = useState<string | null>(null);
-  const [approvalNotice, setApprovalNotice] = useState<string | null>(null);
-  const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
   const requestId = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -151,7 +117,7 @@ export default function App() {
       if (!client || !project) {
         setSelectedProject(null);
         setProjectView("overview");
-        setIntakeReport({ status: "idle" });
+        clearIntakeWorkflow();
         setSelectedClientId(null);
         setActiveRoute("projects");
         setRouteNotice("The selected project is no longer available in the refreshed workspace.");
@@ -245,393 +211,6 @@ export default function App() {
     clientController.open();
   };
 
-  const loadIntakeReport = (request: IntakeRequest) => {
-    setIntakeReport({ status: "loading" });
-    invoke<IntakeOperationResult>("get_intake_report", { request })
-      .then((result) => setIntakeReport({ status: "ready", value: result }))
-      .catch((error: unknown) => {
-        setIntakeReport({ status: "error", message: safeError(error, "The intake report could not be read.") });
-      });
-  };
-
-  const openIntake = () => {
-    if (!resolvedProjectClient || !resolvedProject) return;
-    const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
-    setProjectView("intake");
-    setIntakeWorkflow({ status: "closed" });
-    setIntakeActionError(null);
-    setIntakeNotice(null);
-    setRevisionWorkflow({ status: "closed" });
-    setApprovalWorkflow({ status: "closed" });
-    loadIntakeReport(request);
-  };
-
-  const openRevisions = () => {
-    if (!resolvedProjectClient || !resolvedProject) return;
-    setProjectView("revisions");
-    setIntakeWorkflow({ status: "closed" });
-    setIntakeActionError(null);
-  };
-
-  const selectProjectView = (view: ProjectView) => {
-    if (view === "intake") { openIntake(); return; }
-    if (view === "revisions") { openRevisions(); return; }
-    setProjectView(view);
-    setIntakeWorkflow({ status: "closed" });
-    setRevisionWorkflow({ status: "closed" });
-    setApprovalWorkflow({ status: "closed" });
-  };
-
-  const openDeliveryWorkflow = () => {
-    if (!resolvedProjectClient || !resolvedProject || !deliveryCreationAvailable) return;
-    const request: DeliveryCreationRequest = {
-      clientId: resolvedProjectClient.clientId,
-      projectId: resolvedProject.projectId,
-      replacementMode: resolvedProject.delivery ? "overwrite" : "default",
-      createZip: resolvedProject.delivery !== null,
-      confirmedDeletions: [],
-    };
-    setDeliveryNotice(null);
-    setDeliveryActionError(null);
-    setDeliveryWorkflow({ status: "options", request });
-  };
-
-  const preflightDelivery = async () => {
-    if (deliveryWorkflow.status !== "options" || !resolvedProject) return;
-    const { request } = deliveryWorkflow;
-    setDeliveryWorkflow({ status: "preflighting", request });
-    await yieldToBrowserPaint();
-    invoke<DeliveryOperationResult>("preflight_delivery_creation", { request })
-      .then((result) => {
-        if (
-          result.ok &&
-          result.code === "ready" &&
-          result.delivery &&
-          result.delivery.clientId === request.clientId &&
-          result.delivery.projectId === request.projectId &&
-          result.delivery.projectName === resolvedProject.projectName &&
-          result.delivery.currentRevision === resolvedProject.currentRevision &&
-          result.delivery.approvedRevision === resolvedProject.approvedRevision &&
-          result.delivery.deliveredRevision === resolvedProject.deliveredRevision &&
-          result.delivery.deliveryMethod === resolvedProject.deliveryMethod &&
-          result.delivery.replacementMode === request.replacementMode &&
-          result.delivery.createZip === request.createZip &&
-          result.delivery.selected.length > 0
-        ) {
-          setDeliveryWorkflow({ status: "confirming", request, preview: result.delivery });
-        } else {
-          setDeliveryWorkflow({ status: "closed" });
-          setDeliveryActionError(result.ok ? "The delivery preview no longer matches the current project. Refresh the project and review the delivery again." : result.message);
-        }
-      })
-      .catch((error: unknown) => {
-        setDeliveryWorkflow({ status: "closed" });
-        setDeliveryActionError(safeError(error, "The delivery preview could not be completed."));
-      });
-  };
-
-  const closeDeliveryWorkflow = () => {
-    if (deliveryWorkflow.status === "creating") return;
-    setDeliveryWorkflow({ status: "closed" });
-  };
-
-  const confirmDelivery = async () => {
-    if (deliveryWorkflow.status !== "confirming") return;
-    const { request, preview } = deliveryWorkflow;
-    const executionRequest: DeliveryCreationRequest = {
-      ...request,
-      confirmedDeletions: preview.replacementMode === "clean" ? preview.deletions : [],
-    };
-    setDeliveryWorkflow({ status: "creating", request: executionRequest, preview });
-    await yieldToBrowserPaint();
-    invoke<DeliveryOperationResult>("create_delivery", { request: executionRequest })
-      .then(async (result) => {
-        if (!result.ok || result.code !== "created" || !result.delivery) {
-          if (result.code === "uncertain") setDeliveryWorkflow({ status: "uncertain", message: result.message });
-          else {
-            setDeliveryWorkflow({ status: "closed" });
-            setDeliveryActionError(result.message);
-          }
-          return;
-        }
-        if (!sameDeliveryPlan(preview, result.delivery) || result.delivery.deliveredRevision !== preview.approvedRevision) {
-          setDeliveryWorkflow({ status: "uncertain", message: "The delivery was created, but it did not match what you confirmed. The result is uncertain; do not retry automatically." });
-          return;
-        }
-        try {
-          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
-          setWorkspace({ status: "ready", value: refreshed });
-          const client = refreshed.clients.find((item) => item.clientId === request.clientId);
-          const project = client?.projects.find((item) => item.projectId === request.projectId);
-          if (!project?.delivery || project.deliveredRevision !== preview.approvedRevision) {
-            setDeliveryWorkflow({ status: "uncertain", message: "The delivery was created, but the refreshed delivery details did not match what you confirmed. The result is uncertain; do not retry automatically." });
-            return;
-          }
-          setDeliveryNotice(`Revision ${project.deliveredRevision} was packaged and verified with ${project.delivery.files.length} delivered ${project.delivery.files.length === 1 ? "file" : "files"}.`);
-          setDeliveryWorkflow({ status: "closed" });
-        } catch (error: unknown) {
-          setDeliveryWorkflow({ status: "uncertain", message: safeError(error, "The delivery was created, but the studio could not be refreshed. The result is uncertain; do not retry automatically.") });
-        }
-      })
-      .catch((error: unknown) => {
-        setDeliveryWorkflow({ status: "uncertain", message: safeError(error, "The delivery-creation result could not be confirmed. The operation may have completed; do not retry automatically.") });
-      });
-  };
-
-  const openRevisionWorkflow = () => {
-    if (!resolvedProjectClient || !resolvedProject || !revisionCreationAvailable) return;
-    setRevisionNotice(null);
-    setRevisionActionError(null);
-    setIntakeWorkflow({ status: "closed" });
-    setRevisionForm(emptyRevisionForm);
-    setRevisionWorkflow({ status: "editing" });
-    setApprovalWorkflow({ status: "closed" });
-  };
-
-  const closeRevisionWorkflow = () => {
-    if (revisionWorkflow.status === "preflighting" || revisionWorkflow.status === "creating") return;
-    setRevisionWorkflow({ status: "closed" });
-  };
-
-  const preflightRevision = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (revisionWorkflow.status !== "editing" || !resolvedProjectClient || !resolvedProject) return;
-    const request: RevisionCreationRequest = {
-      clientId: resolvedProjectClient.clientId,
-      projectId: resolvedProject.projectId,
-      description: revisionForm.description.trim() || null,
-    };
-    setRevisionWorkflow({ status: "preflighting" });
-    await yieldToBrowserPaint();
-    invoke<RevisionOperationResult>("preflight_revision_creation", { request })
-      .then((result) => {
-        if (
-          result.ok &&
-          result.code === "ready" &&
-          result.revision &&
-          result.revision.clientId === request.clientId &&
-          result.revision.projectId === request.projectId &&
-          result.revision.number === resolvedProject.currentRevision + 1
-        ) {
-          setRevisionWorkflow({ status: "confirming", request, preview: result.revision });
-        } else {
-          setRevisionWorkflow({ status: "editing", error: result.ok ? "The revision preview no longer matches the current project. Refresh Revisions and review it again." : result.message });
-        }
-      })
-      .catch((error: unknown) => {
-        setRevisionWorkflow({ status: "editing", error: safeError(error, "The revision preview could not be completed.") });
-      });
-  };
-
-  const confirmRevision = async () => {
-    if (revisionWorkflow.status !== "confirming") return;
-    const { request, preview } = revisionWorkflow;
-    setRevisionWorkflow({ status: "creating", request, preview });
-    await yieldToBrowserPaint();
-    invoke<RevisionOperationResult>("create_revision", { request })
-      .then(async (result) => {
-        if (!result.ok || result.code !== "created" || !result.revision) {
-          if (result.code === "uncertain") setRevisionWorkflow({ status: "uncertain", message: result.message });
-          else setRevisionWorkflow({ status: "editing", error: result.message });
-          return;
-        }
-        if (
-          result.revision.clientId !== preview.clientId ||
-          result.revision.projectId !== preview.projectId ||
-          result.revision.number !== preview.number ||
-          result.revision.description !== preview.description
-        ) {
-          setRevisionWorkflow({ status: "uncertain", message: "The revision was created, but it did not match what you reviewed. The result is uncertain; do not retry automatically." });
-          return;
-        }
-        try {
-          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
-          setWorkspace({ status: "ready", value: refreshed });
-          const client = refreshed.clients.find((item) => item.clientId === request.clientId);
-          const project = client?.projects.find((item) => item.projectId === request.projectId);
-          const revision = project?.revisions.find((item) => item.number === preview.number);
-          if (!project || project.currentRevision !== preview.number || !revision || revision.description !== preview.description) {
-            setRevisionWorkflow({ status: "uncertain", message: "The revision was created, but the refreshed revision history did not match what you reviewed. The result is uncertain; do not retry automatically." });
-            return;
-          }
-          setProjectView("revisions");
-          setRevisionNotice(`Revision ${revision.number} was created and verified.`);
-          setRevisionWorkflow({ status: "closed" });
-        } catch (error: unknown) {
-          setRevisionWorkflow({ status: "uncertain", message: safeError(error, "The revision was created, but the studio could not be refreshed. The result is uncertain; do not retry automatically.") });
-        }
-      })
-      .catch((error: unknown) => {
-        setRevisionWorkflow({ status: "uncertain", message: safeError(error, "The revision-creation result could not be confirmed. The operation may have completed; do not retry automatically.") });
-      });
-  };
-
-  const openApprovalWorkflow = (revision: RevisionSummary) => {
-    if (!resolvedProject || !revisionApprovalAvailable || revision.number === resolvedProject.approvedRevision) return;
-    setApprovalNotice(null);
-    setApprovalActionError(null);
-    setRevisionWorkflow({ status: "closed" });
-    setApprovalForm(emptyApprovalForm);
-    setApprovalWorkflow({ status: "editing", revision });
-  };
-
-  const closeApprovalWorkflow = () => {
-    if (approvalWorkflow.status === "preflighting" || approvalWorkflow.status === "approving") return;
-    setApprovalWorkflow({ status: "closed" });
-  };
-
-  const preflightApproval = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (approvalWorkflow.status !== "editing" || !resolvedProjectClient || !resolvedProject) return;
-    const revision = approvalWorkflow.revision;
-    const request: RevisionApprovalRequest = {
-      clientId: resolvedProjectClient.clientId,
-      projectId: resolvedProject.projectId,
-      revision: revision.number,
-      approvedBy: approvalForm.approvedBy.trim(),
-    };
-    if (!request.approvedBy) {
-      setApprovalWorkflow({ status: "editing", revision, error: "Enter the approver identity." });
-      return;
-    }
-    setApprovalWorkflow({ status: "preflighting", revision });
-    await yieldToBrowserPaint();
-    invoke<ApprovalOperationResult>("preflight_revision_approval", { request })
-      .then((result) => {
-        if (
-          result.ok &&
-          result.code === "ready" &&
-          result.approval &&
-          result.approval.clientId === request.clientId &&
-          result.approval.projectId === request.projectId &&
-          result.approval.revision === request.revision &&
-          result.approval.approvedBy === request.approvedBy &&
-          result.approval.approvedAt === null
-        ) {
-          setApprovalWorkflow({ status: "confirming", revision, request, preview: result.approval });
-        } else {
-          setApprovalWorkflow({ status: "editing", revision, error: result.ok ? "The approval preview no longer matches the current revision history. Refresh Revisions and review the approval again." : result.message });
-        }
-      })
-      .catch((error: unknown) => {
-        setApprovalWorkflow({ status: "editing", revision, error: safeError(error, "The approval preview could not be completed.") });
-      });
-  };
-
-  const confirmApproval = async () => {
-    if (approvalWorkflow.status !== "confirming") return;
-    const { revision, request, preview } = approvalWorkflow;
-    setApprovalWorkflow({ status: "approving", revision, request, preview });
-    await yieldToBrowserPaint();
-    invoke<ApprovalOperationResult>("approve_revision", { request })
-      .then(async (result) => {
-        if (!result.ok || result.code !== "approved" || !result.approval) {
-          if (result.code === "uncertain") setApprovalWorkflow({ status: "uncertain", revision, message: result.message });
-          else setApprovalWorkflow({ status: "editing", revision, error: result.message });
-          return;
-        }
-        if (
-          result.approval.clientId !== preview.clientId ||
-          result.approval.projectId !== preview.projectId ||
-          result.approval.revision !== preview.revision ||
-          result.approval.approvedBy !== preview.approvedBy ||
-          !result.approval.approvedAt
-        ) {
-          setApprovalWorkflow({ status: "uncertain", revision, message: "The approval was recorded, but it did not match what you reviewed. The result is uncertain; do not retry automatically." });
-          return;
-        }
-        try {
-          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
-          setWorkspace({ status: "ready", value: refreshed });
-          const client = refreshed.clients.find((item) => item.clientId === request.clientId);
-          const project = client?.projects.find((item) => item.projectId === request.projectId);
-          const approved = project?.revisions.find((item) => item.number === request.revision);
-          if (
-            !project ||
-            project.approvedRevision !== request.revision ||
-            !approved ||
-            approved.approvedBy !== result.approval.approvedBy ||
-            approved.approvedAt !== result.approval.approvedAt
-          ) {
-            setApprovalWorkflow({ status: "uncertain", revision, message: "The approval was recorded, but the refreshed project approval did not match the result. The result is uncertain; do not retry automatically." });
-            return;
-          }
-          setApprovalNotice(`Revision ${approved.number} was approved by ${approved.approvedBy} and verified.`);
-          setApprovalWorkflow({ status: "closed" });
-        } catch (error: unknown) {
-          setApprovalWorkflow({ status: "uncertain", revision, message: safeError(error, "The approval was recorded, but the studio could not be refreshed. The result is uncertain; do not retry automatically.") });
-        }
-      })
-      .catch((error: unknown) => {
-        setApprovalWorkflow({ status: "uncertain", revision, message: safeError(error, "The revision-approval result could not be confirmed. The operation may have completed; do not retry automatically.") });
-      });
-  };
-
-  const preflightIntake = async () => {
-    if (!resolvedProjectClient || !resolvedProject || !intakeValidationAvailable) return;
-    const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
-    setIntakeActionError(null);
-    setIntakeNotice(null);
-    setIntakeWorkflow({ status: "preflighting" });
-    await yieldToBrowserPaint();
-    invoke<IntakeOperationResult>("preflight_intake_validation", { request })
-      .then((result) => {
-        if (result.ok && result.report && (result.code === "ready" || result.code === "blockingFindings")) {
-          setIntakeWorkflow({ status: "confirming", preview: result.report });
-        } else {
-          setIntakeWorkflow({ status: "closed" });
-          setIntakeActionError(result.message);
-        }
-      })
-      .catch((error: unknown) => {
-        setIntakeWorkflow({ status: "closed" });
-        setIntakeActionError(safeError(error, "The intake preview could not be completed."));
-      });
-  };
-
-  const confirmIntake = async () => {
-    if (intakeWorkflow.status !== "confirming" || !resolvedProjectClient || !resolvedProject) return;
-    const request = { clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId };
-    const preview = intakeWorkflow.preview;
-    setIntakeWorkflow({ status: "running", preview });
-    await yieldToBrowserPaint();
-    invoke<IntakeOperationResult>("run_intake_validation", { request })
-      .then((result) => {
-        if (result.code === "uncertain") {
-          setIntakeWorkflow({ status: "uncertain", message: result.message });
-          return;
-        }
-        if (!result.ok || !result.report || (result.code !== "validated" && result.code !== "blockingFindings")) {
-          setIntakeWorkflow({ status: "closed" });
-          setIntakeActionError(result.message);
-          return;
-        }
-        if (result.report.clientId !== request.clientId || result.report.projectId !== request.projectId) {
-          setIntakeWorkflow({ status: "uncertain", message: "The intake report was updated, but its project identity could not be verified. Do not retry automatically." });
-          return;
-        }
-        setIntakeReport({ status: "ready", value: result });
-        setIntakeWorkflow({ status: "closed" });
-        setIntakeNotice(result.report.blockingErrors > 0 ? "The intake report was updated with blocking findings." : "The intake report was updated and verified.");
-      })
-      .catch((error: unknown) => {
-        setIntakeWorkflow({ status: "uncertain", message: safeError(error, "The intake-validation result could not be confirmed. The report may have been updated; do not retry automatically.") });
-      });
-  };
-
-  const navigate = (route: PrimaryRoute) => {
-    setActiveRoute(route);
-    setSelectedClientId(null);
-    setSelectedProject(null);
-    setProjectView("overview");
-    setIntakeReport({ status: "idle" });
-    setRevisionWorkflow({ status: "closed" });
-    setRevisionActionError(null);
-    setApprovalWorkflow({ status: "closed" });
-    setApprovalActionError(null);
-    setRouteNotice(null);
-  };
-
   const {
     resolvedClient,
     resolvedProjectClient,
@@ -648,6 +227,123 @@ export default function App() {
     projectView,
     deliveryCreationSupported,
   );
+
+  const intakeController = useIntakeWorkflow({
+    validationAvailable: intakeValidationAvailable,
+    clientId: resolvedProjectClient?.clientId ?? null,
+    projectId: resolvedProject?.projectId ?? null,
+    onOpen: () => {
+      setProjectView("intake");
+      revisionController.reset();
+      approvalController.reset();
+    },
+  });
+
+  const revisionController = useRevisionWorkflow({
+    creationAvailable: revisionCreationAvailable,
+    clientId: resolvedProjectClient?.clientId ?? null,
+    project: resolvedProject,
+    setWorkspace,
+    onOpen: () => {
+      intakeController.reset();
+      approvalController.reset();
+    },
+    onCreated: () => setProjectView("revisions"),
+  });
+
+  const approvalController = useApprovalWorkflow({
+    approvalAvailable: revisionApprovalAvailable,
+    clientId: resolvedProjectClient?.clientId ?? null,
+    project: resolvedProject,
+    setWorkspace,
+    onOpen: () => revisionController.reset(),
+  });
+
+  const deliveryController = useDeliveryWorkflow({
+    creationAvailable: deliveryCreationAvailable,
+    clientId: resolvedProjectClient?.clientId ?? null,
+    project: resolvedProject,
+    setWorkspace,
+  });
+
+  const {
+    state: intakeWorkflow,
+    reportState: intakeReport,
+    actionError: intakeActionError,
+    notice: intakeNotice,
+    reset: resetIntakeWorkflow,
+    clear: clearIntakeWorkflow,
+    reload: reloadIntakeReport,
+    open: openIntake,
+    preflight: preflightIntake,
+    confirm: confirmIntake,
+    closeDialog: closeIntakeDialog,
+  } = intakeController;
+
+  const {
+    state: revisionWorkflow,
+    form: revisionForm,
+    setForm: setRevisionForm,
+    actionError: revisionActionError,
+    notice: revisionNotice,
+    open: openRevisionWorkflow,
+    reset: resetRevisionWorkflow,
+    close: closeRevisionWorkflow,
+    back: backRevisionWorkflow,
+    preflight: preflightRevision,
+    confirm: confirmRevision,
+  } = revisionController;
+
+  const {
+    state: approvalWorkflow,
+    form: approvalForm,
+    setForm: setApprovalForm,
+    actionError: approvalActionError,
+    notice: approvalNotice,
+    open: openApprovalWorkflow,
+    reset: resetApprovalWorkflow,
+    close: closeApprovalWorkflow,
+    back: backApprovalWorkflow,
+    preflight: preflightApproval,
+    confirm: confirmApproval,
+  } = approvalController;
+
+  const {
+    state: deliveryWorkflow,
+    actionError: deliveryActionError,
+    notice: deliveryNotice,
+    open: openDeliveryWorkflow,
+    close: closeDeliveryWorkflow,
+    setRequest: setDeliveryRequest,
+    preflight: preflightDelivery,
+    confirm: confirmDelivery,
+  } = deliveryController;
+
+  const openRevisions = () => {
+    if (!resolvedProjectClient || !resolvedProject) return;
+    setProjectView("revisions");
+    resetIntakeWorkflow();
+  };
+
+  const selectProjectView = (view: ProjectView) => {
+    if (view === "intake") { openIntake(); return; }
+    if (view === "revisions") { openRevisions(); return; }
+    setProjectView(view);
+    resetIntakeWorkflow();
+    resetRevisionWorkflow();
+    resetApprovalWorkflow();
+  };
+
+  const navigate = (route: PrimaryRoute) => {
+    setActiveRoute(route);
+    setSelectedClientId(null);
+    setSelectedProject(null);
+    setProjectView("overview");
+    clearIntakeWorkflow();
+    resetRevisionWorkflow();
+    resetApprovalWorkflow();
+    setRouteNotice(null);
+  };
 
   const openDerivedProject = (clientId: string, projectId: string) => {
     setSelectedClientId(null); setSelectedProject({ clientId, projectId, fromClient: false });
@@ -764,11 +460,11 @@ export default function App() {
             validationAvailable={intakeValidationAvailable}
             validationHelp={intakeValidationHelp}
             loading={loading || intakeWorkflow.status === "preflighting"}
-            onOverview={() => { setProjectView("overview"); setIntakeWorkflow({ status: "closed" }); setIntakeActionError(null); }}
+            onOverview={() => { setProjectView("overview"); resetIntakeWorkflow(); }}
             onPreview={preflightIntake}
             onRefresh={() => {
               refresh();
-              loadIntakeReport({ clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId });
+              reloadIntakeReport();
             }}
             onSelectView={selectProjectView}
           />
@@ -848,13 +544,7 @@ export default function App() {
         <IntakeDialog
           state={intakeWorkflow}
           onConfirm={confirmIntake}
-          onClose={() => {
-            if (intakeWorkflow.status === "running") return;
-            setIntakeWorkflow({ status: "closed" });
-            if (resolvedProjectClient && resolvedProject) {
-              loadIntakeReport({ clientId: resolvedProjectClient.clientId, projectId: resolvedProject.projectId });
-            }
-          }}
+          onClose={closeIntakeDialog}
         />
       )}
       {revisionWorkflow.status !== "closed" && resolvedProject && (
@@ -865,10 +555,7 @@ export default function App() {
           onChange={setRevisionForm}
           onPreflight={preflightRevision}
           onConfirm={confirmRevision}
-          onBack={() => {
-            if (revisionWorkflow.status !== "confirming") return;
-            setRevisionWorkflow({ status: "editing" });
-          }}
+          onBack={backRevisionWorkflow}
           onClose={closeRevisionWorkflow}
         />
       )}
@@ -880,10 +567,7 @@ export default function App() {
           onChange={setApprovalForm}
           onPreflight={preflightApproval}
           onConfirm={confirmApproval}
-          onBack={() => {
-            if (approvalWorkflow.status !== "confirming") return;
-            setApprovalWorkflow({ status: "editing", revision: approvalWorkflow.revision });
-          }}
+          onBack={backApprovalWorkflow}
           onClose={closeApprovalWorkflow}
         />
       )}
@@ -891,7 +575,7 @@ export default function App() {
         <DeliveryOptionsDialog
           request={deliveryWorkflow.request}
           projectName={resolvedProject.projectName}
-          onChange={(request) => setDeliveryWorkflow({ status: "options", request })}
+          onChange={setDeliveryRequest}
           onPreview={preflightDelivery}
           onClose={closeDeliveryWorkflow}
         />
