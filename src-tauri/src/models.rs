@@ -1,15 +1,28 @@
-//! Serialized application contracts grouped by ownership.
+//! Serialized application contracts grouped by business domain.
 //!
 //! Re-exports intentionally preserve the existing `crate::models::TypeName` paths so this
-//! structural split cannot silently change Tauri command contracts or JL Mixing metadata
-//! compatibility. Field names and serde attributes remain owned by the domain modules.
+//! structural refactor cannot silently change Tauri command contracts or JL Mixing metadata
+//! compatibility. Field names, serde attributes, and enum variants remain unchanged.
 
-mod documents;
-mod system;
-mod workflows;
-mod workspace;
+mod client_model;
+mod delivery_model;
+mod intake_model;
+mod project_model;
+mod revision_model;
+mod shared_model;
+mod studio_model;
+mod system_model;
+mod workspace_model;
 
-pub use documents::*;
-pub use system::*;
-pub use workflows::*;
-pub use workspace::*;
+pub use client_model::*;
+pub use delivery_model::*;
+pub use intake_model::*;
+pub use project_model::*;
+pub use revision_model::*;
+// Shared value objects remain part of the compatibility barrel even when current crate code
+// reaches them through their owning domain modules.
+#[allow(unused_imports)]
+pub use shared_model::*;
+pub use studio_model::*;
+pub use system_model::*;
+pub use workspace_model::*;
