@@ -1,6 +1,6 @@
 # JL Mixing Studio Development Status
 
-Last updated: 2026-07-29
+Last updated: 2026-07-30
 
 ## Current release
 
@@ -13,7 +13,7 @@ Last updated: 2026-07-29
 ## Active development target
 
 - Target release: `v1.1.0`
-- Primary objective: Build on the completed Automation API `1.0` foundation with behavior-preserving maintainability cleanup and approved UI refinement.
+- Primary objective: Build on the completed Automation API `1.0` foundation with approved UI refinement and incremental feature work.
 - Versioning policy: Studio and Automation retain independent product versions. Studio declares compatibility with a specific Automation API version rather than requiring matching product release numbers.
 - Studio v1.1 Automation API target: `1.0`.
 - Cross-repository provider dependency: JL Mixing Automation API `1.0` contract work is complete, including the `delivery.create` parity extension required by Studio.
@@ -42,24 +42,37 @@ Studio-owned consumer work:
 - Deterministic Automation API compatibility and failure-path coverage completed (#77 / PR #97).
 - `client.create`, `project.create`, `revision.create`, `intake.validate`, `revision.approve`, and `delivery.create` migrated to the structured API boundary.
 - Delivery clean-replacement confirmation revalidates the exact provider deletion inventory immediately before destructive execution (PR #96).
-- CLI runtime refactored into domain-focused modules (`studio`, `client`, `project`, `intake`, `revision`, and `delivery`) under #85 / PR #94.
+- CLI runtime refactored into domain-focused modules under #85 / PR #94.
+
+## Coding-standards audit
+
+The existing-code JL Audio coding-standards audit tracked by #93 is complete.
+
+Completed structural and test work includes:
+
+- CLI regression tests split into domain-focused modules (#98 / PR #109).
+- Frontend application decomposition and test-support cleanup (#99, #110, #111 / PRs #105, #114–#119).
+- Workspace tests and discovery responsibilities split/refined (PRs #120–#121).
+- Domain models decomposed and normalized by layer (PRs #122, #129–#130).
+- `lib.rs` reduced to its Tauri composition-root role, with command/workflow ownership extracted (PRs #123–#131).
+- Remaining oversized Automation compatibility discovery function decomposed without changing API `1.0` behavior (PR #132).
+- Final code-comment sweep confirmed coverage for destructive-operation safety, uncertainty/no-retry rules, platform behavior, compatibility/version independence, workspace path validation, and non-obvious persistence behavior.
+
+Intentional maintainability exceptions:
+
+- `workspace.rs` remains above the ~500-line review threshold because workspace discovery, schema validation, validated identity/path resolution, and failure mapping form one cohesive boundary; oversized tests were already split out and no remaining production function exceeds the strong-refactor threshold.
+- `delivery_legacy_testsupport.rs` remains test-only compatibility scaffolding and includes a >100-line legacy parser. It is intentionally not decomposed further because it will be removed once every remaining parser-era regression assertion has structured Automation API coverage.
+- `revision_legacy_testsupport.rs` remains test-only for the same compatibility purpose and is within normal size thresholds.
 
 ## Current work
 
-Run the existing-code JL Audio coding-standards audit tracked by #93 now that the API/refactor sequence is stable.
-
-Initial audit findings and focused follow-up work:
-
-- #98: split the oversized `src-tauri/src/cli/tests.rs` regression test module into domain-focused modules without dropping coverage.
-- #99: split the oversized `src/App.tsx` React application module into cohesive route/workflow modules without changing user-visible behavior.
-- Keep legacy approval and delivery regression adapters test-only until equivalent structured API coverage fully replaces every remaining assertion, including ZIP naming and input-validation cases.
+- Coding-standards audit complete; continue v1.1 UI refinement and approved feature work from the cleaned architecture.
 
 ## Next work
 
-- Implement #98 first as the lower-risk behavior-preserving standards cleanup.
-- Implement #99 in focused extraction PRs rather than one oversized React rewrite.
-- Continue UI refinement toward the approved wireframes after structural cleanup has reduced the cost and risk of frontend changes.
-- Complete #93 once material standards deviations are corrected or explicitly documented with maintainability rationale.
+- Continue UI refinement toward the approved wireframes.
+- Add future Automation API capabilities using stable domain/layer ownership and consistent CRUD-oriented operation naming as those contracts evolve.
+- Remove legacy CLI parser test support when equivalent structured API coverage exists for every remaining assertion.
 
 ## Maintenance strategy
 
@@ -84,5 +97,5 @@ JL Mixing Studio reached its first stable public release after RC4 acceptance, m
 
 ## Known issues and technical debt
 
-- Legacy approval and delivery regression support remains intentionally test-only until all remaining parser-era assertions have explicit structured API equivalents; track final removal under #93/#98.
+- Legacy approval and delivery regression support remains intentionally test-only until all remaining parser-era assertions have explicit structured API equivalents.
 - No known release-blocking defects. New defects should be recorded as GitHub issues and assigned to either the `v1.0.1` patch milestone or the appropriate future milestone.
