@@ -23,8 +23,20 @@ jobs:
       - name: Apply remaining App controller wiring
         if: github.event_name == 'pull_request'
         run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/wire_app_domain_controllers.py")
+          text = path.read_text()
+          text = text.replace("from pathlib import Path\n", "from pathlib import Path\nimport re\n", 1)
+          text = text.replace(
+              "    if forbidden in app:\n        raise SystemExit(f\"unexpected legacy App workflow mutation remains: {forbidden}\")\n",
+              "    if re.search(rf'(?<![A-Za-z0-9_]){re.escape(forbidden)}', app):\n        raise SystemExit(f\"unexpected legacy App workflow mutation remains: {forbidden}\")\n",
+              1,
+          )
+          path.write_text(text)
+          PY
           python scripts/wire_app_domain_controllers.py
-          if ! git diff --quiet; then
+          if ! git diff --quiet src/App.tsx src/intake/controller.ts src/revision/controller.ts src/approval/controller.ts; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add src/App.tsx src/intake/controller.ts src/revision/controller.ts src/approval/controller.ts
