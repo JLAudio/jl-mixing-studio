@@ -1,6 +1,7 @@
 use serde::Serialize;
 
-use super::documents::ProjectSummary;
+use super::client_model::ClientSummary;
+use super::studio_model::StudioSummary;
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -13,34 +14,6 @@ pub struct WorkspaceSnapshot {
     pub issues: Vec<DiscoveryIssue>,
     pub tasks: Vec<DerivedTask>,
     pub activity: Vec<ActivityEvent>,
-}
-
-#[derive(Debug, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct StudioSummary {
-    pub studio_id: String,
-    pub studio_name: String,
-    pub root_path: String,
-    pub schema_version: String,
-    pub created_with: String,
-    pub created_at: String,
-    pub mix_engineer: String,
-    pub sample_rate: u32,
-    pub bit_depth: u16,
-    pub file_format: String,
-    pub delivery_method: String,
-    pub requested_deliverables: Vec<String>,
-    pub change_directory_after_create: bool,
-}
-
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
-pub struct ClientSummary {
-    pub client_id: String,
-    pub client_name: String,
-    pub created_at: String,
-    pub default_artist: String,
-    pub projects: Vec<ProjectSummary>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
