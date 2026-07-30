@@ -40,3 +40,12 @@ if root_support not in lib_text:
     anchor = "use commands::{\n"
     lib_text = lib_text.replace(anchor, root_support + anchor, 1)
 lib.write_text(lib_text)
+
+# lib_tests.rs previously inherited std::fs through `use super::*` from lib.rs.
+# The production import disappears in this decomposition, so make the test
+# dependency explicit instead of retaining an unused production-level import.
+lib_tests = SRC / "lib_tests.rs"
+lib_tests_text = lib_tests.read_text()
+if "use std::fs;\n" not in lib_tests_text:
+    lib_tests_text = "use std::fs;\n" + lib_tests_text
+lib_tests.write_text(lib_tests_text)
