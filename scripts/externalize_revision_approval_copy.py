@@ -66,12 +66,6 @@ copy = replace_once(
   delivery: {''',
     "revision and approval copy domains",
 )
-for duplicate in [
-    '    cancel: "Cancel",\n',
-    '    close: "Close",\n',
-    '    currentRevision: "Current revision",\n',
-]:
-    copy = replace_once(copy, duplicate, "", f"remove delivery duplicate {duplicate.strip()}")
 copy_path.write_text(copy)
 
 workflow_path = Path("src/AppWorkflows.tsx")
