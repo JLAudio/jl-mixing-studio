@@ -179,68 +179,92 @@ pub(crate) fn check_automation_compatibility<R: ProcessRunner>(
     home: &Path,
     runner: &R,
 ) -> VersionCheck {
+    let discovery = match load_automation_discovery(home, runner) {
+        Ok(discovery) => discovery,
+        Err(result) => return result,
+    };
+    let (api_version, application, capabilities) = match validate_discovery(discovery) {
+        Ok(validated) => validated,
+        Err(result) => return result,
+    };
+    compatibility_result(&api_version, &application, &capabilities)
+}
+
+fn load_automation_discovery<R: ProcessRunner>(
+    home: &Path,
+    runner: &R,
+) -> Result<DiscoveryDocument, VersionCheck> {
     let Some(executable) = resolve_command(home, AUTOMATION_EXECUTABLE) else {
-        return unavailable_version(
+        return Err(unavailable_version(
             "JL Mixing Automation was not found in its default install location or on PATH",
-        );
+        ));
     };
 
     let arguments = vec!["system-info".to_owned(), "--json".to_owned()];
     let output = match runner.run(&executable, &arguments, None) {
         Ok(output) if output.success => output,
         Ok(output) => {
-            return unavailable_version(&format!(
+            return Err(unavailable_version(&format!(
                 "JL Mixing Automation discovery failed with exit code {}",
                 output
                     .exit_code
                     .map_or_else(|| "unknown".into(), |code| code.to_string())
-            ))
+            )))
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
-            return unavailable_version(
+            return Err(unavailable_version(
                 "JL Mixing Automation was not found in its default install location or on PATH",
-            )
+            ))
         }
         Err(_) => {
-            return unavailable_version("JL Mixing Automation discovery could not be started")
+            return Err(unavailable_version(
+                "JL Mixing Automation discovery could not be started",
+            ))
         }
     };
 
-    let discovery: DiscoveryDocument = match serde_json::from_str(output.stdout.trim()) {
-        Ok(discovery) => discovery,
-        Err(_) => {
-            return unavailable_version(
-                "JL Mixing Automation returned a malformed discovery response",
-            )
-        }
-    };
+    serde_json::from_str(output.stdout.trim()).map_err(|_| {
+        unavailable_version("JL Mixing Automation returned a malformed discovery response")
+    })
+}
 
+fn validate_discovery(
+    discovery: DiscoveryDocument,
+) -> Result<(String, DiscoveryApplication, Vec<String>), VersionCheck> {
     let Some(api_version) = discovery
         .api_version
         .filter(|value| !value.trim().is_empty())
     else {
-        return unavailable_version(
+        return Err(unavailable_version(
             "JL Mixing Automation did not declare an Automation API version",
-        );
+        ));
     };
 
     let Some(application) = discovery.application else {
-        return unavailable_version(
+        return Err(unavailable_version(
             "JL Mixing Automation discovery response did not identify the provider application",
-        );
+        ));
     };
     if application.name != AUTOMATION_EXECUTABLE || application.version.trim().is_empty() {
-        return unavailable_version(
+        return Err(unavailable_version(
             "JL Mixing Automation discovery response did not identify a valid provider application",
-        );
+        ));
     }
 
     let Some(capabilities) = discovery.capabilities else {
-        return unavailable_version(
+        return Err(unavailable_version(
             "JL Mixing Automation discovery response did not declare provider capabilities",
-        );
+        ));
     };
 
+    Ok((api_version, application, capabilities))
+}
+
+fn compatibility_result(
+    api_version: &str,
+    application: &DiscoveryApplication,
+    capabilities: &[String],
+) -> VersionCheck {
     if api_version != SUPPORTED_API_VERSION {
         return VersionCheck {
             available: true,
