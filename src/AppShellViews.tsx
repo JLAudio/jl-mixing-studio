@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import appIcon from "../src-tauri/icons/128x128.png";
 import { routes, type PrimaryRoute, type RouteDefinition } from "./ui/routes";
+import { copy as productCopy } from "./resources/copy";
 
 export type ResourceState<T> =
   | { status: "loading" }
@@ -31,7 +32,7 @@ export type ProjectView =
 
 export type IntakeReportState = { status: "idle" } | ResourceState<IntakeOperationResult>;
 
-export function FolderControl({ location, clientId = null, projectId = null, label = "Open folder" }: { location: FolderLocation; clientId?: string | null; projectId?: string | null; label?: string }) {
+export function FolderControl({ location, clientId = null, projectId = null, label = productCopy.common.openFolder }: { location: FolderLocation; clientId?: string | null; projectId?: string | null; label?: string }) {
   const [path, setPath] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const request: FolderRequest = { location, clientId, projectId };
@@ -42,9 +43,9 @@ export function FolderControl({ location, clientId = null, projectId = null, lab
       .then((result) => setPath(result.path))
       .catch(() => setPath(null));
   }, [location, clientId, projectId]);
-  const copy = () => resolve().then((result) => writeText(result.path)).then(() => setMessage("Path copied.")).catch((error: unknown) => setMessage(safeError(error, "The path could not be copied.")));
-  const open = () => invoke<FolderResult>("open_folder", { request }).then((result) => { setPath(result.path); setMessage("Folder opened."); }).catch((error: unknown) => setMessage(safeError(error, "The folder could not be opened.")));
-  return <div className="folder-control"><code>{path ?? "Resolving folder…"}</code><div className="directory-actions"><button type="button" className="secondary" onClick={copy} disabled={!path}>Copy path</button><button type="button" onClick={open}>{label}</button></div>{message && <small role="status">{message}</small>}</div>;
+  const copy = () => resolve().then((result) => writeText(result.path)).then(() => setMessage(productCopy.common.pathCopied)).catch((error: unknown) => setMessage(safeError(error, productCopy.common.pathCopyFailed)));
+  const open = () => invoke<FolderResult>("open_folder", { request }).then((result) => { setPath(result.path); setMessage(productCopy.common.folderOpened); }).catch((error: unknown) => setMessage(safeError(error, productCopy.common.folderOpenFailed)));
+  return <div className="folder-control"><code>{path ?? productCopy.common.resolvingFolder}</code><div className="directory-actions"><button type="button" className="secondary" onClick={copy} disabled={!path}>{productCopy.common.copyPath}</button><button type="button" onClick={open}>{label}</button></div>{message && <small role="status">{message}</small>}</div>;
 }
 
 const displayWorkspacePath = (path: string) =>
@@ -63,7 +64,7 @@ export const safeError = (error: unknown, fallback: string) =>
 export function IssueDetail({ issue }: { issue: DiscoveryIssue }) {
   return (
     <li>
-      <strong>{issue.displayName ?? "Workspace"}</strong>
+      <strong>{issue.displayName ?? productCopy.workspace.fallbackIssueName}</strong>
       <span>{issue.message}</span>
       {issue.relativePath && <code>{issue.relativePath}</code>}
       <small>{issue.recovery}</small>
@@ -78,41 +79,41 @@ export function WorkspaceContent({ snapshot }: { snapshot: WorkspaceSnapshot }) 
         <section className="notice warning" role="status">
           <strong>
             {snapshot.counts.issues} workspace{" "}
-            {snapshot.counts.issues === 1 ? "item needs" : "items need"} attention
+            {snapshot.counts.issues === 1 ? productCopy.workspace.issueAttentionSingular : productCopy.workspace.issueAttentionPlural} {productCopy.workspace.issueAttentionSuffix}
           </strong>
-          <span>Your available clients and projects are still here below.</span>
-          <a href="#workspace-issues">Review issues</a>
+          <span>{productCopy.workspace.partialHelp}</span>
+          <a href="#workspace-issues">{productCopy.workspace.reviewIssues}</a>
         </section>
       )}
 
       {snapshot.status === "unavailable" && (
         <section className="empty-state">
-          <p className="kicker">Setup required</p>
-          <h2>Your studio workspace isn’t ready yet</h2>
-          <p>Set up your studio workspace to get started.</p>
+          <p className="kicker">{productCopy.workspace.setupKicker}</p>
+          <h2>{productCopy.workspace.setupTitle}</h2>
+          <p>{productCopy.workspace.setupBody}</p>
         </section>
       )}
 
       {snapshot.status === "invalid" && (
         <section className="empty-state error">
-          <p className="kicker">Something doesn’t look right</p>
-          <h2>We can’t read this studio setup yet</h2>
-          <p>Check the details below, then try again.</p>
+          <p className="kicker">{productCopy.workspace.invalidKicker}</p>
+          <h2>{productCopy.workspace.invalidTitle}</h2>
+          <p>{productCopy.workspace.invalidBody}</p>
         </section>
       )}
 
       {snapshot.status === "empty" && (
         <section className="empty-state">
-          <p className="kicker">You’re ready to go</p>
-          <h2>Your studio is ready for its first client</h2>
-          <p>Choose <strong>New client</strong> when you’re ready to get started.</p>
+          <p className="kicker">{productCopy.workspace.emptyKicker}</p>
+          <h2>{productCopy.workspace.emptyTitle}</h2>
+          <p>{productCopy.workspace.emptyBodyPrefix} <strong>{productCopy.workspace.emptyBodyAction}</strong> {productCopy.workspace.emptyBodySuffix}</p>
         </section>
       )}
 
       {snapshot.issues.length > 0 && (
         <section className="issues" id="workspace-issues" aria-labelledby="issues-heading">
-          <p className="kicker">A few things to check</p>
-          <h2 id="issues-heading">Workspace issues</h2>
+          <p className="kicker">{productCopy.workspace.issuesKicker}</p>
+          <h2 id="issues-heading">{productCopy.workspace.issuesTitle}</h2>
           <ul>
             {snapshot.issues.map((issue, index) => (
               <IssueDetail
@@ -157,11 +158,11 @@ export function Sidebar({
 }) {
   return (
     <aside className="sidebar">
-      <div className="brand" aria-label="JL Mixing Studio">
+      <div className="brand" aria-label={productCopy.navigation.brandLabel}>
         <span className="brand-mark" aria-hidden="true"><img src={appIcon} alt="" /></span>
         <span><strong>JL Mixing</strong><small>Studio</small></span>
       </div>
-      <nav className="primary-nav" aria-label="Primary navigation">
+      <nav className="primary-nav" aria-label={productCopy.navigation.primaryLabel}>
         {routes.map((route) => (
           <button
             key={route.id}
@@ -186,13 +187,13 @@ export function Sidebar({
           aria-hidden="true"
         />
         <span>
-          <small>Current workspace</small>
+          <small>{productCopy.navigation.currentWorkspace}</small>
           <strong>
             {workspace.status === "ready"
-              ? workspace.value.studio?.studioName ?? "Default workspace"
+              ? workspace.value.studio?.studioName ?? productCopy.navigation.defaultWorkspace
               : workspace.status === "loading"
-                ? "Checking…"
-                : "Unavailable"}
+                ? productCopy.navigation.checking
+                : productCopy.navigation.unavailable}
           </strong>
           {workspace.status === "ready" && (
             <code>{displayWorkspacePath(workspace.value.workspacePath)}</code>
@@ -205,10 +206,10 @@ export function Sidebar({
 
 export function GlobalSearch() {
   return (
-    <div className="global-search" aria-label="Global search" aria-disabled="true">
+    <div className="global-search" aria-label={productCopy.navigation.globalSearchLabel} aria-disabled="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-      <span>Search everything</span>
-      <span className="planned-pill">Planned</span>
+      <span>{productCopy.navigation.globalSearchPlaceholder}</span>
+      <span className="planned-pill">{productCopy.common.planned}</span>
     </div>
   );
 }
@@ -226,16 +227,16 @@ export function RouteHeader({ route }: { route: RouteDefinition }) {
   );
 }
 
-const taskPriorityLabel: Record<DerivedTask["priority"], string> = { recovery: "Recovery", overdue: "Overdue", delivery: "Delivery", upcoming: "Upcoming", review: "Review" };
-const activityEventLabel: Record<ActivityEvent["eventType"], string> = { clientCreated: "Client created", projectCreated: "Project created", revisionCreated: "Revision created", revisionApproved: "Revision approved", deliveryCreated: "Delivery created" };
+const taskPriorityLabel: Record<DerivedTask["priority"], string> = productCopy.activity.priority;
+const activityEventLabel: Record<ActivityEvent["eventType"], string> = productCopy.activity.event;
 const formatEventTimestamp = (value: string) => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
 export function TaskSummary({ task, onOpenProject }: { task: DerivedTask; onOpenProject: (clientId: string, projectId: string) => void }) {
-  return <article className="derived-item"><span className={`priority-pill ${task.priority}`}>{taskPriorityLabel[task.priority]}</span><div><strong>{task.title}</strong><p>{task.reason}</p><small>{task.deadline ? `Deadline ${task.deadline} · ` : ""}{task.recommendedAction}</small></div>{task.clientId && task.projectId && <button type="button" className="table-link" onClick={() => onOpenProject(task.clientId!, task.projectId!)}>{task.projectName}</button>}</article>;
+  return <article className="derived-item"><span className={`priority-pill ${task.priority}`}>{taskPriorityLabel[task.priority]}</span><div><strong>{task.title}</strong><p>{task.reason}</p><small>{task.deadline ? `${productCopy.activity.deadlinePrefix} ${task.deadline} · ` : ""}{task.recommendedAction}</small></div>{task.clientId && task.projectId && <button type="button" className="table-link" onClick={() => onOpenProject(task.clientId!, task.projectId!)}>{task.projectName}</button>}</article>;
 }
 export function ActivitySummary({ event, onOpenProject }: { event: ActivityEvent; onOpenProject: (clientId: string, projectId: string) => void }) {
-  const label = event.revision === null ? activityEventLabel[event.eventType] : `${activityEventLabel[event.eventType]} · Revision ${event.revision}`;
-  return <article className="derived-item activity-item"><time dateTime={event.timestamp}>{formatEventTimestamp(event.timestamp)}</time><div><strong>{label}</strong><small>{event.projectName ?? event.clientName}</small></div>{event.projectId && <button type="button" className="table-link" onClick={() => onOpenProject(event.clientId, event.projectId!)}>Open project</button>}</article>;
+  const label = event.revision === null ? activityEventLabel[event.eventType] : `${activityEventLabel[event.eventType]} · ${productCopy.activity.revisionPrefix} ${event.revision}`;
+  return <article className="derived-item activity-item"><time dateTime={event.timestamp}>{formatEventTimestamp(event.timestamp)}</time><div><strong>{label}</strong><small>{event.projectName ?? event.clientName}</small></div>{event.projectId && <button type="button" className="table-link" onClick={() => onOpenProject(event.clientId, event.projectId!)}>{productCopy.activity.openProject}</button>}</article>;
 }
 
 export function Dashboard({
@@ -285,7 +286,7 @@ export function Dashboard({
         unavailable: "Not found",
         invalid: "Invalid",
       }[snapshot.status]
-    : workspace.status === "loading" ? "Checking…" : "Unavailable";
+    : workspace.status === "loading" ? productCopy.navigation.checking : productCopy.navigation.unavailable;
 
   return (
     <>
@@ -328,7 +329,7 @@ export function Dashboard({
           <div className="panel-heading"><div><p className="kicker">Studio health</p><h2 id="health-heading">Current checks</h2></div></div>
           <dl className="health-list">
             <div><dt>Workspace</dt><dd><span className={`status-dot ${snapshot?.status === "healthy" || snapshot?.status === "empty" ? "good" : "attention"}`} />{workspaceStatus}</dd></div>
-            <div><dt>JL Mixing Automation</dt><dd><span className={`status-dot ${automationReady ? "good" : "attention"}`} />{version.status === "loading" ? "Checking…" : automationReady ? "Detected" : "Needs attention"}</dd></div>
+            <div><dt>JL Mixing Automation</dt><dd><span className={`status-dot ${automationReady ? "good" : "attention"}`} />{version.status === "loading" ? productCopy.navigation.checking : automationReady ? "Detected" : "Needs attention"}</dd></div>
           </dl>
           {snapshot && <code className="workspace-path">{snapshot.workspacePath}</code>}
           <p className="health-detail">
@@ -362,7 +363,7 @@ export function ContextSearch({ label }: { label: string }) {
   return (
     <div className="context-search" aria-label={`${label} search`} aria-disabled="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-      <span>Search {label.toLowerCase()}</span><span className="planned-pill">Planned</span>
+      <span>Search {label.toLowerCase()}</span><span className="planned-pill">{productCopy.common.planned}</span>
     </div>
   );
 }
@@ -371,7 +372,7 @@ export function RouteIssues({ snapshot }: { snapshot: WorkspaceSnapshot }) {
   if (snapshot.issues.length === 0) return null;
   return (
     <section className="issues route-issues" aria-labelledby="route-issues-heading">
-      <p className="kicker">A few things to check</p>
+      <p className="kicker">{productCopy.workspace.issuesKicker}</p>
       <h2 id="route-issues-heading">Some workspace data is unavailable</h2>
       <p className="route-supporting-copy">The clients and projects we can read are still available.</p>
       <ul>
