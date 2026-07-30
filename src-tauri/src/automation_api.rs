@@ -50,6 +50,9 @@ impl ProcessRunner for SystemProcessRunner {
     }
 }
 
+/// GUI launches on macOS may not inherit the user's interactive shell PATH. Keep the
+/// inherited search order, then add the standard Intel and Apple Silicon Homebrew locations so
+/// Automation discovery behaves consistently without overriding an explicitly configured binary.
 pub(crate) fn automation_subprocess_path(
     inherited_path: Option<&OsStr>,
 ) -> Option<std::ffi::OsString> {
@@ -285,6 +288,8 @@ fn compatibility_result(
     }
 
     let platform_supported = !cfg!(target_os = "windows");
+    // Feature availability follows provider-advertised API capabilities rather than Automation's
+    // product version, preserving Studio/Automation version independence within API 1.0.
     let has = |capability: &str| capabilities.iter().any(|item| item == capability);
 
     VersionCheck {
