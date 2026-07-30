@@ -48,6 +48,11 @@ export function useRevisionWorkflow({
     setState({ status: "editing" });
   };
 
+  const reset = () => {
+    setState({ status: "closed" });
+    setActionError(null);
+  };
+
   const close = () => {
     if (state.status === "preflighting" || state.status === "creating") return;
     setState({ status: "closed" });
@@ -172,6 +177,7 @@ export function useRevisionWorkflow({
     actionError,
     notice,
     open,
+    reset,
     close,
     back,
     preflight,
