@@ -13,18 +13,43 @@ Last updated: 2026-07-30
 ## Active development target
 
 - Target release: `v1.1.0`
-- Primary objective: Build on the completed Automation API `1.0` foundation with approved UI refinement and incremental feature work.
-- Versioning policy: Studio and Automation retain independent product versions. Studio declares compatibility with a specific Automation API version rather than requiring matching product release numbers.
+- Release scope: **Frozen**.
+- Primary objective: Release the completed Automation API `1.0` integration and behavior-preserving Studio refactor without adding new Studio workflow/UI feature scope.
+- Coordinated provider release: JL Mixing Automation `v1.4.0`.
+- Certified integration baseline: Studio `v1.1.0` acceptance-tested against Automation `v1.4.0` using Automation API `1.0`.
+- Versioning policy: Studio and Automation retain independent product versions. Studio declares compatibility with a specific Automation API version/capability set rather than requiring matching product release numbers.
 - Studio v1.1 Automation API target: `1.0`.
-- Cross-repository provider dependency: JL Mixing Automation API `1.0` contract work is complete, including the `delivery.create` parity extension required by Studio.
+- Cross-repository provider dependency: JL Mixing Automation API `1.0` contract work is complete, including the workflow parity extensions required by Studio.
+
+## v1.1 scope freeze
+
+In scope for `v1.1.0`:
+
+- the existing Studio v1.0 workflow feature set;
+- Automation API `1.0` discovery, compatibility, capability handling, and structured workflow integration;
+- the completed Rust/frontend maintainability refactors;
+- regression fixes required to preserve existing supported behavior;
+- coordinated RC and packaged acceptance testing with Automation `v1.4.0`.
+
+Explicitly deferred beyond `v1.1.0`:
+
+- exposing additional Automation options that are not already present in the Studio UI;
+- broader UI/wireframe redesign;
+- new Automation API capabilities beyond the approved v1.4/API 1.0 provider contract;
+- DAW/template-management features;
+- signing/notarization;
+- unrelated feature or architectural work.
+
+During RC acceptance, only defects/regressions and release-blocking fixes are in scope.
 
 ## Release validation
 
-- macOS Intel acceptance: Passed
-- Windows x64 limited-scope acceptance: Passed
-- Apple Silicon acceptance: Deferred
-- CI and release workflow: Passed
-- Known release blockers: None
+- macOS Intel acceptance: Passed for v1.0; fresh v1.1 packaged acceptance required.
+- Windows x64 limited-scope acceptance: Passed for v1.0; fresh v1.1 packaged acceptance required.
+- Apple Silicon acceptance: Deferred for v1.0; v1.1 manual acceptance remains conditional on available hardware.
+- CI and release workflow: Current development CI passed; fresh RC release workflows required.
+- Known v1.1 release blockers: None before RC acceptance.
+- Coordinated acceptance source of truth: `docs/v1.1-v1.4-coordinated-acceptance.md`.
 
 ## Completed v1.1 foundation work
 
@@ -91,17 +116,20 @@ JL Mixing Studio uses a deliberate resource boundary for user-facing wording:
 
 ## Current work
 
-- Continue v1.1 UI refinement and approved feature work from the domain-oriented frontend architecture and typed copy/resource boundary.
+- Prepare coordinated Automation `v1.4.0` and Studio `v1.1.0` release candidates from the frozen scope.
+- Execute the coordinated acceptance matrix in `docs/v1.1-v1.4-coordinated-acceptance.md`.
 
 ## Next work
 
-- Continue UI refinement toward the approved wireframes.
-- Add future Automation API capabilities using stable domain/layer ownership and consistent CRUD-oriented operation naming as those contracts evolve.
-- Remove legacy CLI parser test support when equivalent structured API coverage exists for every remaining assertion.
+- Build and validate an Automation v1.4 RC using the Automation release gates.
+- Build and validate a Studio v1.1 RC using the Studio release workflow.
+- Run packaged API-integration, end-to-end workflow, refactor-regression, and platform acceptance tests.
+- Fix only confirmed defects/regressions found during RC acceptance, rerun affected tests, and cut a new RC when required.
+- Release Automation v1.4.0 and Studio v1.1.0 only after explicit final approval.
 
 ## Maintenance strategy
 
-- `main`: active feature development.
+- `main`: active feature development outside an active RC freeze; during v1.1 RC acceptance, changes are limited to approved release fixes/documentation.
 - `release/1.0.x`: maintenance line for approved v1.0 patch fixes.
 - Patch releases must remain behavior-preserving except for explicitly approved bug fixes.
 - Release tags require explicit confirmation.
@@ -114,13 +142,15 @@ JL Mixing Studio reached its first stable public release after RC4 acceptance, m
 
 ## Deferred items
 
-- Apple Silicon acceptance testing.
+- Apple Silicon acceptance testing when suitable hardware is unavailable.
 - Native Windows support in JL Mixing Automation; Studio currently degrades gracefully when Automation is unavailable.
 - Native Windows platform enablement after the Automation API foundation.
-- Broader UI and workflow enhancements not yet approved into a specific release scope.
-- Post-v1.0 features requiring Automation behavior beyond the approved API contract.
+- Missing Automation-backed Studio UI features, including additional client/project/intake/revision/delivery options, for post-v1.1 planning.
+- Broader UI refinement toward the approved wireframes for post-v1.1 planning.
+- New Automation API capabilities beyond the v1.4/API 1.0 release baseline.
+- Signing/notarization and other post-v1.0 distribution hardening unless separately approved.
 
 ## Known issues and technical debt
 
 - Legacy approval and delivery regression support remains intentionally test-only until all remaining parser-era assertions have explicit structured API equivalents.
-- No known release-blocking defects. New defects should be recorded as GitHub issues and assigned to either the `v1.0.1` patch milestone or the appropriate future milestone.
+- No known release-blocking defects. New RC defects must be recorded as GitHub issues and classified against the coordinated acceptance matrix.
