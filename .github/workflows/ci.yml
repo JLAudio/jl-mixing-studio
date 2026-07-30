@@ -2,9 +2,11 @@ name: CI
 
 on:
   pull_request:
+  push:
+    branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -16,13 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - name: Complete lib domain decomposition
-        run: |
-          python3 scripts/complete_lib_domain_decomposition.py
-          python3 scripts/fix_lib_decomposition_wiring.py
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -35,13 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - name: Complete lib domain decomposition
-        run: |
-          python3 scripts/complete_lib_domain_decomposition.py
-          python3 scripts/fix_lib_decomposition_wiring.py
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
@@ -49,22 +37,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-      - run: cargo fmt --manifest-path src-tauri/Cargo.toml
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
-      - name: Commit lib domain decomposition and restore normal CI
-        env:
-          BRANCH: ${{ github.head_ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm scripts/complete_lib_domain_decomposition.py scripts/fix_lib_decomposition_wiring.py
-          git add .github/workflows/ci.yml src-tauri/src/lib.rs src-tauri/src/commands src-tauri/src/workflows
-          git commit -m "Complete Rust lib domain decomposition"
-          git push origin HEAD:"$BRANCH"
 
   desktop-check:
     name: ${{ matrix.name }} compile check
@@ -81,13 +56,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - name: Complete lib domain decomposition
-        run: |
-          python3 scripts/complete_lib_domain_decomposition.py
-          python3 scripts/fix_lib_decomposition_wiring.py
       - uses: dtolnay/rust-toolchain@stable
       - name: Check desktop compile
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-features
