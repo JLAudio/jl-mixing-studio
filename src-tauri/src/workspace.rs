@@ -19,6 +19,9 @@ const PROJECT_SCHEMA: &str =
     include_str!("../../schemas/jl-mixing-v1.2.0/project-manifest.schema.json");
 const DELIVERY_SCHEMA: &str =
     include_str!("../../schemas/jl-mixing-v1.2.0/delivery-manifest.schema.json");
+// The bundled schema snapshot came from the Automation 1.2.0 release, while metadata schema
+// identity intentionally remains 1.1.0. Product release and metadata schema versions are
+// independent; historical `created_with` values remain valid when the schema contract matches.
 const SUPPORTED_SCHEMA_VERSION: &str = "1.1.0";
 
 pub fn discover_workspace_at(root: &Path) -> WorkspaceSnapshot {
