@@ -21,7 +21,10 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - run: python3 scripts/externalize_frontend_copy.py
+      - name: Apply frontend copy extraction
+        run: |
+          sed -i '$d' scripts/externalize_frontend_copy.py
+          python3 scripts/externalize_frontend_copy.py
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -78,7 +81,10 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
-      - run: python3 scripts/externalize_frontend_copy.py
+      - name: Apply frontend copy extraction
+        run: |
+          sed -i '$d' scripts/externalize_frontend_copy.py
+          python3 scripts/externalize_frontend_copy.py
       - name: Commit validated tree and restore normal CI
         env:
           BRANCH: ${{ github.head_ref }}
