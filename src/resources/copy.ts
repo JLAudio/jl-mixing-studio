@@ -18,6 +18,9 @@ export const copy = {
     notSet: "Not set",
     planned: "Planned",
     breadcrumbLabel: "Breadcrumb",
+    cancel: "Cancel",
+    close: "Close",
+    currentRevision: "Current revision",
   },
   navigation: {
     brandLabel: "JL Mixing Studio",
