@@ -4,6 +4,8 @@ mod client;
 mod delivery;
 #[path = "intake_workflow.rs"]
 mod intake;
+#[path = "project_workflow.rs"]
+mod project;
 #[path = "revision_workflow.rs"]
 mod revision;
 
@@ -32,3 +34,7 @@ pub(super) use studio::run_studio_operation;
 pub(super) use client::run_client_operation;
 #[cfg(test)]
 pub(super) use client::workspace_allows_client_creation;
+
+pub(super) use project::run_project_operation;
+#[cfg(test)]
+pub(super) use project::workspace_allows_project_creation;
