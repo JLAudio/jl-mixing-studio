@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,11 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/issue-112-client-workflow-split
-          fetch-depth: 0
-      - name: Split client workflow
-        run: python3 scripts/split_client_workflow.py
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -35,11 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/issue-112-client-workflow-split
-          fetch-depth: 0
-      - name: Split client workflow
-        run: python3 scripts/split_client_workflow.py
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
@@ -50,16 +40,6 @@ jobs:
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --all-features
-      - name: Commit client split and restore normal CI
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git show origin/main:.github/workflows/ci.yml > .github/workflows/ci.yml
-          rm scripts/split_client_workflow.py
-          git add src-tauri/src/lib.rs src-tauri/src/workflows/mod.rs src-tauri/src/workflows/client.rs .github/workflows/ci.yml scripts/split_client_workflow.py
-          git commit -m "Extract client workflow orchestration"
-          git push origin HEAD:agent/issue-112-client-workflow-split
 
   desktop-check:
     name: ${{ matrix.name }} compile check
@@ -76,11 +56,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: agent/issue-112-client-workflow-split
-          fetch-depth: 0
-      - name: Split client workflow
-        run: python3 scripts/split_client_workflow.py
       - uses: dtolnay/rust-toolchain@stable
       - name: Check desktop compile
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-features

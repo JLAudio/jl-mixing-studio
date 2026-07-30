@@ -7,13 +7,13 @@ mod workflows;
 mod workspace;
 
 use models::{
-    ApprovalOperationResult, ClientCreationRequest, ClientOperationCode, ClientOperationResult,
-    DeliveryCreationRequest, DeliveryNotesDocument, DeliveryNotesRequest,
-    DeliveryNotesUpdateRequest, DeliveryOperationResult, FolderLocation, FolderRequest,
-    FolderResult, IntakeOperationResult, IntakeRequest, ProjectCreationRequest,
-    ProjectOperationCode, ProjectOperationResult, ProjectSummary, RevisionApprovalRequest,
-    RevisionCreationRequest, RevisionOperationResult, StudioCreationRequest, StudioOperationResult,
-    SystemInfo, VersionCheck, WorkspaceSnapshot, WorkspaceStatus,
+    ApprovalOperationResult, ClientCreationRequest, ClientOperationResult, DeliveryCreationRequest,
+    DeliveryNotesDocument, DeliveryNotesRequest, DeliveryNotesUpdateRequest,
+    DeliveryOperationResult, FolderLocation, FolderRequest, FolderResult, IntakeOperationResult,
+    IntakeRequest, ProjectCreationRequest, ProjectOperationCode, ProjectOperationResult,
+    ProjectSummary, RevisionApprovalRequest, RevisionCreationRequest, RevisionOperationResult,
+    StudioCreationRequest, StudioOperationResult, SystemInfo, VersionCheck, WorkspaceSnapshot,
+    WorkspaceStatus,
 };
 #[cfg(test)]
 use models::{
@@ -26,13 +26,14 @@ use tauri::Manager;
 #[cfg(test)]
 use workflows::{
     list_delivery_entries, verify_delivery_artifacts, verify_delivery_creation,
-    verify_revision_approval, verify_revision_creation, workspace_allows_delivery_creation,
-    workspace_allows_intake_report_read, workspace_allows_intake_validation,
-    workspace_allows_revision_approval, workspace_allows_revision_creation,
+    verify_revision_approval, verify_revision_creation, workspace_allows_client_creation,
+    workspace_allows_delivery_creation, workspace_allows_intake_report_read,
+    workspace_allows_intake_validation, workspace_allows_revision_approval,
+    workspace_allows_revision_creation,
 };
 use workflows::{
-    read_intake_report, run_approval_operation, run_delivery_operation, run_intake_operation,
-    run_revision_operation, run_studio_operation,
+    read_intake_report, run_approval_operation, run_client_operation, run_delivery_operation,
+    run_intake_operation, run_revision_operation, run_studio_operation,
 };
 
 #[tauri::command]
@@ -415,44 +416,6 @@ fn resolve_home(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .home_dir()
         .map_err(|_| "The current user's home directory could not be resolved".to_owned())
-}
-
-fn run_client_operation(
-    app: &tauri::AppHandle,
-    request: ClientCreationRequest,
-    operation: fn(
-        &std::path::Path,
-        &std::path::Path,
-        ClientCreationRequest,
-    ) -> ClientOperationResult,
-) -> ClientOperationResult {
-    if cfg!(target_os = "windows") {
-        return cli::blocked_client_operation(
-            ClientOperationCode::UnsupportedPlatform,
-            "Client creation requires JL Mixing Automation on macOS or Linux",
-        );
-    }
-
-    let home = match resolve_home(app) {
-        Ok(home) => home,
-        Err(message) => {
-            return cli::blocked_client_operation(ClientOperationCode::Failed, &message)
-        }
-    };
-    let workspace_path = home.join("Music").join("Mixes");
-    let snapshot = workspace::discover_workspace_at(&workspace_path);
-    if !workspace_allows_client_creation(snapshot.status) {
-        return cli::blocked_client_operation(
-            ClientOperationCode::WorkspaceBlocked,
-            "Resolve workspace issues before creating a client",
-        );
-    }
-
-    operation(&home, &workspace_path, request)
-}
-
-fn workspace_allows_client_creation(status: WorkspaceStatus) -> bool {
-    matches!(status, WorkspaceStatus::Healthy | WorkspaceStatus::Empty)
 }
 
 fn run_project_operation(
