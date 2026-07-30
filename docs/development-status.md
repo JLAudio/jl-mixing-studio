@@ -43,7 +43,8 @@ Studio-owned consumer work:
 - `client.create`, `project.create`, `revision.create`, `intake.validate`, `revision.approve`, and `delivery.create` migrated to the structured API boundary.
 - Delivery clean-replacement confirmation revalidates the exact provider deletion inventory immediately before destructive execution (PR #96).
 - CLI runtime refactored into domain-focused modules under #85 / PR #94.
-- Tunable frontend presentation copy centralized into the typed `src/resources/copy.ts` domain resource layer under #134 / PRs #138–#141.
+- Tunable frontend presentation copy centralized into the typed `src/resources/copy.ts` domain resource layer under #134 / PRs #138–#142.
+- Frontend source reorganized around product-domain ownership under #137 / PRs #143–#166, including domain-owned workflow UI, models, views, shell policy, and workflow controllers with `App.tsx` reduced to composition and cross-domain orchestration.
 
 ## Coding-standards audit
 
@@ -65,6 +66,18 @@ Intentional maintainability exceptions:
 - `delivery_legacy_testsupport.rs` remains test-only compatibility scaffolding and includes a >100-line legacy parser. It is intentionally not decomposed further because it will be removed once every remaining parser-era regression assertion has structured Automation API coverage.
 - `revision_legacy_testsupport.rs` remains test-only for the same compatibility purpose and is within normal size thresholds.
 
+## Frontend domain ownership
+
+The v1.1 frontend domain refactor tracked by #137 is complete:
+
+- Product implementation now lives under explicit `client/`, `project/`, `intake/`, `revision/`, `approval/`, `delivery/`, `studio/`, `settings/`, `shell/`, `resources/`, and `ui/` ownership.
+- Workflow state machines and Tauri operation handling are owned by domain controller hooks rather than `App.tsx`.
+- `App.tsx` remains the composition root for routing, selection state, shared workspace/version discovery, and deliberate cross-domain coordination.
+- Former top-level App buckets such as `AppWorkflows.tsx`, `AppProjectViews.tsx`, `AppWorkflowModels.ts`, `AppWorkflowAvailability.ts`, and `AppRouteContext.ts` no longer own large implementations. Where retained, they are small compatibility/re-export surfaces rather than architectural ownership boundaries.
+- `AppViews.tsx` remains a minimal compatibility barrel over shell and domain views. It can be removed opportunistically if direct imports provide a concrete maintenance benefit; its current two-line form is not an implementation bucket.
+- `types.ts` intentionally remains centralized for stable cross-domain Automation/Tauri request, result, workspace, and serialized-data contract types. Domain-specific UI/workflow state belongs with the owning domain instead of being added there.
+- Preview/confirm/commit behavior, uncertainty/no-retry handling, Tauri command names, filesystem semantics, and serialized/API contracts were preserved throughout the refactor.
+
 ## Copy and operational-message ownership
 
 JL Mixing Studio uses a deliberate resource boundary for user-facing wording:
@@ -78,7 +91,7 @@ JL Mixing Studio uses a deliberate resource boundary for user-facing wording:
 
 ## Current work
 
-- Continue v1.1 UI refinement and approved feature work from the cleaned architecture and typed copy/resource boundary.
+- Continue v1.1 UI refinement and approved feature work from the domain-oriented frontend architecture and typed copy/resource boundary.
 
 ## Next work
 
