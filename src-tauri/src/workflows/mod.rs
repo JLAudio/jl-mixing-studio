@@ -1,6 +1,10 @@
+#[path = "client_workflow.rs"]
 mod client;
+#[path = "delivery_workflow.rs"]
 mod delivery;
+#[path = "intake_workflow.rs"]
 mod intake;
+#[path = "revision_workflow.rs"]
 mod revision;
 
 pub(super) use delivery::run_delivery_operation;
@@ -21,6 +25,7 @@ pub(super) use intake::{read_intake_report, run_intake_operation};
 #[cfg(test)]
 pub(super) use intake::{workspace_allows_intake_report_read, workspace_allows_intake_validation};
 
+#[path = "studio_workflow.rs"]
 mod studio;
 pub(super) use studio::run_studio_operation;
 
