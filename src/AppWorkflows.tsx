@@ -282,7 +282,7 @@ export function StudioRoute({ workspace, version, loading, setupAvailable, setup
   if (!snapshot.studio) {
     const unavailable = snapshot.status === "unavailable";
     return <section className="planned-route" aria-labelledby="studio-state-heading">
-      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? productCopy.studio.notConfigured : productCopy.studio.recoveryRequired}</span><h2 id="studio-state-heading">{unavailable ? productCopy.studio.createDefaultWorkspace : productCopy.studio.configurationUnreadable}</h2><p>{unavailable ? <>{productCopy.studio.guidedSetupPrefix} <code>~/Music/Mixes</code>.</> : productCopy.studio.checkSetupIssues}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">{productCopy.studio.newStudio}</button></div>
+      <div className="planned-banner"><div><span className="status-pill warning">{unavailable ? productCopy.studio.notConfigured : productCopy.studio.recoveryRequired}</span><h2 id="studio-state-heading">{unavailable ? productCopy.studio.createDefaultWorkspace : productCopy.studio.configurationUnreadable}</h2><p>{unavailable ? <>{productCopy.studio.guidedSetupPrefix} ~/Music/Mixes.</> : productCopy.studio.checkSetupIssues}</p></div><button type="button" onClick={onSetup} disabled={!setupAvailable || loading} aria-describedby="studio-setup-help">{productCopy.studio.newStudio}</button></div>
       <p id="studio-setup-help" className="action-help">{setupHelp}</p>
       {snapshot.issues.length > 0 && <RouteIssues snapshot={snapshot} />}
     </section>;
