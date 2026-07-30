@@ -371,25 +371,23 @@ export function ClientDialog({
         aria-modal="true"
         aria-labelledby="client-dialog-title"
       >
-        <p className="kicker">Guided setup</p>
+        <p className="kicker">{productCopy.clients.guidedSetup}</p>
         <h2 id="client-dialog-title">
           {state.status === "confirming" || state.status === "creating"
-            ? "Confirm new client"
+            ? productCopy.clients.confirmNewClient
             : state.status === "uncertain"
-              ? "Creation needs verification"
-              : "New client"}
+              ? productCopy.clients.creationVerification
+              : productCopy.clients.newClient}
         </h2>
 
         {(state.status === "editing" || state.status === "preflighting") && (
           <form onSubmit={onPreflight} noValidate>
-            <p className="dialog-intro">
-              Audio and delivery settings will inherit the current studio defaults.
-            </p>
+            <p className="dialog-intro">{productCopy.clients.inheritDefaults}</p>
             {state.status === "editing" && state.error && (
               <div className="form-error" role="alert">{state.error}</div>
             )}
             <label>
-              Client ID
+              {productCopy.clients.clientId}
               <input
                 ref={clientIdInput}
                 name="clientId"
@@ -403,10 +401,10 @@ export function ClientDialog({
                 disabled={pending}
                 required
               />
-              <small>Lowercase letters and numbers separated by single hyphens.</small>
+              <small>{productCopy.clients.clientIdHelp}</small>
             </label>
             <label>
-              Display name
+              {productCopy.clients.displayName}
               <input
                 name="clientName"
                 value={values.clientName}
@@ -418,7 +416,7 @@ export function ClientDialog({
               />
             </label>
             <label>
-              Default artist <span>(optional)</span>
+              {productCopy.clients.defaultArtist} <span>{productCopy.clients.optional}</span>
               <input
                 name="defaultArtist"
                 value={values.defaultArtist}
@@ -430,10 +428,10 @@ export function ClientDialog({
             </label>
             <div className="dialog-actions">
               <button type="button" className="secondary" onClick={onClose} disabled={pending}>
-                Cancel
+                {productCopy.common.cancel}
               </button>
               <button type="submit" disabled={pending}>
-                {pending ? "Checking…" : "Review client"}
+                {pending ? productCopy.common.checking : productCopy.clients.reviewClient}
               </button>
             </div>
           </form>
@@ -441,20 +439,18 @@ export function ClientDialog({
 
         {(state.status === "confirming" || state.status === "creating") && (
           <div>
-            <p className="dialog-intro">
-              Preflight passed without changing the workspace. Confirm to create this client.
-            </p>
+            <p className="dialog-intro">{productCopy.clients.confirmationIntro}</p>
             <dl className="confirmation-list">
-              <div><dt>Client ID</dt><dd>{state.preview.clientId}</dd></div>
-              <div><dt>Display name</dt><dd>{state.preview.clientName}</dd></div>
-              <div><dt>Default artist</dt><dd>{state.preview.defaultArtist ?? "Not set"}</dd></div>
+              <div><dt>{productCopy.clients.clientId}</dt><dd>{state.preview.clientId}</dd></div>
+              <div><dt>{productCopy.clients.displayName}</dt><dd>{state.preview.clientName}</dd></div>
+              <div><dt>{productCopy.clients.defaultArtist}</dt><dd>{state.preview.defaultArtist ?? productCopy.common.notSet}</dd></div>
             </dl>
             <div className="dialog-actions">
               <button type="button" className="secondary" onClick={onClose} disabled={pending}>
-                Cancel
+                {productCopy.common.cancel}
               </button>
               <button type="button" className="secondary" onClick={onBack} disabled={pending}>
-                Back
+                {productCopy.common.back}
               </button>
               <button
                 ref={confirmButton}
@@ -462,7 +458,7 @@ export function ClientDialog({
                 onClick={onConfirm}
                 disabled={pending}
               >
-                {pending ? "Creating…" : "Create client"}
+                {pending ? productCopy.clients.creating : productCopy.clients.createClient}
               </button>
             </div>
           </div>
@@ -471,9 +467,7 @@ export function ClientDialog({
         {state.status === "uncertain" && (
           <div>
             <div className="form-error" role="alert">{state.message}</div>
-            <p className="dialog-intro">
-              Do not submit the request again automatically. Close this message and use Refresh to inspect the workspace.
-            </p>
+            <p className="dialog-intro">{productCopy.clients.uncertainHelp}</p>
             <div className="dialog-actions">
               <button type="button" onClick={onClose}>{productCopy.common.close}</button>
             </div>
@@ -533,46 +527,44 @@ export function ProjectDialog({
         aria-modal="true"
         aria-labelledby="project-dialog-title"
       >
-        <p className="kicker">Guided setup</p>
+        <p className="kicker">{productCopy.projects.guidedSetup}</p>
         <h2 id="project-dialog-title">
           {state.status === "confirming" || state.status === "creating"
-            ? "Confirm new project"
+            ? productCopy.projects.confirmNewProject
             : state.status === "uncertain"
-              ? "Creation needs verification"
-              : "New project"}
+              ? productCopy.projects.creationVerification
+              : productCopy.projects.newProject}
         </h2>
 
         {editing && (
           <form onSubmit={onPreflight} noValidate>
-            <p className="dialog-intro">
-              Audio and delivery settings inherit the selected client and studio defaults. Revision 1 is created automatically.
-            </p>
+            <p className="dialog-intro">{productCopy.projects.inheritDefaults}</p>
             {state.status === "editing" && state.error && (
               <div className="form-error" role="alert">{state.error}</div>
             )}
             <label>
-              Client
+              {productCopy.projects.client}
               <select
                 ref={clientSelect}
-                aria-label="Client"
+                aria-label={productCopy.projects.client}
                 name="clientId"
                 value={values.clientId}
                 onChange={(event) => onChange({ ...values, clientId: event.target.value })}
                 disabled={pending || lockedClientId !== null}
                 required
               >
-                <option value="">Select a client</option>
+                <option value="">{productCopy.projects.selectClient}</option>
                 {clients.map((client) => (
                   <option key={client.clientId} value={client.clientId}>{client.clientName}</option>
                 ))}
               </select>
-              {lockedClientId && <small>This project will be created for the current client.</small>}
+              {lockedClientId && <small>{productCopy.projects.currentClientHelp}</small>}
             </label>
             <label>
-              Project name
+              {productCopy.projects.projectName}
               <input
                 ref={projectNameInput}
-                aria-label="Project name"
+                aria-label={productCopy.projects.projectName}
                 name="projectName"
                 value={values.projectName}
                 onChange={(event) => onChange({ ...values, projectName: event.target.value })}
@@ -581,44 +573,42 @@ export function ProjectDialog({
                 disabled={pending}
                 required
               />
-              <small>JL Mixing Automation derives the stable project ID.</small>
+              <small>{productCopy.projects.projectIdHelp}</small>
             </label>
             <label>
-              Artist <span>(optional)</span>
+              {productCopy.projects.artist} <span>{productCopy.projects.optional}</span>
               <input
                 name="artist"
-                aria-label="Artist"
+                aria-label={productCopy.projects.artist}
                 value={values.artist}
                 onChange={(event) => onChange({ ...values, artist: event.target.value })}
-                placeholder="Use the client default"
+                placeholder={productCopy.projects.useClientDefault}
                 autoComplete="off"
                 disabled={pending}
               />
             </label>
             <div className="dialog-actions">
               <button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button>
-              <button type="submit" disabled={pending}>{pending ? "Checking…" : "Review project"}</button>
+              <button type="submit" disabled={pending}>{pending ? productCopy.common.checking : productCopy.projects.reviewProject}</button>
             </div>
           </form>
         )}
 
         {(state.status === "confirming" || state.status === "creating") && (
           <div>
-            <p className="dialog-intro">
-              Preflight passed without changing the workspace. Confirm to create this project and Revision 1.
-            </p>
+            <p className="dialog-intro">{productCopy.projects.confirmationIntro}</p>
             <dl className="confirmation-list">
-              <div><dt>Client</dt><dd>{clients.find((client) => client.clientId === state.preview.clientId)?.clientName ?? state.preview.clientId}</dd></div>
-              <div><dt>Project</dt><dd>{state.preview.projectName}</dd></div>
-              <div><dt>Project ID</dt><dd><code>{state.preview.projectId}</code></dd></div>
-              <div><dt>Artist</dt><dd>{state.preview.artist}</dd></div>
-              <div><dt>Initial revision</dt><dd>Revision 1</dd></div>
+              <div><dt>{productCopy.projects.client}</dt><dd>{clients.find((client) => client.clientId === state.preview.clientId)?.clientName ?? state.preview.clientId}</dd></div>
+              <div><dt>{productCopy.common.project}</dt><dd>{state.preview.projectName}</dd></div>
+              <div><dt>{productCopy.projects.projectId}</dt><dd><code>{state.preview.projectId}</code></dd></div>
+              <div><dt>{productCopy.projects.artist}</dt><dd>{state.preview.artist}</dd></div>
+              <div><dt>{productCopy.projects.initialRevision}</dt><dd>Revision 1</dd></div>
             </dl>
             <div className="dialog-actions">
               <button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button>
-              <button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button>
+              <button type="button" className="secondary" onClick={onBack} disabled={pending}>{productCopy.common.back}</button>
               <button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending}>
-                {pending ? "Creating…" : "Create project"}
+                {pending ? productCopy.projects.creating : productCopy.projects.createProject}
               </button>
             </div>
           </div>
@@ -627,9 +617,7 @@ export function ProjectDialog({
         {state.status === "uncertain" && (
           <div>
             <div className="form-error" role="alert">{state.message}</div>
-            <p className="dialog-intro">
-              Do not submit the request again automatically. Close this message and use Refresh to inspect the workspace.
-            </p>
+            <p className="dialog-intro">{productCopy.projects.uncertainHelp}</p>
             <div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div>
           </div>
         )}
