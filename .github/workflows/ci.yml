@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -18,14 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - name: Apply frontend copy extraction
-        run: |
-          sed -i '$d' scripts/externalize_frontend_copy.py
-          python3 scripts/externalize_frontend_copy.py
-          python3 scripts/fix_frontend_copy_alias.py
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -38,8 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
       - name: Install Tauri Linux dependencies
         run: |
           sudo apt-get update
@@ -66,36 +56,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Check desktop compile
         run: cargo check --manifest-path src-tauri/Cargo.toml --all-features
-
-  finalize:
-    name: Commit validated copy extraction
-    needs: [frontend, rust, desktop-check]
-    runs-on: ubuntu-latest
-    if: ${{ success() && github.event_name == 'pull_request' }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
-      - name: Apply frontend copy extraction
-        run: |
-          sed -i '$d' scripts/externalize_frontend_copy.py
-          python3 scripts/externalize_frontend_copy.py
-          python3 scripts/fix_frontend_copy_alias.py
-      - name: Commit validated tree and restore normal CI
-        env:
-          BRANCH: ${{ github.head_ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin main
-          git checkout origin/main -- .github/workflows/ci.yml
-          git rm -f scripts/externalize_frontend_copy.py scripts/fix_frontend_copy_alias.py
-          git add .github/workflows/ci.yml src/resources/copy.ts src/ui/routes.ts src/AppShellViews.tsx src/AppProjectViews.tsx
-          git commit -m "Externalize frontend product copy"
-          git push origin HEAD:"$BRANCH"

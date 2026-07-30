@@ -21,9 +21,10 @@ import {
   type ProjectView,
   type ResourceState,
 } from "./AppShellViews";
+import { copy as productCopy } from "./resources/copy";
 
 const revisionLabel = (revision: number | null) =>
-  revision === null ? "Not set" : `Revision ${revision}`;
+  revision === null ? productCopy.common.notSet : `${productCopy.projects.revisionPrefix} ${revision}`;
 
 export function ClientsRoute({
   workspace,
@@ -42,18 +43,18 @@ export function ClientsRoute({
   clientCreationAvailable: boolean;
   clientCreationHelp: string;
 }) {
-  if (workspace.status === "loading") return <section className="notice" aria-live="polite">Reading clients…</section>;
-  if (workspace.status === "error") return <section className="notice error" role="alert"><strong>Clients could not be loaded</strong><span>{workspace.message}</span></section>;
+  if (workspace.status === "loading") return <section className="notice" aria-live="polite">{productCopy.clients.reading}</section>;
+  if (workspace.status === "error") return <section className="notice error" role="alert"><strong>{productCopy.clients.loadFailed}</strong><span>{workspace.message}</span></section>;
   const snapshot = workspace.value;
 
   return (
     <>
       <section className="directory-toolbar" aria-labelledby="client-directory-heading">
-        <div><p className="kicker">Your studio</p><h2 id="client-directory-heading">{snapshot.counts.clients} {snapshot.counts.clients === 1 ? "client" : "clients"}</h2></div>
-        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" onClick={onNewClient} disabled={!clientCreationAvailable} aria-describedby="clients-new-client-help">New client</button></div>
+        <div><p className="kicker">{productCopy.clients.studioKicker}</p><h2 id="client-directory-heading">{snapshot.counts.clients} {snapshot.counts.clients === 1 ? productCopy.clients.singular : productCopy.clients.plural}</h2></div>
+        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? productCopy.common.refreshing : productCopy.common.refresh}</button><button type="button" onClick={onNewClient} disabled={!clientCreationAvailable} aria-describedby="clients-new-client-help">{productCopy.clients.newClient}</button></div>
       </section>
       <p id="clients-new-client-help" className="action-help directory-help">{clientCreationHelp}</p>
-      <ContextSearch label="Clients" />
+      <ContextSearch label={productCopy.clients.searchLabel} />
 
       {(snapshot.status === "unavailable" || snapshot.status === "invalid" || snapshot.status === "empty") && (
         <WorkspaceContent snapshot={snapshot} />
@@ -61,13 +62,13 @@ export function ClientsRoute({
       {snapshot.clients.length > 0 && (
         <div className="table-scroll directory-table">
           <table>
-            <thead><tr><th scope="col">Client</th><th scope="col">Client ID</th><th scope="col">Default artist</th><th scope="col">Projects</th></tr></thead>
+            <thead><tr><th scope="col">{productCopy.clients.tableClient}</th><th scope="col">{productCopy.clients.tableClientId}</th><th scope="col">{productCopy.clients.tableDefaultArtist}</th><th scope="col">{productCopy.clients.tableProjects}</th></tr></thead>
             <tbody>
               {snapshot.clients.map((client) => (
                 <tr key={client.clientId}>
                   <td><button type="button" className="table-link" onClick={() => onSelectClient(client.clientId)}>{client.clientName}</button></td>
                   <td><code>{client.clientId}</code></td>
-                  <td>{client.defaultArtist || "Not set"}</td>
+                  <td>{client.defaultArtist || productCopy.common.notSet}</td>
                   <td>{client.projects.length}</td>
                 </tr>
               ))}
@@ -101,20 +102,20 @@ export function ClientDetails({
 }) {
   return (
     <>
-      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb">
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label={productCopy.common.breadcrumbLabel}>
         <button type="button" onClick={onBack}>Clients</button><span aria-hidden="true">/</span><span aria-current="page">{client.clientName}</span>
-      </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
-      <section className="detail-summary" aria-label="Client details">
-        <article><span>Client ID</span><strong><code>{client.clientId}</code></strong></article>
-        <article><span>Default artist</span><strong>{client.defaultArtist || "Not set"}</strong></article>
-        <article><span>Projects</span><strong>{client.projects.length}</strong></article>
+      </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? productCopy.common.refreshing : productCopy.common.refresh}</button></div>
+      <section className="detail-summary" aria-label={productCopy.clients.detailsLabel}>
+        <article><span>{productCopy.clients.tableClientId}</span><strong><code>{client.clientId}</code></strong></article>
+        <article><span>{productCopy.clients.tableDefaultArtist}</span><strong>{client.defaultArtist || productCopy.common.notSet}</strong></article>
+        <article><span>{productCopy.clients.tableProjects}</span><strong>{client.projects.length}</strong></article>
       </section>
-      <aside className="route-note"><strong>Read only</strong><span>Client editing isn’t available yet.</span></aside>
+      <aside className="route-note"><strong>{productCopy.clients.readOnly}</strong><span>{productCopy.clients.editingUnavailable}</span></aside>
       <section className="detail-section" aria-labelledby="client-projects-heading">
-        <div className="panel-heading"><div><p className="kicker">Client projects</p><h2 id="client-projects-heading">Projects for {client.clientName}</h2></div><div className="directory-actions"><button type="button" disabled className="planned-action">Edit client <span>Planned</span></button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="client-new-project-help">New project</button></div></div>
+        <div className="panel-heading"><div><p className="kicker">{productCopy.clients.projectsKicker}</p><h2 id="client-projects-heading">{productCopy.clients.projectsFor} {client.clientName}</h2></div><div className="directory-actions"><button type="button" disabled className="planned-action">{productCopy.clients.editClient} <span>{productCopy.common.planned}</span></button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="client-new-project-help">{productCopy.clients.newProject}</button></div></div>
         <p id="client-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
         {client.projects.length === 0 ? (
-          <div className="planned-message compact"><strong>No projects for this client.</strong><p>Create the first project when you’re ready.</p></div>
+          <div className="planned-message compact"><strong>{productCopy.clients.noProjects}</strong><p>{productCopy.clients.createFirstProject}</p></div>
         ) : (
           <div className="table-scroll">
             <table>
@@ -155,24 +156,24 @@ export function ProjectsRoute({
   projectCreationAvailable: boolean;
   projectCreationHelp: string;
 }) {
-  if (workspace.status === "loading") return <section className="notice" aria-live="polite">Reading projects…</section>;
-  if (workspace.status === "error") return <section className="notice error" role="alert"><strong>Projects could not be loaded</strong><span>{workspace.message}</span></section>;
+  if (workspace.status === "loading") return <section className="notice" aria-live="polite">{productCopy.projects.reading}</section>;
+  if (workspace.status === "error") return <section className="notice error" role="alert"><strong>{productCopy.projects.loadFailed}</strong><span>{workspace.message}</span></section>;
   const snapshot = workspace.value;
   const entries: ProjectEntry[] = snapshot.clients.flatMap((client) => client.projects.map((project) => ({ client, project })));
 
   return (
     <>
       <section className="directory-toolbar" aria-labelledby="project-directory-heading">
-        <div><p className="kicker">Your studio</p><h2 id="project-directory-heading">{entries.length} {entries.length === 1 ? "project" : "projects"}</h2></div>
-        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="projects-new-project-help">New project</button></div>
+        <div><p className="kicker">{productCopy.clients.studioKicker}</p><h2 id="project-directory-heading">{entries.length} {entries.length === 1 ? productCopy.projects.singular : productCopy.projects.plural}</h2></div>
+        <div className="directory-actions"><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? productCopy.common.refreshing : productCopy.common.refresh}</button><button type="button" onClick={onNewProject} disabled={!projectCreationAvailable} aria-describedby="projects-new-project-help">{productCopy.clients.newProject}</button></div>
       </section>
       <p id="projects-new-project-help" className="action-help directory-help">{projectCreationHelp}</p>
-      <ContextSearch label="Projects" />
+      <ContextSearch label={productCopy.projects.searchLabel} />
       {(snapshot.status === "unavailable" || snapshot.status === "invalid" || snapshot.status === "empty") && <WorkspaceContent snapshot={snapshot} />}
       {entries.length > 0 && (
         <div className="table-scroll directory-table">
           <table>
-            <thead><tr><th scope="col">Project</th><th scope="col">Client</th><th scope="col">Artist</th><th scope="col">Current</th><th scope="col">Approved</th><th scope="col">Delivered</th></tr></thead>
+            <thead><tr><th scope="col">{productCopy.projects.tableProject}</th><th scope="col">{productCopy.projects.tableClient}</th><th scope="col">{productCopy.projects.tableArtist}</th><th scope="col">{productCopy.projects.current}</th><th scope="col">{productCopy.projects.approved}</th><th scope="col">{productCopy.projects.delivered}</th></tr></thead>
             <tbody>{entries.map(({ client, project }) => (
               <tr key={`${client.clientId}:${project.projectId}`}>
                 <td><button type="button" className="table-link" onClick={() => onSelectProject(client.clientId, project.projectId)}>{project.projectName}</button></td>
@@ -194,9 +195,9 @@ export function ProjectWorkflowTabs({
   active: ProjectView;
   onSelect: (view: ProjectView) => void;
 }) {
-  const tabs: Array<[ProjectView, string]> = [["overview", "Overview"], ["intake", "Intake"], ["revisions", "Revisions"], ["delivery", "Delivery"], ["reports", "Reports"], ["files", "Files"], ["metadata", "Metadata"]];
+  const tabs: Array<[ProjectView, string]> = (["overview", "intake", "revisions", "delivery", "reports", "files", "metadata"] as const).map((view) => [view, productCopy.projects.tabs[view]]);
   return (
-    <div className="workflow-tabs" aria-label="Project workflow">
+    <div className="workflow-tabs" aria-label={productCopy.projects.workflowLabel}>
       {tabs.map(([view, label]) => active === view ? <span key={view} aria-current="page">{label}</span> : <button key={view} type="button" onClick={() => onSelect(view)}>{label}</button>)}
     </div>
   );
@@ -233,27 +234,27 @@ export function ProjectOverview({
 }) {
   return (
     <>
-      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb">
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label={productCopy.common.breadcrumbLabel}>
         <button type="button" onClick={onProjects}>Projects</button><span aria-hidden="true">/</span>
         {fromClient && <><button type="button" onClick={onClient}>{client.clientName}</button><span aria-hidden="true">/</span></>}
         <span aria-current="page">{project.projectName}</span>
-      </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+      </nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? productCopy.common.refreshing : productCopy.common.refresh}</button></div>
       <ProjectWorkflowTabs active="overview" onSelect={onSelectView} />
-      <section className="detail-summary project-revisions" aria-label="Project revision state">
-        <article><span>Current</span><strong>{revisionLabel(project.currentRevision)}</strong></article>
-        <article><span>Approved</span><strong>{revisionLabel(project.approvedRevision)}</strong></article>
-        <article><span>Delivered</span><strong>{revisionLabel(project.deliveredRevision)}</strong></article>
+      <section className="detail-summary project-revisions" aria-label={productCopy.projects.revisionStateLabel}>
+        <article><span>{productCopy.projects.current}</span><strong>{revisionLabel(project.currentRevision)}</strong></article>
+        <article><span>{productCopy.projects.approved}</span><strong>{revisionLabel(project.approvedRevision)}</strong></article>
+        <article><span>{productCopy.projects.delivered}</span><strong>{revisionLabel(project.deliveredRevision)}</strong></article>
       </section>
       <div className="project-detail-grid">
         <section className="panel" aria-labelledby="project-information-heading">
-          <div className="panel-heading"><div><p className="kicker">Project information</p><h2 id="project-information-heading">Project details</h2></div></div>
+          <div className="panel-heading"><div><p className="kicker">{productCopy.projects.informationKicker}</p><h2 id="project-information-heading">{productCopy.projects.detailsTitle}</h2></div></div>
           <dl className="metadata-list">
-            <div><dt>Client</dt><dd>{client.clientName}</dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Deadline</dt><dd>{project.deadline ?? "Not set"}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate / 1000} kHz / {project.bitDepth}-bit / {project.fileFormat}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Created with</dt><dd>{project.createdWith}</dd></div>
+            <div><dt>{productCopy.projects.tableClient}</dt><dd>{client.clientName}</dd></div><div><dt>{productCopy.projects.projectId}</dt><dd><code>{project.projectId}</code></dd></div><div><dt>{productCopy.projects.tableArtist}</dt><dd>{project.artist}</dd></div><div><dt>{productCopy.projects.deadline}</dt><dd>{project.deadline ?? productCopy.common.notSet}</dd></div><div><dt>{productCopy.projects.audio}</dt><dd>{project.sampleRate / 1000} kHz / {project.bitDepth}-bit / {project.fileFormat}</dd></div><div><dt>{productCopy.projects.schema}</dt><dd>{project.schemaVersion}</dd></div><div><dt>{productCopy.projects.createdWith}</dt><dd>{project.createdWith}</dd></div>
           </dl>
         </section>
         <section className="panel" aria-labelledby="project-actions-heading">
-          <div className="panel-heading"><div><p className="kicker">Project actions</p><h2 id="project-actions-heading">Keep the project moving</h2></div></div>
-          <div className="action-stack"><button type="button" disabled>Open DAW — Planned</button><button type="button" onClick={onIntake}>Validate intake</button><button type="button" onClick={onNewRevision} disabled={!revisionCreationAvailable || loading}>New revision</button><button type="button" onClick={onRevisions}>View revisions</button></div>
+          <div className="panel-heading"><div><p className="kicker">{productCopy.projects.actionsKicker}</p><h2 id="project-actions-heading">{productCopy.projects.actionsTitle}</h2></div></div>
+          <div className="action-stack"><button type="button" disabled>{productCopy.projects.openDawPlanned}</button><button type="button" onClick={onIntake}>{productCopy.projects.validateIntake}</button><button type="button" onClick={onNewRevision} disabled={!revisionCreationAvailable || loading}>{productCopy.projects.newRevision}</button><button type="button" onClick={onRevisions}>{productCopy.projects.viewRevisions}</button></div>
           <FolderControl location="project" clientId={client.clientId} projectId={project.projectId} />
           <p className="action-help">{revisionCreationHelp}</p>
         </section>
@@ -331,7 +332,7 @@ export function IntakeView({
   const result = reportState.status === "ready" ? reportState.value : null;
   return (
     <>
-      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Intake</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label={productCopy.common.breadcrumbLabel}><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Intake</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? productCopy.common.refreshing : productCopy.common.refresh}</button></div>
       <ProjectWorkflowTabs active="intake" onSelect={onSelectView} />
       <section className="directory-toolbar intake-toolbar" aria-labelledby="intake-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="intake-heading">Intake validation</h2></div>
@@ -398,11 +399,11 @@ export function RevisionsView({
 
   return (
     <>
-      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Revisions</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+      <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label={productCopy.common.breadcrumbLabel}><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Revisions</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? productCopy.common.refreshing : productCopy.common.refresh}</button></div>
       <ProjectWorkflowTabs active="revisions" onSelect={onSelectView} />
       <section className="directory-toolbar revision-toolbar" aria-labelledby="revisions-heading">
         <div><p className="kicker">{client.clientName}</p><h2 id="revisions-heading">Revision history</h2></div>
-        <div className="directory-actions"><button type="button" onClick={onNewRevision} disabled={!creationAvailable || loading}>New revision</button><button type="button" onClick={() => { if (selected) onApprove(selected); }} disabled={!selected || !approvalAvailable || selected.number === project.approvedRevision || loading}>Approve revision</button></div>
+        <div className="directory-actions"><button type="button" onClick={onNewRevision} disabled={!creationAvailable || loading}>{productCopy.projects.newRevision}</button><button type="button" onClick={() => { if (selected) onApprove(selected); }} disabled={!selected || !approvalAvailable || selected.number === project.approvedRevision || loading}>Approve revision</button></div>
       </section>
       <p className="action-help directory-help">{creationHelp}</p>
       <p className="action-help directory-help">{selected?.number === project.approvedRevision ? "The selected revision is already approved." : approvalHelp}</p>
@@ -453,7 +454,7 @@ export function ProjectArtifactsView({ active, client, project, onSelectView }: 
     <section className="directory-toolbar"><div><p className="kicker">{client.clientName}</p><h2>{active === "reports" ? "Project reports" : active === "files" ? "Project files" : "Project metadata"}</h2></div></section>
     {active === "reports" && <div className="project-detail-grid"><section className="panel"><h3>Intake validation report</h3><p>{intake ? `${intake.filesDiscovered} files · ${intake.blockingErrors} blocking errors · ${intake.warnings} warnings` : "No readable intake report is recorded."}</p>{intake && <code>{intake.source}</code>}</section><section className="panel"><h3>Delivery details</h3><p>{project.delivery ? `Revision ${project.delivery.revision} · ${project.delivery.files.length} files · ${project.delivery.method}` : "No delivery package has been recorded yet."}</p>{project.delivery && <code>05_Final_Delivery/delivery-manifest.json</code>}</section></div>}
     {active === "files" && <section className="panel"><div className="table-scroll"><table><thead><tr><th>File</th><th>Source</th><th>Details</th></tr></thead><tbody>{intake?.inventory.map((file) => <tr key={`intake-${file.file}`}><td><code>{file.file}</code></td><td>Intake report</td><td>{file.technicalDetails}</td></tr>)}{project.delivery?.files.map((file) => <tr key={`delivery-${file.path}`}><td><code>{file.path}</code></td><td>Delivery details</td><td>{file.deliverableType.replace(/_/g, " ")} · {file.sizeBytes.toLocaleString()} bytes</td></tr>)}{!intake?.inventory.length && !project.delivery?.files.length && <tr><td colSpan={3}>No files are recorded in the available project reports.</td></tr>}</tbody></table></div></section>}
-    {active === "metadata" && <section className="panel"><dl className="metadata-list"><div><dt>Client ID</dt><dd><code>{client.clientId}</code></dd></div><div><dt>Project ID</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Project</dt><dd>{project.projectName}</dd></div><div><dt>Artist</dt><dd>{project.artist}</dd></div><div><dt>Created</dt><dd>{project.createdAt}</dd></div><div><dt>Schema</dt><dd>{project.schemaVersion}</dd></div><div><dt>Audio</dt><dd>{project.sampleRate} Hz · {project.bitDepth}-bit {project.fileFormat}</dd></div><div><dt>Delivery method</dt><dd>{project.deliveryMethod}</dd></div><div><dt>Current / approved / delivered</dt><dd>{project.currentRevision} / {project.approvedRevision ?? "—"} / {project.deliveredRevision ?? "—"}</dd></div></dl></section>}
+    {active === "metadata" && <section className="panel"><dl className="metadata-list"><div><dt>Client ID</dt><dd><code>{client.clientId}</code></dd></div><div><dt>{productCopy.projects.projectId}</dt><dd><code>{project.projectId}</code></dd></div><div><dt>Project</dt><dd>{project.projectName}</dd></div><div><dt>{productCopy.projects.tableArtist}</dt><dd>{project.artist}</dd></div><div><dt>Created</dt><dd>{project.createdAt}</dd></div><div><dt>{productCopy.projects.schema}</dt><dd>{project.schemaVersion}</dd></div><div><dt>{productCopy.projects.audio}</dt><dd>{project.sampleRate} Hz · {project.bitDepth}-bit {project.fileFormat}</dd></div><div><dt>Delivery method</dt><dd>{project.deliveryMethod}</dd></div><div><dt>Current / approved / delivered</dt><dd>{project.currentRevision} / {project.approvedRevision ?? "—"} / {project.deliveredRevision ?? "—"}</dd></div></dl></section>}
     <FolderControl location="project" clientId={client.clientId} projectId={project.projectId} />
   </>;
 }
@@ -520,7 +521,7 @@ export function DeliveryView({ clientId, project, loading, actionError, creation
         ? { title: "Delivery is current", detail: `The current package contains approved Revision ${project.deliveredRevision}.` }
         : { title: "New delivery available", detail: `The current package contains Revision ${project.deliveredRevision}; approved Revision ${project.approvedRevision} is ready for a replacement delivery.` };
   return <>
-    <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label="Breadcrumb"><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Delivery</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></div>
+    <div className="detail-navigation-row"><nav className="breadcrumbs" aria-label={productCopy.common.breadcrumbLabel}><button type="button" onClick={onOverview}>{project.projectName}</button><span aria-hidden="true">/</span><span aria-current="page">Delivery</span></nav><button type="button" className="secondary" onClick={onRefresh} disabled={loading}>{loading ? productCopy.common.refreshing : productCopy.common.refresh}</button></div>
     <ProjectWorkflowTabs active="delivery" onSelect={onSelectView} />
     <section className="directory-toolbar" aria-labelledby="delivery-heading"><div><p className="kicker">Delivery status</p><h2 id="delivery-heading">Delivery</h2></div><button type="button" onClick={onCreate} disabled={!creationAvailable || loading}>{loading ? "Checking…" : delivery ? "Rebuild delivery" : "Create delivery"}</button></section>
     <p className="action-help">{creationHelp}</p>
