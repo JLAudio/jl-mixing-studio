@@ -170,6 +170,7 @@ export function useProjectWorkflow({
 
   return {
     state,
+    setState,
     form,
     setForm,
     open,

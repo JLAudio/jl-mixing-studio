@@ -8,20 +8,14 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import type {
   ApprovalOperationResult,
-  ClientCreationRequest,
-  ClientOperationResult,
   DeliveryCreationRequest,
   DeliveryOperationResult,
   IntakeOperationResult,
   IntakeRequest,
-  ProjectCreationRequest,
-  ProjectOperationResult,
   RevisionApprovalRequest,
   RevisionCreationRequest,
   RevisionOperationResult,
   RevisionSummary,
-  StudioCreationRequest,
-  StudioOperationResult,
   VersionCheck,
   WorkspaceSnapshot,
 } from "./types";
@@ -60,29 +54,22 @@ import {
   ProjectDialog,
 } from "./AppWorkflows";
 import {
-  type ClientWorkflowState,
-  type ClientFormValues,
-  type ProjectWorkflowState,
-  type ProjectFormValues,
   type IntakeWorkflowState,
   type RevisionWorkflowState,
   type RevisionFormValues,
   type ApprovalWorkflowState,
   type ApprovalFormValues,
   type DeliveryWorkflowState,
-  type StudioWorkflowState,
-  type StudioFormValues,
   type AppPreferences,
   loadPreferences,
-  emptyClientForm,
-  emptyProjectForm,
-  emptyStudioForm,
   emptyRevisionForm,
   emptyApprovalForm,
-  clientIdPattern,
   sameDeliveryPlan,
 } from "./AppWorkflowModels";
 import { getWorkflowAvailability } from "./AppWorkflowAvailability";
+import { useStudioWorkflow } from "./studio";
+import { useClientWorkflow } from "./client";
+import { useProjectWorkflow } from "./project";
 import "./App.css";
 
 /**
@@ -105,13 +92,6 @@ export default function App() {
   const [routeNotice, setRouteNotice] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<ResourceState<WorkspaceSnapshot>>({ status: "loading" });
   const [version, setVersion] = useState<ResourceState<VersionCheck>>({ status: "loading" });
-  const [studioWorkflow, setStudioWorkflow] = useState<StudioWorkflowState>({ status: "closed" });
-  const [studioForm, setStudioForm] = useState<StudioFormValues>(emptyStudioForm);
-  const [studioNotice, setStudioNotice] = useState<string | null>(null);
-  const [clientWorkflow, setClientWorkflow] = useState<ClientWorkflowState>({ status: "closed" });
-  const [clientForm, setClientForm] = useState<ClientFormValues>(emptyClientForm);
-  const [projectWorkflow, setProjectWorkflow] = useState<ProjectWorkflowState>({ status: "closed" });
-  const [projectForm, setProjectForm] = useState<ProjectFormValues>(emptyProjectForm);
   const [projectView, setProjectView] = useState<ProjectView>("overview");
   const [intakeReport, setIntakeReport] = useState<IntakeReportState>({ status: "idle" });
   const [intakeWorkflow, setIntakeWorkflow] = useState<IntakeWorkflowState>({ status: "closed" });
@@ -203,269 +183,66 @@ export default function App() {
     studioCreationHelp,
   } = getWorkflowAvailability(workspace, version);
 
-  const openStudioWorkflow = () => {
-    if (!studioCreationAvailable) return;
-    setStudioNotice(null);
-    setStudioForm(emptyStudioForm);
-    setStudioWorkflow({ status: "editing" });
-  };
-  const closeStudioWorkflow = () => {
-    if (studioWorkflow.status === "preflighting" || studioWorkflow.status === "creating") return;
-    setStudioWorkflow({ status: "closed" });
-  };
-  const preflightStudio = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (studioWorkflow.status !== "editing") return;
-    const request: StudioCreationRequest = { studioName: studioForm.studioName.trim(), mixEngineer: studioForm.mixEngineer.trim() || null, sampleRate: Number(studioForm.sampleRate), bitDepth: Number(studioForm.bitDepth), fileFormat: studioForm.fileFormat };
-    if (!request.studioName) { setStudioWorkflow({ status: "editing", error: "Studio name is required." }); return; }
-    setStudioWorkflow({ status: "preflighting" });
-    await yieldToBrowserPaint();
-    invoke<StudioOperationResult>("preflight_studio_creation", { request }).then((result) => {
-      if (result.ok && result.code === "ready" && result.studio) setStudioWorkflow({ status: "confirming", request, preview: result.studio });
-      else setStudioWorkflow({ status: "editing", error: result.message });
-    }).catch((error: unknown) => setStudioWorkflow({ status: "editing", error: safeError(error, "The studio setup could not be reviewed.") }));
-  };
-  const confirmStudioCreation = async () => {
-    if (studioWorkflow.status !== "confirming") return;
-    const { request, preview } = studioWorkflow;
-    setStudioWorkflow({ status: "creating", request, preview });
-    await yieldToBrowserPaint();
-    invoke<StudioOperationResult>("create_studio", { request }).then(async (result) => {
-      if (!result.ok || result.code !== "created") {
-        if (result.code === "uncertain") setStudioWorkflow({ status: "uncertain", message: result.message });
-        else setStudioWorkflow({ status: "editing", error: result.message });
-        return;
-      }
-      try {
-        const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
-        setWorkspace({ status: "ready", value: refreshed });
-        if (!refreshed.studio || refreshed.studio.studioName !== preview.studioName) { setStudioWorkflow({ status: "uncertain", message: "Creation succeeded, but the refreshed studio did not match the confirmed preview. Do not retry automatically." }); return; }
-        setStudioNotice(`${refreshed.studio.studioName} was created and verified.`);
-        setStudioWorkflow({ status: "closed" });
-      } catch (error: unknown) { setStudioWorkflow({ status: "uncertain", message: safeError(error, "Creation succeeded, but the workspace could not be refreshed. Do not retry automatically.") }); }
-    }).catch((error: unknown) => setStudioWorkflow({ status: "uncertain", message: safeError(error, "The studio-creation result could not be confirmed. Do not retry automatically.") }));
-  };
+  const {
+    studioWorkflow,
+    setStudioWorkflow,
+    studioForm,
+    setStudioForm,
+    studioNotice,
+    openStudioWorkflow,
+    closeStudioWorkflow,
+    preflightStudio,
+    confirmStudioCreation,
+  } = useStudioWorkflow({
+    studioCreationAvailable,
+    onWorkspaceRefreshed: (refreshed) => setWorkspace({ status: "ready", value: refreshed }),
+  });
 
+  const clientController = useClientWorkflow({
+    creationAvailable: clientCreationAvailable,
+    setWorkspace,
+    setNotice: setCreationNotice,
+  });
 
+  const projectController = useProjectWorkflow({
+    creationAvailable: projectCreationAvailable,
+    workspace,
+    setWorkspace,
+    setNotice: setProjectCreationNotice,
+    onOpen: () => clientController.setState({ status: "closed" }),
+    onCreated: (clientId, projectId, fromClient) => {
+      setSelectedClientId(null);
+      setSelectedProject({ clientId, projectId, fromClient });
+      setActiveRoute("projects");
+      setRouteNotice(null);
+    },
+  });
+
+  const {
+    state: clientWorkflow,
+    setState: setClientWorkflow,
+    form: clientForm,
+    setForm: setClientForm,
+    close: closeClientWorkflow,
+    preflight: preflightClient,
+    confirm: confirmClientCreation,
+  } = clientController;
+
+  const {
+    state: projectWorkflow,
+    setState: setProjectWorkflow,
+    form: projectForm,
+    setForm: setProjectForm,
+    open: openProjectWorkflow,
+    close: closeProjectWorkflow,
+    preflight: preflightProject,
+    confirm: confirmProjectCreation,
+  } = projectController;
 
   const openClientWorkflow = () => {
     if (!clientCreationAvailable) return;
-    setCreationNotice(null);
-    setProjectWorkflow({ status: "closed" });
-    setClientForm(emptyClientForm);
-    setClientWorkflow({ status: "editing" });
-  };
-
-  const closeClientWorkflow = () => {
-    if (clientWorkflow.status === "preflighting" || clientWorkflow.status === "creating") return;
-    setClientWorkflow({ status: "closed" });
-  };
-
-  const openProjectWorkflow = (clientId: string | null, fromClient: boolean) => {
-    if (!projectCreationAvailable) return;
-    if (clientId && workspace.status === "ready" && !workspace.value.clients.some((client) => client.clientId === clientId)) return;
-    setProjectCreationNotice(null);
-    setClientWorkflow({ status: "closed" });
-    setProjectForm({ ...emptyProjectForm, clientId: clientId ?? "" });
-    setProjectWorkflow({ status: "editing", lockedClientId: clientId, fromClient });
-  };
-
-  const closeProjectWorkflow = () => {
-    if (projectWorkflow.status === "preflighting" || projectWorkflow.status === "creating") return;
-    setProjectWorkflow({ status: "closed" });
-  };
-
-  const preflightClient = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (clientWorkflow.status !== "editing") return;
-
-    const request: ClientCreationRequest = {
-      clientId: clientForm.clientId.trim(),
-      clientName: clientForm.clientName.trim(),
-      defaultArtist: clientForm.defaultArtist.trim() || null,
-    };
-    if (!clientIdPattern.test(request.clientId)) {
-      setClientWorkflow({
-        status: "editing",
-        error: "Client ID must use lowercase letters and numbers separated by single hyphens.",
-      });
-      return;
-    }
-    if (!request.clientName) {
-      setClientWorkflow({ status: "editing", error: "Display name is required." });
-      return;
-    }
-
-    setClientWorkflow({ status: "preflighting" });
-    await yieldToBrowserPaint();
-    invoke<ClientOperationResult>("preflight_client_creation", { request })
-      .then((result) => {
-        if (result.ok && result.code === "ready" && result.client) {
-          setClientWorkflow({ status: "confirming", request, preview: result.client });
-        } else {
-          setClientWorkflow({ status: "editing", error: result.message });
-        }
-      })
-      .catch((error: unknown) => {
-        setClientWorkflow({
-          status: "editing",
-          error: safeError(error, "The client details could not be reviewed."),
-        });
-      });
-  };
-
-  const confirmClientCreation = async () => {
-    if (clientWorkflow.status !== "confirming") return;
-    const { request, preview } = clientWorkflow;
-    setClientWorkflow({ status: "creating", request, preview });
-    await yieldToBrowserPaint();
-
-    invoke<ClientOperationResult>("create_client", { request })
-      .then(async (result) => {
-        if (!result.ok || result.code !== "created") {
-          setClientWorkflow({ status: "editing", error: result.message });
-          return;
-        }
-
-        try {
-          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
-          setWorkspace({ status: "ready", value: refreshed });
-          const discovered = refreshed.clients.some(
-            (client) => client.clientId === request.clientId,
-          );
-          if (!discovered) {
-            setClientWorkflow({
-              status: "uncertain",
-              message: "The client creation completed, but the new client was not found after refresh. The result is uncertain.",
-            });
-            return;
-          }
-          setCreationNotice(`${request.clientName} was added to your studio.`);
-          setClientWorkflow({ status: "closed" });
-        } catch (error: unknown) {
-          setClientWorkflow({
-            status: "uncertain",
-            message: safeError(
-              error,
-              "The client was created, but the studio could not be refreshed. The result is uncertain.",
-            ),
-          });
-        }
-      })
-      .catch((error: unknown) => {
-        setClientWorkflow({
-          status: "editing",
-          error: safeError(error, "Client creation could not be completed."),
-        });
-      });
-  };
-
-  const preflightProject = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (projectWorkflow.status !== "editing") return;
-    const { lockedClientId, fromClient } = projectWorkflow;
-    const request: ProjectCreationRequest = {
-      clientId: projectForm.clientId.trim(),
-      projectName: projectForm.projectName.trim(),
-      artist: projectForm.artist.trim() || null,
-    };
-    const clientExists = workspace.status === "ready" && workspace.value.clients.some(
-      (client) => client.clientId === request.clientId,
-    );
-    if (!clientExists) {
-      setProjectWorkflow({ status: "editing", lockedClientId, fromClient, error: "Select a valid client." });
-      return;
-    }
-    if (!request.projectName) {
-      setProjectWorkflow({ status: "editing", lockedClientId, fromClient, error: "Project name is required." });
-      return;
-    }
-
-    setProjectWorkflow({ status: "preflighting", lockedClientId, fromClient });
-    await yieldToBrowserPaint();
-    invoke<ProjectOperationResult>("preflight_project_creation", { request })
-      .then((result) => {
-        if (result.ok && result.code === "ready" && result.project) {
-          setProjectWorkflow({ status: "confirming", request, preview: result.project, fromClient });
-        } else {
-          setProjectWorkflow({ status: "editing", lockedClientId, fromClient, error: result.message });
-        }
-      })
-      .catch((error: unknown) => {
-        setProjectWorkflow({
-          status: "editing",
-          lockedClientId,
-          fromClient,
-          error: safeError(error, "The project details could not be reviewed."),
-        });
-      });
-  };
-
-  const confirmProjectCreation = async () => {
-    if (projectWorkflow.status !== "confirming") return;
-    const { request, preview, fromClient } = projectWorkflow;
-    setProjectWorkflow({ status: "creating", request, preview, fromClient });
-    await yieldToBrowserPaint();
-
-    invoke<ProjectOperationResult>("create_project", { request })
-      .then(async (result) => {
-        if (!result.ok || result.code !== "created" || !result.project) {
-          if (result.code === "uncertain") {
-            setProjectWorkflow({ status: "uncertain", message: result.message });
-          } else {
-            setProjectWorkflow({
-              status: "editing",
-              lockedClientId: fromClient ? request.clientId : null,
-              fromClient,
-              error: result.message,
-            });
-          }
-          return;
-        }
-        if (
-          result.project.clientId !== preview.clientId ||
-          result.project.projectId !== preview.projectId
-        ) {
-          setProjectWorkflow({
-            status: "uncertain",
-            message: "The project was created, but its details did not match what you reviewed. The result is uncertain.",
-          });
-          return;
-        }
-
-        try {
-          const refreshed = await invoke<WorkspaceSnapshot>("discover_default_workspace");
-          setWorkspace({ status: "ready", value: refreshed });
-          const client = refreshed.clients.find((item) => item.clientId === result.project?.clientId);
-          const project = client?.projects.find((item) => item.projectId === result.project?.projectId);
-          if (!client || !project) {
-            setProjectWorkflow({
-              status: "uncertain",
-              message: "The project was created, but it was not found after refresh. The result is uncertain.",
-            });
-            return;
-          }
-          setProjectCreationNotice(`${project.projectName} was created with Revision 1.`);
-          setSelectedClientId(null);
-          setSelectedProject({ clientId: client.clientId, projectId: project.projectId, fromClient });
-          setActiveRoute("projects");
-          setRouteNotice(null);
-          setProjectWorkflow({ status: "closed" });
-        } catch (error: unknown) {
-          const detail = safeError(error, "");
-          setProjectWorkflow({
-            status: "uncertain",
-            message: `The client was created, but the studio could not be refreshed. The result is uncertain.${detail ? ` ${detail}` : ""}`,
-          });
-        }
-      })
-      .catch((error: unknown) => {
-        const detail = safeError(error, "");
-        setProjectWorkflow({
-          status: "uncertain",
-          message: `The project creation result could not be confirmed. The operation may have completed.${detail ? ` ${detail}` : ""}`,
-        });
-      });
+    projectController.setState({ status: "closed" });
+    clientController.open();
   };
 
   const loadIntakeReport = (request: IntakeRequest) => {

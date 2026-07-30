@@ -135,6 +135,7 @@ export function useClientWorkflow({
 
   return {
     state,
+    setState,
     form,
     setForm,
     open,
