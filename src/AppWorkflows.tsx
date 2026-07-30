@@ -119,40 +119,40 @@ export function RevisionDialog({
   return (
     <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
       <section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="revision-dialog-title">
-        <p className="kicker">Guided revision</p>
+        <p className="kicker">{productCopy.revision.guided}</p>
         <h2 id="revision-dialog-title">
           {state.status === "confirming" || state.status === "creating"
-            ? "Confirm new revision"
+            ? productCopy.revision.confirmTitle
             : state.status === "uncertain"
-              ? "Creation needs verification"
-              : "New revision"}
+              ? productCopy.revision.verificationTitle
+              : productCopy.revision.newTitle}
         </h2>
         {(state.status === "editing" || state.status === "preflighting") && (
           <form onSubmit={onPreflight} noValidate>
-            <p className="dialog-intro">Create the next revision for <strong>{project.projectName}</strong>. JL Mixing Studio will create the next revision number, folder, ID, timestamp, and notes file.</p>
+            <p className="dialog-intro">{productCopy.revision.introPrefix} <strong>{project.projectName}</strong>. {productCopy.revision.introSuffix}</p>
             {state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}
             <label>
-              Revision description <span>(optional)</span>
+              {productCopy.revision.description} <span>{productCopy.revision.optional}</span>
               <input ref={descriptionInput} name="revisionDescription" value={values.description} onChange={(event) => onChange({ description: event.target.value })} placeholder={`Revision ${project.currentRevision + 1}`} autoComplete="off" disabled={pending} />
-              <small>Leave blank to use the default description. Source files are still added manually.</small>
+              <small>{productCopy.revision.descriptionHelp}</small>
             </label>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? productCopy.common.checking : productCopy.revision.review}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "creating") && (
           <div>
-            <p className="dialog-intro">Nothing has changed yet. Confirm to create one new revision. The currently approved and delivered revisions will stay unchanged.</p>
+            <p className="dialog-intro">{productCopy.revision.confirmationIntro}</p>
             <dl className="confirmation-list">
-              <div><dt>Project</dt><dd>{project.projectName}</dd></div>
+              <div><dt>{productCopy.common.project}</dt><dd>{project.projectName}</dd></div>
               <div><dt>{productCopy.common.currentRevision}</dt><dd>Revision {project.currentRevision}</dd></div>
-              <div><dt>New revision</dt><dd>Revision {state.preview.number}</dd></div>
-              <div><dt>Description</dt><dd>{state.preview.description}</dd></div>
+              <div><dt>{productCopy.revision.newRevision}</dt><dd>Revision {state.preview.number}</dd></div>
+              <div><dt>{productCopy.revision.descriptionLabel}</dt><dd>{state.preview.description}</dd></div>
             </dl>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Creating…" : "Create revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>{productCopy.common.back}</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? productCopy.revision.creating : productCopy.revision.create}</button></div>
           </div>
         )}
         {state.status === "uncertain" && (
-          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not create another revision automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></div>
+          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">{productCopy.revision.uncertainHelp}</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></div>
         )}
       </section>
     </div>
@@ -192,46 +192,46 @@ export function ApprovalDialog({
   return (
     <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
       <section className="client-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-dialog-title">
-        <p className="kicker">Guided approval</p>
+        <p className="kicker">{productCopy.approval.guided}</p>
         <h2 id="approval-dialog-title">
           {state.status === "confirming" || state.status === "approving"
-            ? "Confirm revision approval"
+            ? productCopy.approval.confirmTitle
             : state.status === "uncertain"
-              ? "Approval needs verification"
-              : `Approve Revision ${state.revision.number}`}
+              ? productCopy.approval.verificationTitle
+              : `${productCopy.approval.approvePrefix} ${state.revision.number}`}
         </h2>
         {(state.status === "editing" || state.status === "preflighting") && (
           <form onSubmit={onPreflight} noValidate>
-            <p className="dialog-intro">Record approval for <strong>Revision {state.revision.number}</strong> of <strong>{project.projectName}</strong>. The current time will be recorded when you confirm the approval.</p>
+            <p className="dialog-intro">{productCopy.approval.introPrefix} <strong>Revision {state.revision.number}</strong> {productCopy.approval.introConnector} <strong>{project.projectName}</strong>. {productCopy.approval.introSuffix}</p>
             {state.status === "editing" && state.error && <div className="form-error" role="alert">{state.error}</div>}
             <label>
-              Approved by
+              {productCopy.approval.approvedBy}
               <input ref={approverInput} name="approvedBy" value={values.approvedBy} onChange={(event) => onChange({ approvedBy: event.target.value })} autoComplete="name" disabled={pending} />
-              <small>This name is saved with the project approval.</small>
+              <small>{productCopy.approval.approvedByHelp}</small>
             </label>
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? "Checking…" : "Review approval"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="submit" disabled={pending} aria-busy={pending}>{pending ? productCopy.common.checking : productCopy.approval.review}</button></div>
           </form>
         )}
         {(state.status === "confirming" || state.status === "approving") && (
           <div>
-            <p className="dialog-intro">Nothing has changed yet. Confirm to make the selected revision the approved revision and save the new approval details.</p>
+            <p className="dialog-intro">{productCopy.approval.confirmationIntro}</p>
             <dl className="confirmation-list">
-              <div><dt>Project</dt><dd>{project.projectName}</dd></div>
-              <div><dt>Selected revision</dt><dd>Revision {state.preview.revision}</dd></div>
-              <div><dt>Current approved revision</dt><dd>{project.approvedRevision === null ? "None" : `Revision ${project.approvedRevision}`}</dd></div>
-              <div><dt>Approved by</dt><dd>{state.preview.approvedBy}</dd></div>
-              <div><dt>Approval time</dt><dd>Current time at execution</dd></div>
+              <div><dt>{productCopy.common.project}</dt><dd>{project.projectName}</dd></div>
+              <div><dt>{productCopy.approval.selectedRevision}</dt><dd>Revision {state.preview.revision}</dd></div>
+              <div><dt>{productCopy.approval.currentApprovedRevision}</dt><dd>{project.approvedRevision === null ? productCopy.approval.none : `Revision ${project.approvedRevision}`}</dd></div>
+              <div><dt>{productCopy.approval.approvedBy}</dt><dd>{state.preview.approvedBy}</dd></div>
+              <div><dt>{productCopy.approval.approvalTime}</dt><dd>{productCopy.approval.currentTimeAtExecution}</dd></div>
             </dl>
-            {(replacingHistoricalApproval || olderThanCurrent || deliveryWillDiffer) && <div className="notice warning" role="status"><strong>Check what will change</strong><span>{[
-              replacingHistoricalApproval ? `Revision ${state.revision.number} has an existing approval record that will be replaced.` : null,
-              olderThanCurrent ? `Revision ${state.revision.number} is older than current Revision ${project.currentRevision}.` : null,
-              deliveryWillDiffer ? `The existing delivery remains on Revision ${project.deliveredRevision}.` : null,
+            {(replacingHistoricalApproval || olderThanCurrent || deliveryWillDiffer) && <div className="notice warning" role="status"><strong>{productCopy.approval.checkChanges}</strong><span>{[
+              replacingHistoricalApproval ? `${productCopy.projects.revisionPrefix} ${state.revision.number} ${productCopy.approval.existingApprovalSuffix}` : null,
+              olderThanCurrent ? `${productCopy.projects.revisionPrefix} ${state.revision.number} ${productCopy.approval.olderThanCurrentConnector} ${productCopy.projects.revisionPrefix} ${project.currentRevision}.` : null,
+              deliveryWillDiffer ? `${productCopy.approval.deliveryRemainsPrefix} ${productCopy.projects.revisionPrefix} ${project.deliveredRevision}.` : null,
             ].filter(Boolean).join(" ")}</span></div>}
-            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>Back</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Approving…" : "Approve revision"}</button></div>
+            <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button type="button" className="secondary" onClick={onBack} disabled={pending}>{productCopy.common.back}</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? productCopy.approval.approving : productCopy.approval.approve}</button></div>
           </div>
         )}
         {state.status === "uncertain" && (
-          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not approve the revision again automatically. Close this message, refresh Revisions, and verify the result before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></div>
+          <div><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">{productCopy.approval.uncertainHelp}</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></div>
         )}
       </section>
     </div>
