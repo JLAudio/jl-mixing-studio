@@ -120,6 +120,16 @@ export const copy = {
     newRevision: "New revision",
     viewRevisions: "View revisions",
   },
+  intake: {
+    guided: "Guided validation",
+    verificationTitle: "Validation needs verification",
+    confirmTitle: "Confirm intake report update",
+    uncertainHelp: "Do not run intake validation again automatically. Close this message, refresh Intake, and verify the report before trying again.",
+    previewIntroPrefix: "The preview below did not change the project. Confirm to update only the generated section of",
+    previewIntroSuffix: "Your intake source files will not be changed.",
+    updating: "Updating report…",
+    update: "Update intake report",
+  },
   revision: {
     guided: "Guided revision",
     confirmTitle: "Confirm new revision",

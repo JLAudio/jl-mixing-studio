@@ -255,12 +255,12 @@ export function IntakeDialog({
   return (
     <div className="dialog-backdrop" onKeyDown={(event) => { if (event.key === "Escape" && !pending) onClose(); }}>
       <section className="client-dialog intake-dialog" role="dialog" aria-modal="true" aria-labelledby="intake-dialog-title">
-        <p className="kicker">Guided validation</p>
-        <h2 id="intake-dialog-title">{state.status === "uncertain" ? "Validation needs verification" : "Confirm intake report update"}</h2>
-        {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">Do not run intake validation again automatically. Close this message, refresh Intake, and verify the report before trying again.</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></> : <>
-          <p className="dialog-intro">The preview below did not change the project. Confirm to update only the generated section of <code>00_Admin/Intake_Report.md</code>. Your intake source files will not be changed.</p>
+        <p className="kicker">{productCopy.intake.guided}</p>
+        <h2 id="intake-dialog-title">{state.status === "uncertain" ? productCopy.intake.verificationTitle : productCopy.intake.confirmTitle}</h2>
+        {state.status === "uncertain" ? <><div className="form-error" role="alert">{state.message}</div><p className="dialog-intro">{productCopy.intake.uncertainHelp}</p><div className="dialog-actions"><button type="button" onClick={onClose}>{productCopy.common.close}</button></div></> : <>
+          <p className="dialog-intro">{productCopy.intake.previewIntroPrefix} <code>00_Admin/Intake_Report.md</code>. {productCopy.intake.previewIntroSuffix}</p>
           <IntakeReportContent report={state.preview} compact />
-          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? "Updating report…" : "Update intake report"}</button></div>
+          <div className="dialog-actions"><button type="button" className="secondary" onClick={onClose} disabled={pending}>{productCopy.common.cancel}</button><button ref={confirmButton} type="button" onClick={onConfirm} disabled={pending} aria-busy={pending}>{pending ? productCopy.intake.updating : productCopy.intake.update}</button></div>
         </>}
       </section>
     </div>
