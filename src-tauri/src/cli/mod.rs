@@ -12,19 +12,25 @@ use std::io;
 
 #[cfg(test)]
 mod automation_api_compat_tests;
+#[path = "client_cli.rs"]
 mod client;
+#[path = "delivery_cli.rs"]
 mod delivery;
 #[cfg(test)]
 mod delivery_api_tests;
 #[cfg(test)]
 mod delivery_legacy_testsupport;
+#[path = "intake_cli.rs"]
 mod intake;
+#[path = "project_cli.rs"]
 mod project;
+#[path = "revision_cli.rs"]
 mod revision;
 #[cfg(test)]
 mod revision_api_tests;
 #[cfg(test)]
 mod revision_legacy_testsupport;
+#[path = "studio_cli.rs"]
 mod studio;
 
 pub use client::{blocked_client_operation, create_client, preflight_client_creation};

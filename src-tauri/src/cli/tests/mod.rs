@@ -366,12 +366,19 @@ fn discovery_output() -> ProcessResult {
     }
 }
 
+#[path = "approval_test.rs"]
 mod approval;
+#[path = "client_test.rs"]
 mod client;
+#[path = "delivery_test.rs"]
 mod delivery;
+#[path = "intake_test.rs"]
 mod intake;
+#[path = "project_test.rs"]
 mod project;
+#[path = "revision_test.rs"]
 mod revision;
+#[path = "studio_test.rs"]
 mod studio;
 
 #[test]
